@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 bridge-core = { path = "../bridge-core" }
+csv = "1.3.1"
+serde = { version = "1.0.228", features = ["serde_derive"] }
