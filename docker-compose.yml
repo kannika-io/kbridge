@@ -36,3 +36,18 @@ services:
       retries: 60
     ports:
       - 9092:9092
+  redpanda-console:
+    container_name: redpanda-console
+    image: redpandadata/console:latest
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["broker:29092"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      broker:
+        condition: service_healthy
