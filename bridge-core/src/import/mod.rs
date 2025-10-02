@@ -1,18 +1,11 @@
-#[derive(Debug, PartialEq, Eq)]
-pub struct OffsetRecord {
-    pub topic: String,
-    pub partition: usize,
-    pub offset: usize,
-    pub consumer_group: String,
-}
+use crate::OffsetSnapshot;
 
-pub type OffsetSnapshot = Vec<OffsetRecord>;
-
+// Implement this to import snapshot from e.g. yml, csv, rest API, ...
 pub trait OffsetSnapshotImporter {
     fn import(&self) -> Result<OffsetSnapshot, ImportError>;
 }
 
-// To implement
+// This can be in the core since it is 
 pub trait OffsetSnapshotValidator {
     fn validate(&self) -> Result<(), ValidateError>;
 }

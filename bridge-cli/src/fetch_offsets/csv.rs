@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use bridge_core::offsets::{ImportError, OffsetRecord, OffsetSnapshot, OffsetSnapshotImporter};
+use bridge_core::{import::{ImportError, OffsetSnapshotImporter}, OffsetRecord, OffsetSnapshot};
 use serde::Deserialize;
 
 pub struct CsvOffsetSnapshotImporter {

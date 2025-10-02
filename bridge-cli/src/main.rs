@@ -1,4 +1,4 @@
-use bridge_core::offsets::OffsetSnapshotImporter;
+use bridge_core::import::OffsetSnapshotImporter;
 
 use crate::fetch_offsets::csv::CsvOffsetSnapshotImporter;
 
