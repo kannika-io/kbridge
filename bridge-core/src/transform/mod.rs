@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use log::info;
 use rdkafka::{
     ClientConfig, Message,
     config::RDKafkaLogLevel,
@@ -10,8 +11,11 @@ use rdkafka::{
 fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
     let mut config = ClientConfig::new();
 
+    info!("Initializing");
     config
         .set("bootstrap.servers", brokers)
+        .set("group.id", "test")
+        .set("auto.offset.reset", "earliest")
         .set("enable.partition.eof", "false")
         .set("enable.auto.commit", "false")
         .set_log_level(RDKafkaLogLevel::Debug);
@@ -28,6 +32,7 @@ fn manage_topic_subscriptions(
     consumer: &StreamConsumer,
     topics: &[&str],
 ) -> Result<(), TransformationError> {
+    info!("subscribing");
     match consumer.subscribe(topics) {
         Ok(_) => Ok(()),
         Err(kafka_error) => Err(TransformationError::SubscribingFailed(
@@ -75,10 +80,12 @@ pub async fn transform(
 
     let mut transformations = HashMap::new();
 
+    info!("Initialization completed");
     while !source_offsets.is_empty() {
         match consumer.recv().await {
             Err(e) => return Err(TransformationError::SubscribingFailed(e.to_string())),
             Ok(m) => {
+                info!("Message Received");
                 let result = match m.headers() {
                     Some(headers) => get_offset_from_header(headers, offset_header_key),
                     None => Err(TransformationError::ErrorParsingHeader(String::from(
@@ -96,6 +103,7 @@ pub async fn transform(
     Ok(transformations)
 }
 
+#[derive(Debug)]
 pub enum TransformationError {
     ConsumerInitializationFailed(String),
     SubscribingFailed(String),
