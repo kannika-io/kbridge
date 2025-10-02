@@ -16,7 +16,7 @@ impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
                 "partition",
                 "offset",
             ]));
-            return import_records(reader.deserialize::<Record>(), self.consumer_group);
+            import_records(reader.deserialize::<Record>(), self.consumer_group)
         } else {
             Err(ImportError::ResourceNotFound(format!(
                 "{} could not be opened.",
