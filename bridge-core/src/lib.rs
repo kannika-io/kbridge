@@ -10,4 +10,3 @@ pub struct OffsetRecord {
 }
 
 pub type OffsetSnapshot = Vec<OffsetRecord>;
-

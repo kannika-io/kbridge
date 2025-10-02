@@ -5,7 +5,7 @@ pub trait OffsetSnapshotImporter {
     fn import(&self) -> Result<OffsetSnapshot, ImportError>;
 }
 
-// This can be in the core since it is 
+// This can be in the core since it is
 pub trait OffsetSnapshotValidator {
     fn validate(&self) -> Result<(), ValidateError>;
 }
@@ -18,5 +18,5 @@ pub enum ImportError {
 
 #[derive(Debug)]
 pub enum ValidateError {
-    DuplicateConsumerGroup(String)
+    DuplicateConsumerGroup(String),
 }
