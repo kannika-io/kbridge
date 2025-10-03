@@ -1,73 +1,17 @@
 use std::collections::HashMap;
 
 use log::info;
-use rdkafka::{
-    ClientConfig, Message,
-    config::RDKafkaLogLevel,
-    consumer::{Consumer, StreamConsumer},
-    message::Headers,
+use rdkafka::Message;
+
+use crate::transform::{
+    consumer_initialization::{initialize_consumer, manage_topic_subscriptions},
+    header::get_offset_from_header,
+    transformation_errors::{FetchOffsetError, KafkaMessage, TransformationError},
 };
 
-fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
-    let mut config = ClientConfig::new();
-
-    info!("Initializing");
-    config
-        .set("bootstrap.servers", brokers)
-        .set("group.id", "test")
-        .set("auto.offset.reset", "earliest")
-        .set("enable.partition.eof", "false")
-        .set("enable.auto.commit", "false")
-        .set_log_level(RDKafkaLogLevel::Debug);
-
-    match config.create() {
-        Ok(consumer) => Ok(consumer),
-        Err(kafka_error) => Err(TransformationError::ConsumerInitializationFailed(
-            kafka_error.to_string(),
-        )),
-    }
-}
-
-fn manage_topic_subscriptions(
-    consumer: &StreamConsumer,
-    topics: &[&str],
-) -> Result<(), TransformationError> {
-    info!("subscribing");
-    match consumer.subscribe(topics) {
-        Ok(_) => Ok(()),
-        Err(kafka_error) => Err(TransformationError::SubscribingFailed(
-            kafka_error.to_string(),
-        )),
-    }
-}
-
-fn get_offset_from_header(
-    headers: &rdkafka::message::BorrowedHeaders,
-    offset_header_key: &str,
-) -> Result<usize, TransformationError> {
-    let header = headers.iter().find(|h| h.key == offset_header_key);
-    if let Some(header_value) = header {
-        match header_value.value {
-            Some(value) => {
-                if let Ok(parsed_from_utf8) = str::from_utf8(value)
-                    && let Ok(result) = parsed_from_utf8.parse::<usize>()
-                {
-                    return Ok(result);
-                }
-                Err(TransformationError::ErrorParsingHeader(format!(
-                    "Could not parse {value:?} to usize"
-                )))
-            }
-            None => Err(TransformationError::ErrorParsingHeader(String::from(
-                "No header found for message",
-            ))),
-        }
-    } else {
-        Err(TransformationError::ErrorParsingHeader(String::from(
-            "No header found for message",
-        )))
-    }
-}
+mod consumer_initialization;
+mod header;
+mod transformation_errors;
 
 pub async fn transform(
     brokers: &str,
@@ -88,25 +32,24 @@ pub async fn transform(
                 info!("Message Received");
                 let result = match m.headers() {
                     Some(headers) => get_offset_from_header(headers, offset_header_key),
-                    None => Err(TransformationError::ErrorParsingHeader(String::from(
-                        "No headers in message",
-                    ))),
+                    None => Err(FetchOffsetError::NoHeadersInMessage),
                 };
 
                 match result {
                     Ok(value) => transformations.insert(value, value),
-                    Err(error) => return Err(error),
+                    Err(error) => {
+                        return Err(TransformationError::ErrorParsingHeader {
+                            message: KafkaMessage {
+                                partition: m.partition(),
+                                offset: m.offset(),
+                                topic: m.topic().to_string(),
+                            },
+                            error,
+                        });
+                    }
                 };
             }
         };
     }
     Ok(transformations)
-}
-
-#[derive(Debug)]
-pub enum TransformationError {
-    ConsumerInitializationFailed(String),
-    SubscribingFailed(String),
-    RetrievingOffsetHeaderValueFailed(String),
-    ErrorParsingHeader(String),
 }
