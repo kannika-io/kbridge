@@ -4,8 +4,8 @@ pub mod transform;
 #[derive(Debug, PartialEq, Eq)]
 pub struct OffsetRecord {
     pub topic: String,
-    pub partition: usize,
-    pub offset: usize,
+    pub partition: i64,
+    pub offset: i64,
     pub consumer_group: String,
 }
 

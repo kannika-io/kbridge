@@ -1,6 +1,6 @@
 use bridge_core::{
     import::{ImportError, OffsetSnapshotImporter},
-    transform::{self, transformation_errors::TransformationError},
+    transform::{self, get_target_offsets, transformation_errors::TransformationError},
 };
 use thiserror::Error;
 
@@ -17,7 +17,7 @@ async fn main() -> Result<(), GeneralError> {
     };
     let result = offset_snapshot_importer.import()?;
 
-    let transformed_result = transform::transform(
+    let transformed_result = get_target_offsets(
         "localhost:9092",
         &["orders"],
         "test",

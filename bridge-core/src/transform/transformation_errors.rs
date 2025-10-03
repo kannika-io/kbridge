@@ -11,6 +11,8 @@ pub enum TransformationError {
         message: String,
         topic_selector: String,
     },
+    #[error("Kafka Error. Reason: {0}")]
+    KafkaError(String),
     #[error("Failed to receive messages. Reason: {message}, TopicSelector: {topic_selector}")]
     FailedToReceiveMessages {
         message: String,
@@ -18,12 +20,20 @@ pub enum TransformationError {
     },
     #[error("Retrieving offset header failed. Reason: {0}")]
     RetrievingOffsetHeaderValueFailed(String),
-    #[error(
-        "Offset header from message could not be parsed. Message: {message}, Inner error: {error}"
-    )]
-    ErrorParsingHeader {
-        message: KafkaMessage,
-        error: FetchOffsetError,
+    #[error("Offset header from message could not be fetched. Reason: {0}")]
+    FetchOffsetError(FetchOffsetError),
+
+    #[error("Error during offset mapping transformation. Reason: {0}")]
+    OffsetMappingTransformationError(OffsetMappingTransformationError),
+}
+
+#[derive(Error, Debug)]
+pub enum OffsetMappingTransformationError {
+    #[error("Source offset {source_offset} already present in result. Target offset is {target_offset}. Previous target offset was {previous_target_offset}")]
+    SourceOffsetAlreadyPresent {
+        source_offset: i64,
+        target_offset: i64,
+        previous_target_offset: i64
     },
 }
 

@@ -57,8 +57,8 @@ fn import_records(
 #[derive(Deserialize)]
 struct Record {
     topic: String,
-    partition: usize,
-    offset: usize,
+    partition: i64,
+    offset: i64,
 }
 
 #[cfg(test)]
