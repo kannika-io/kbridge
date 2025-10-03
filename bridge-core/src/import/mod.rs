@@ -22,7 +22,6 @@ pub enum ImportError {
 
 type ValidationErrors = Vec<String>;
 
-
 #[derive(Debug)]
 // TODO
 pub enum ValidateError {

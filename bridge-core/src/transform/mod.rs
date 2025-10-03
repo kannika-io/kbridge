@@ -27,7 +27,7 @@ pub async fn transform(
     info!("Initialization completed");
     while !source_offsets.is_empty() {
         match consumer.recv().await {
-            Err(e) => return Err(TransformationError::SubscribingFailed(e.to_string())),
+            Err(e) => return Err(TransformationError::FailedToReceiveMessages { message: e.to_string(), topic_selector: topics.join(",") }),
             Ok(m) => {
                 info!("Message Received");
                 let result = match m.headers() {

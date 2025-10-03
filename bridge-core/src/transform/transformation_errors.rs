@@ -6,14 +6,24 @@ use thiserror::Error;
 pub enum TransformationError {
     #[error("Consumer initialization failed. Reason: {0}")]
     ConsumerInitializationFailed(String),
-    #[error("Consumer subscription failed. Reason: {0}")]
-    SubscribingFailed(String),
+    #[error("Consumer subscription failed. Reason: {message}, TopicSelector: {topic_selector}")]
+    SubscribingFailed {
+        message: String,
+        topic_selector: String,
+    },
+    #[error("Failed to receive messages. Reason: {message}, TopicSelector: {topic_selector}")]
+    FailedToReceiveMessages {
+        message: String,
+        topic_selector: String,
+    },
     #[error("Retrieving offset header failed. Reason: {0}")]
     RetrievingOffsetHeaderValueFailed(String),
-    #[error("Offset header from message could not be parsed. Message: {message}, Inner error: {error}")]
+    #[error(
+        "Offset header from message could not be parsed. Message: {message}, Inner error: {error}"
+    )]
     ErrorParsingHeader {
         message: KafkaMessage,
-        error: FetchOffsetError
+        error: FetchOffsetError,
     },
 }
 

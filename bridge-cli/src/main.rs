@@ -25,7 +25,9 @@ async fn main() -> Result<(), GeneralError> {
     )
     .await?;
 
-    todo!()
+    println!("{transformed_result:?}");
+
+    Ok(())
 }
 
 #[derive(Error, Debug)]
@@ -39,5 +41,11 @@ enum GeneralError {
 impl From<TransformationError> for GeneralError {
     fn from(value: TransformationError) -> Self {
         GeneralError::TransformationError(value)
+    }
+}
+
+impl From<ImportError> for GeneralError {
+    fn from(value: ImportError) -> Self {
+        GeneralError::ImportError(value)
     }
 }

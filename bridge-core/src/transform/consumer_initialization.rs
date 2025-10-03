@@ -1,5 +1,9 @@
 use log::info;
-use rdkafka::{config::RDKafkaLogLevel, consumer::{Consumer, StreamConsumer}, ClientConfig};
+use rdkafka::{
+    ClientConfig,
+    config::RDKafkaLogLevel,
+    consumer::{Consumer, StreamConsumer},
+};
 
 use crate::transform::transformation_errors::TransformationError;
 
@@ -30,9 +34,9 @@ pub fn manage_topic_subscriptions(
     info!("subscribing");
     match consumer.subscribe(topics) {
         Ok(_) => Ok(()),
-        Err(kafka_error) => Err(TransformationError::SubscribingFailed(
-            kafka_error.to_string(),
-        )),
+        Err(kafka_error) => Err(TransformationError::SubscribingFailed {
+            message: kafka_error.to_string(),
+            topic_selector: topics.join(","),
+        }),
     }
 }
-
