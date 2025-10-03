@@ -1,6 +1,6 @@
 use bridge_core::{
     import::{ImportError, OffsetSnapshotImporter},
-    transform::{self, get_target_offsets, transformation_errors::TransformationError},
+    transform::{get_target_offsets, transformation_errors::TransformationError},
 };
 use thiserror::Error;
 
@@ -21,7 +21,7 @@ async fn main() -> Result<(), GeneralError> {
         "localhost:9092",
         &["orders"],
         "test",
-        result.iter().map(|r| r.offset).collect(),
+        result.iter().map(|r| &r.offset).collect(),
     )
     .await?;
 
