@@ -11,7 +11,7 @@ use crate::transform::{
 
 mod consumer_initialization;
 mod header;
-mod transformation_errors;
+pub mod transformation_errors;
 
 pub async fn transform(
     brokers: &str,
