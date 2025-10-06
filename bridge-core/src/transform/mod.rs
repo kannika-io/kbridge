@@ -6,9 +6,9 @@ use rdkafka::{Message, consumer::Consumer};
 use crate::transform::{
     consumer_initialization::{initialize_consumer, manage_topic_subscriptions},
     header::get_offset_from_header,
-    offset_mapping::handle,
-    transformation_errors::{FetchOffsetError, KafkaMessage, TransformationError},
-    watermarks::get_watermarks_from_metadata,
+    offset_mapping::insert_offset_transformations,
+    transformation_errors::{FetchOffsetError, TransformationError},
+    watermarks::get_high_watermark,
 };
 
 mod consumer_initialization;
@@ -46,7 +46,10 @@ pub async fn get_target_offsets(
         .map_err(|e| TransformationError::MetadataFetchFailed(e.to_string()))?;
 
     let mut transformations = HashMap::new();
-    let topic_partition_watermarks = get_watermarks_from_metadata(&consumer, &metadata, topics)?;
+
+    // Fetch water marks for topics and partitions
+    // We need this to be able to exit the consumer loop later
+    let topic_partition_watermarks = get_high_watermark(&consumer, &metadata, topics)?;
 
     let mut topics_and_partitions_to_check: Vec<(String, i32)> = topic_partition_watermarks
         .iter()
@@ -62,6 +65,7 @@ pub async fn get_target_offsets(
     info!("Topics to check: {topics_and_partitions_to_check:?}");
     info!("Initialization completed");
 
+    // Consume all messages from the topics we are subscribed to
     while !source_offsets.is_empty() && !topics_and_partitions_to_check.is_empty() {
         let consume_result =
             consumer
@@ -72,20 +76,12 @@ pub async fn get_target_offsets(
                     topic_selector: topics.join(","),
                 })?;
 
-        let message = KafkaMessage {
-            partition: consume_result.partition(),
-            offset: consume_result.offset(),
-            topic: consume_result.topic().to_string(),
-        };
-        info!("Handling Kafka Message: {message}");
-
         let source_offset = match consume_result.headers() {
             Some(headers) => get_offset_from_header(headers, offset_header_key),
             None => Err(FetchOffsetError::NoHeadersInMessage),
         }?;
 
-        info!("Source offset: {source_offset}");
-        handle(
+        insert_offset_transformations(
             &mut transformations,
             &source_offsets,
             &source_offset,
@@ -93,24 +89,32 @@ pub async fn get_target_offsets(
             consume_result.topic(),
         )?;
 
-        let water_mark = topic_partition_watermarks
-            .get(consume_result.topic())
-            .and_then(|partitions| partitions.get(&consume_result.partition()))
-            .ok_or_else(|| {
-                TransformationError::InvalidInput(format!(
-                    "No watermark found for topic {} partition {}",
-                    consume_result.topic(),
-                    consume_result.partition()
-                ))
-            })?;
+        let water_mark = get_topic_partition_watermarks(
+            &topic_partition_watermarks,
+            consume_result.topic(),
+            consume_result.partition(),
+        )?;
 
-        info!("Water mark: {water_mark}");
         if water_mark == &(consume_result.offset() + 1) {
             topics_and_partitions_to_check
                 .retain(|t| !(t.0 == consume_result.topic() && t.1 == consume_result.partition()));
         }
-        info!("Remaining topics to check: {topics_and_partitions_to_check:?}");
     }
 
     Ok(transformations)
+}
+
+fn get_topic_partition_watermarks<'a>(
+    topic_partition_watermarks: &'a HashMap<String, HashMap<i32, i64>>,
+    topic: &'a str,
+    partition: i32,
+) -> Result<&'a i64, TransformationError> {
+    topic_partition_watermarks
+        .get(topic)
+        .and_then(|partitions| partitions.get(&partition))
+        .ok_or_else(|| {
+            TransformationError::InvalidInput(format!(
+                "No watermark found for topic {topic} partition {partition}"
+            ))
+        })
 }

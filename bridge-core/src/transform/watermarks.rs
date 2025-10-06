@@ -8,7 +8,7 @@ use rdkafka::{
 
 use crate::transform::transformation_errors::TransformationError;
 
-pub fn get_watermarks_from_metadata(
+pub fn get_high_watermark(
     consumer: &StreamConsumer,
     metadata: &Metadata,
     topics: &[&str],

@@ -1,11 +1,9 @@
 use std::collections::HashMap;
-
 use log::info;
-
 use crate::transform::transformation_errors::OffsetMappingTransformationError;
 
 
-pub fn handle(
+pub fn insert_offset_transformations(
     transformations: &mut HashMap<String, HashMap<i64, i64>>,
     source_offsets: &[&i64],
     source_offset_from_message: &i64,
