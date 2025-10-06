@@ -5,12 +5,10 @@ use crate::transform::transformation_errors::OffsetMappingTransformationError;
 
 pub fn insert_offset_transformations(
     transformations: &mut HashMap<String, HashMap<i64, i64>>,
-    source_offsets: &[&i64],
     source_offset_from_message: &i64,
     current_offset_from_message: &i64,
     topic: &str,
 ) -> Result<(), OffsetMappingTransformationError> {
-    if source_offsets.contains(&source_offset_from_message) {
         match transformations.get_mut(topic)
         {
             Some(transformations) => {
@@ -45,7 +43,6 @@ pub fn insert_offset_transformations(
                 );
             }
         }
-    }
     Ok(())
 }
 
