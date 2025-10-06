@@ -17,6 +17,73 @@ mod offset_mapping;
 pub mod transformation_errors;
 mod watermarks;
 
+/// Transforms source offsets to target offsets by consuming Kafka messages and matching header values.
+///
+/// This function consumes messages from specified Kafka topics, extracts source offset values from
+/// message headers, and creates a mapping from source offsets to their corresponding target offsets
+/// (the actual Kafka message offsets). This is useful for offset translation scenarios where you
+/// need to map logical offsets stored in headers to physical Kafka offsets.
+///
+/// # Arguments
+///
+/// * `brokers` - Comma-separated list of Kafka broker addresses (e.g., "localhost:9092")
+/// * `topics` - Array of topic names to consume from
+/// * `offset_header_key` - The header key containing the source offset value in each message
+/// * `source_offsets` - Vector of source offset values to find mappings for
+///
+/// # Returns
+///
+/// Returns a nested HashMap where:
+/// - Outer key: topic name (String)
+/// - Inner key: source offset (i64) 
+/// - Inner value: target offset (i64) - the actual Kafka message offset
+///
+/// # Errors
+///
+/// Returns `TransformationError` in the following cases:
+/// - `InvalidInput` - If source_offsets is empty, offset_header_key is empty, or brokers is empty
+/// - `ConsumerInitializationFailed` - If Kafka consumer setup fails
+/// - `SubscribingFailed` - If topic subscription fails
+/// - `MetadataFetchFailed` - If Kafka metadata cannot be retrieved
+/// - `NoValidPartitions` - If no valid partitions are found for the specified topics
+/// - `FailedToReceiveMessages` - If message consumption fails
+/// - `FetchOffsetError` - If offset extraction from headers fails
+/// - `OffsetMappingTransformationError` - If offset mapping conflicts occur
+///
+/// # Example
+///
+/// ```rust
+/// use std::collections::HashMap;
+/// use bridge_core::transform::get_target_offsets;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let brokers = "localhost:9092";
+/// let topics = &["orders", "payments"];
+/// let offset_header_key = "source-offset";
+/// let source_offsets = vec![&100i64, &200i64, &300i64];
+///
+/// let mappings = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await?;
+///
+/// // mappings might look like:
+/// // {
+/// //   "orders": { 100: 1523, 200: 1847 },
+/// //   "payments": { 300: 892 }
+/// // }
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Behavior
+///
+/// The function will:
+/// 1. Validate input parameters
+/// 2. Initialize a Kafka consumer and subscribe to the specified topics
+/// 3. Fetch topic metadata and watermarks to determine consumption boundaries
+/// 4. Consume messages until all source offsets are found or all partitions are exhausted
+/// 5. For each message, extract the source offset from the specified header
+/// 6. If the source offset matches one in the input list, record the mapping to the message's actual offset
+/// 7. Stop consuming from a partition when its high watermark is reached
+/// 8. Return the complete mapping of source offsets to target offsets
 pub async fn get_target_offsets(
     brokers: &str,
     topics: &[&str],
