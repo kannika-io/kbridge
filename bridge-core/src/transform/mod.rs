@@ -118,3 +118,55 @@ fn get_topic_partition_watermarks<'a>(
             ))
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_topic_partition_watermarks_success() {
+        let mut topic_partition_watermarks = HashMap::new();
+        let mut partitions = HashMap::new();
+        partitions.insert(0, 100i64);
+        partitions.insert(1, 200i64);
+        topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+
+        let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 0);
+        
+        assert!(result.is_ok());
+        assert_eq!(*result.unwrap(), 100i64);
+    }
+
+    #[test]
+    fn test_get_topic_partition_watermarks_topic_not_found() {
+        let topic_partition_watermarks = HashMap::new();
+
+        let result = get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert!(msg.contains("No watermark found for topic nonexistent-topic partition 0"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_get_topic_partition_watermarks_partition_not_found() {
+        let mut topic_partition_watermarks = HashMap::new();
+        let mut partitions = HashMap::new();
+        partitions.insert(0, 100i64);
+        topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+
+        let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 1);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert!(msg.contains("No watermark found for topic test-topic partition 1"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+}
