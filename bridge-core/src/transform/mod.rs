@@ -1,14 +1,14 @@
 use std::{collections::HashMap, time::Duration};
 
 use log::info;
-use rdkafka::{consumer::{Consumer, StreamConsumer}, metadata::Metadata, Message};
+use rdkafka::{
+    Message,
+    consumer::{Consumer, StreamConsumer},
+    metadata::Metadata,
+};
 
 use crate::transform::{
-    consumer_initialization::{initialize_consumer, manage_topic_subscriptions},
-    header::get_offset_from_header,
-    offset_mapping::insert_offset_transformations,
-    transformation_errors::{FetchOffsetError, TransformationError},
-    watermarks::get_high_watermark,
+    consumer_initialization::{initialize_consumer, manage_topic_subscriptions}, header::get_offset_from_header, offset_mapping::insert_transformations, transformation_errors::{FetchOffsetError, TransformationError}, watermarks::get_high_watermark
 };
 
 mod consumer_initialization;
@@ -22,7 +22,7 @@ pub async fn get_target_offsets(
     topics: &[&str],
     offset_header_key: &str,
     source_offsets: Vec<&i64>,
-) -> Result<HashMap<String, HashMap<i64, i64>>, TransformationError> {
+) -> Result<HashMap<String,HashMap<i64, i64>>, TransformationError> {
     validate_input_parameters(&source_offsets, offset_header_key)?;
     let (consumer, metadata) = setup_consumer_and_metadata(brokers, topics).await?;
 
@@ -63,11 +63,11 @@ pub async fn get_target_offsets(
         }?;
 
         if source_offsets.contains(&&source_offset) {
-            insert_offset_transformations(
+            insert_transformations(
                 &mut transformations,
                 &source_offset,
                 &consume_result.offset(),
-                consume_result.topic(),
+                &consume_result.topic()
             )?;
         }
 
