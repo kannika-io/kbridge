@@ -23,27 +23,8 @@ pub async fn get_target_offsets(
     offset_header_key: &str,
     source_offsets: Vec<&i64>,
 ) -> Result<HashMap<String, HashMap<i64, i64>>, TransformationError> {
-    // Validate input parameters
-    if source_offsets.is_empty() {
-        return Err(TransformationError::InvalidInput(
-            "Source offsets cannot be empty".to_string(),
-        ));
-    }
-
-    if offset_header_key.is_empty() {
-        return Err(TransformationError::InvalidInput(
-            "Offset header key cannot be empty".to_string(),
-        ));
-    }
-
-    // Initialize consumer + subscribe to topics
-    let consumer = initialize_consumer(brokers)?;
-    manage_topic_subscriptions(&consumer, topics)?;
-
-    // Fetch metadata for all topics with proper error handling
-    let metadata = consumer
-        .fetch_metadata(None, Duration::from_secs(5))
-        .map_err(|e| TransformationError::MetadataFetchFailed(e.to_string()))?;
+    validate_input_parameters(&source_offsets, offset_header_key)?;
+    let (consumer, metadata) = setup_consumer_and_metadata(brokers, topics).await?;
 
     let mut transformations = HashMap::new();
 
@@ -103,6 +84,39 @@ pub async fn get_target_offsets(
     }
 
     Ok(transformations)
+}
+
+fn validate_input_parameters(
+    source_offsets: &[&i64],
+    offset_header_key: &str,
+) -> Result<(), TransformationError> {
+    if source_offsets.is_empty() {
+        return Err(TransformationError::InvalidInput(
+            "Source offsets cannot be empty".to_string(),
+        ));
+    }
+
+    if offset_header_key.is_empty() {
+        return Err(TransformationError::InvalidInput(
+            "Offset header key cannot be empty".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+async fn setup_consumer_and_metadata(
+    brokers: &str,
+    topics: &[&str],
+) -> Result<(rdkafka::consumer::StreamConsumer, rdkafka::Metadata), TransformationError> {
+    let consumer = initialize_consumer(brokers)?;
+    manage_topic_subscriptions(&consumer, topics)?;
+
+    let metadata = consumer
+        .fetch_metadata(None, Duration::from_secs(5))
+        .map_err(|e| TransformationError::MetadataFetchFailed(e.to_string()))?;
+
+    Ok((consumer, metadata))
 }
 
 fn get_topic_partition_watermarks<'a>(
