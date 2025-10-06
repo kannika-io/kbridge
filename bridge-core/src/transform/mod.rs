@@ -21,20 +21,119 @@ pub async fn get_target_offsets(
     offset_header_key: &str,
     source_offsets: Vec<&i64>,
 ) -> Result<HashMap<i64, i64>, TransformationError> {
+    // Validate input parameters
+    if source_offsets.is_empty() {
+        return Err(TransformationError::InvalidInput(
+            "Source offsets cannot be empty".to_string(),
+        ));
+    }
+    
+    if offset_header_key.is_empty() {
+        return Err(TransformationError::InvalidInput(
+            "Offset header key cannot be empty".to_string(),
+        ));
+    }
+
     let consumer = initialize_consumer(brokers)?;
     manage_topic_subscriptions(&consumer, topics)?;
 
-    // Fetch metadata for all topics
+    // Fetch metadata for all topics with proper error handling
     let metadata = consumer
         .fetch_metadata(None, Duration::from_secs(5))
-        .expect("Failed to fetch metadata");
+        .map_err(|e| TransformationError::MetadataFetchFailed(e.to_string()))?;
 
     let mut transformations = HashMap::new();
+    let topic_partition_watermarks = fetch_watermarks(&consumer, &metadata, topics)?;
+    
+    let mut topics_to_check: Vec<(String, i32)> = topic_partition_watermarks
+        .iter()
+        .flat_map(|t| t.1.iter().map(|p| (t.0.to_string(), *p.0)))
+        .collect();
 
-    // Map: topic -> (partition -> high watermark)
+    if topics_to_check.is_empty() {
+        return Err(TransformationError::NoValidPartitions(
+            topics.iter().map(|s| s.to_string()).collect(),
+        ));
+    }
+
+    info!("Topics to check: {:?}", topics_to_check);
+    info!("Initialization completed");
+
+    // Process messages with timeout handling
+    let mut message_count = 0;
+    const MAX_MESSAGES: usize = 10000; // Prevent infinite loops
+    
+    while !source_offsets.is_empty() && !topics_to_check.is_empty() && message_count < MAX_MESSAGES {
+        let consume_result = consumer.recv().await.map_err(|e| {
+            TransformationError::FailedToReceiveMessages {
+                message: e.to_string(),
+                topic_selector: topics.join(","),
+            }
+        })?;
+
+        message_count += 1;
+        
+        let message = KafkaMessage {
+            partition: consume_result.partition(),
+            offset: consume_result.offset(),
+            topic: consume_result.topic().to_string(),
+        };
+        info!("Handling Kafka Message: {}", message);
+
+        let source_offset = match consume_result.headers() {
+            Some(headers) => get_offset_from_header(headers, offset_header_key),
+            None => Err(FetchOffsetError::NoHeadersInMessage),
+        }?;
+
+        info!("Source offset: {}", source_offset);
+        handle_offset_mapping(
+            &mut transformations,
+            &source_offsets,
+            &source_offset,
+            &consume_result.offset(),
+        )?;
+
+        // Safe watermark lookup with proper error handling
+        let water_mark = topic_partition_watermarks
+            .get(consume_result.topic())
+            .and_then(|partitions| partitions.get(&consume_result.partition()))
+            .ok_or_else(|| {
+                TransformationError::InvalidInput(format!(
+                    "No watermark found for topic {} partition {}",
+                    consume_result.topic(),
+                    consume_result.partition()
+                ))
+            })?;
+
+        info!("Water mark: {}", water_mark);
+        if water_mark == &(consume_result.offset() + 1) {
+            topics_to_check.retain(|t| {
+                !(t.0 == consume_result.topic() && t.1 == consume_result.partition())
+            });
+        }
+        info!("Remaining topics to check: {:?}", topics_to_check);
+    }
+
+    if message_count >= MAX_MESSAGES {
+        return Err(TransformationError::Timeout);
+    }
+
+    Ok(transformations)
+}
+
+fn fetch_watermarks(
+    consumer: &rdkafka::consumer::StreamConsumer,
+    metadata: &rdkafka::Metadata,
+    topics: &[&str],
+) -> Result<HashMap<String, HashMap<i32, i64>>, TransformationError> {
     let mut topic_partition_watermarks: HashMap<String, HashMap<i32, i64>> = HashMap::new();
 
     for topic in metadata.topics() {
+        // Only process topics we're interested in
+        if !topics.contains(&topic.name()) {
+            continue;
+        }
+
         let mut partition_map = HashMap::new();
 
         for partition in topic.partitions() {
@@ -44,87 +143,61 @@ pub async fn get_target_offsets(
                 Ok((_low, high)) => {
                     if high > 0 {
                         partition_map.insert(partition_id, high);
+                        info!(
+                            "Watermark for {}-{}: high={}",
+                            topic.name(),
+                            partition_id,
+                            high
+                        );
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Failed to fetch watermarks for {}-{}: {:?}",
-                        topic.name(),
-                        partition_id,
-                        e
-                    );
+                    return Err(TransformationError::WatermarkFetchFailed {
+                        topic: topic.name().to_string(),
+                        partition: partition_id,
+                        reason: e.to_string(),
+                    });
                 }
             }
         }
 
-        topic_partition_watermarks.insert(topic.name().to_string(), partition_map);
-    }
-
-    let mut topics_to_check: Vec<(String, i32)> = topic_partition_watermarks
-        .iter()
-        .filter(|partition| topics.contains(&partition.0.as_str()))
-        .flat_map(|t| t.1.iter().map(|p| (t.0.to_string(), *p.0)))
-        .collect();
-
-    info!("topics to check: {topics_to_check:?}");
-
-    info!("Initialization completed");
-    while !source_offsets.is_empty() && !topics_to_check.is_empty() {
-        let consume_result = consumer.recv().await?;
-        let message = KafkaMessage {
-            partition: consume_result.partition(),
-            offset: consume_result.offset(),
-            topic: consume_result.topic().to_string(),
-        };
-        info!("Handling Kafka Message: {message}");
-        let source_offset = match consume_result.headers() {
-            Some(headers) => get_offset_from_header(headers, offset_header_key),
-            None => Err(FetchOffsetError::NoHeadersInMessage),
-        }?;
-
-        info!("Source offset: {source_offset}");
-        handle_offset_mapping(
-            &mut transformations,
-            &source_offsets,
-            &source_offset,
-            &consume_result.offset(),
-        )?;
-
-        let water_mark = topic_partition_watermarks
-            .get(consume_result.topic())
-            .unwrap()
-            .get(&consume_result.partition())
-            .unwrap();
-
-        info!("Water mark: {water_mark}");
-        if water_mark == &(consume_result.offset() + 1) {
-            topics_to_check
-                .retain(|t| !(t.0 == consume_result.topic() && t.1 == consume_result.partition()));
+        if !partition_map.is_empty() {
+            topic_partition_watermarks.insert(topic.name().to_string(), partition_map);
         }
-        info!("Remaining topics to check: {topics_to_check:?}")
     }
-    Ok(transformations)
+
+    Ok(topic_partition_watermarks)
 }
 
 fn handle_offset_mapping(
     transformations: &mut HashMap<i64, i64>,
-    source_offsets: &Vec<&i64>,
+    source_offsets: &[&i64],
     source_offset_from_message: &i64,
     current_offset_from_message: &i64,
 ) -> Result<(), OffsetMappingTransformationError> {
     if source_offsets.contains(&source_offset_from_message) {
-        let insertion_result =
-            transformations.insert(*source_offset_from_message, *current_offset_from_message);
-        // This should never happen
-        if let Some(target_offset) = insertion_result {
-            // TODO: handle legacy offset that is not present anymore in topic
-            return Err(
-                OffsetMappingTransformationError::SourceOffsetAlreadyPresent {
-                    source_offset: *source_offset_from_message,
-                    target_offset: *current_offset_from_message,
-                    previous_target_offset: target_offset,
-                },
-            );
+        match transformations.get(source_offset_from_message) {
+            Some(existing_target_offset) => {
+                // Source offset already mapped - this could indicate duplicate processing
+                if existing_target_offset != current_offset_from_message {
+                    return Err(
+                        OffsetMappingTransformationError::SourceOffsetAlreadyPresent {
+                            source_offset: *source_offset_from_message,
+                            target_offset: *current_offset_from_message,
+                            previous_target_offset: *existing_target_offset,
+                        },
+                    );
+                }
+                // Same mapping, ignore duplicate
+            }
+            None => {
+                // New mapping
+                transformations.insert(*source_offset_from_message, *current_offset_from_message);
+                info!(
+                    "Mapped source offset {} to target offset {}",
+                    source_offset_from_message, current_offset_from_message
+                );
+            }
         }
     }
     Ok(())

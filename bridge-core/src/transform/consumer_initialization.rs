@@ -8,9 +8,15 @@ use rdkafka::{
 use crate::transform::transformation_errors::TransformationError;
 
 pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
+    if brokers.is_empty() {
+        return Err(TransformationError::InvalidInput(
+            "Brokers string cannot be empty".to_string(),
+        ));
+    }
+
     let mut config = ClientConfig::new();
 
-    info!("Initializing");
+    info!("Initializing consumer with brokers: {}", brokers);
     config
         .set("bootstrap.servers", brokers)
         .set("group.id", "test")
@@ -19,24 +25,31 @@ pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, Transformati
         .set("enable.auto.commit", "false")
         .set_log_level(RDKafkaLogLevel::Debug);
 
-    match config.create() {
-        Ok(consumer) => Ok(consumer),
-        Err(kafka_error) => Err(TransformationError::ConsumerInitializationFailed(
-            kafka_error.to_string(),
-        )),
-    }
+    config.create().map_err(|kafka_error| {
+        TransformationError::ConsumerInitializationFailed(format!(
+            "Failed to create consumer: {}",
+            kafka_error
+        ))
+    })
 }
 
 pub fn manage_topic_subscriptions(
     consumer: &StreamConsumer,
     topics: &[&str],
 ) -> Result<(), TransformationError> {
-    info!("subscribing");
-    match consumer.subscribe(topics) {
-        Ok(_) => Ok(()),
-        Err(kafka_error) => Err(TransformationError::SubscribingFailed {
-            message: kafka_error.to_string(),
-            topic_selector: topics.join(","),
-        }),
+    if topics.is_empty() {
+        return Err(TransformationError::InvalidInput(
+            "Topics list cannot be empty".to_string(),
+        ));
     }
+
+    let topic_selector = topics.join(",");
+    info!("Subscribing to topics: {}", topic_selector);
+    
+    consumer.subscribe(topics).map_err(|kafka_error| {
+        TransformationError::SubscribingFailed {
+            message: format!("Failed to subscribe to topics: {}", kafka_error),
+            topic_selector,
+        }
+    })
 }

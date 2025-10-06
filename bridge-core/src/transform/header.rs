@@ -6,22 +6,33 @@ pub fn get_offset_from_header(
     headers: &rdkafka::message::BorrowedHeaders,
     offset_header_key: &str,
 ) -> Result<i64, FetchOffsetError> {
+    if offset_header_key.is_empty() {
+        return Err(FetchOffsetError::ErrorParsingHeader(
+            "Offset header key cannot be empty".to_string(),
+        ));
+    }
+
     let header = headers.iter().find(|h| h.key == offset_header_key);
-    if let Some(header_value) = header {
-        match header_value.value {
+    
+    match header {
+        Some(header_value) => match header_value.value {
             Some(value) => {
-                if let Ok(parsed_from_utf8) = str::from_utf8(value)
-                    && let Ok(result) = parsed_from_utf8.parse::<i64>()
-                {
-                    return Ok(result);
-                }
-                Err(FetchOffsetError::ErrorParsingHeader(format!(
-                    "Could not parse {value:?} to usize"
-                )))
+                let parsed_from_utf8 = str::from_utf8(value).map_err(|e| {
+                    FetchOffsetError::ErrorParsingHeader(format!(
+                        "Failed to parse header value as UTF-8: {}",
+                        e
+                    ))
+                })?;
+                
+                parsed_from_utf8.parse::<i64>().map_err(|e| {
+                    FetchOffsetError::ErrorParsingHeader(format!(
+                        "Could not parse '{}' to i64: {}",
+                        parsed_from_utf8, e
+                    ))
+                })
             }
             None => Err(FetchOffsetError::HeaderNotFound),
-        }
-    } else {
-        Err(FetchOffsetError::NoHeadersInMessage)
+        },
+        None => Err(FetchOffsetError::HeaderNotFound),
     }
 }
