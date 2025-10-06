@@ -81,13 +81,14 @@ pub async fn get_target_offsets(
             None => Err(FetchOffsetError::NoHeadersInMessage),
         }?;
 
-        insert_offset_transformations(
-            &mut transformations,
-            &source_offsets,
-            &source_offset,
-            &consume_result.offset(),
-            consume_result.topic(),
-        )?;
+        if source_offsets.contains(source_offset) {
+            insert_offset_transformations(
+                &mut transformations,
+                &source_offset,
+                &consume_result.offset(),
+                consume_result.topic(),
+            )?;
+        }
 
         let water_mark = get_topic_partition_watermarks(
             &topic_partition_watermarks,
@@ -132,7 +133,7 @@ mod tests {
         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
 
         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 0);
-        
+
         assert!(result.is_ok());
         assert_eq!(*result.unwrap(), 100i64);
     }
@@ -141,8 +142,9 @@ mod tests {
     fn test_get_topic_partition_watermarks_topic_not_found() {
         let topic_partition_watermarks = HashMap::new();
 
-        let result = get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
-        
+        let result =
+            get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
+
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
@@ -160,7 +162,7 @@ mod tests {
         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
 
         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 1);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
@@ -178,7 +180,7 @@ mod tests {
         let source_offsets = vec![];
 
         let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
@@ -196,7 +198,7 @@ mod tests {
         let source_offsets = vec![&100i64, &200i64];
 
         let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
@@ -214,7 +216,7 @@ mod tests {
         let source_offsets = vec![&100i64, &200i64];
 
         let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
