@@ -37,7 +37,6 @@ services:
     ports:
       - 9092:9092
   redpanda-console:
-    container_name: redpanda-console
     image: redpandadata/console:latest
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'

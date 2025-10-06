@@ -13,14 +13,14 @@ async fn main() -> Result<(), GeneralError> {
     simple_logger::SimpleLogger::new().env().init().unwrap();
     let offset_snapshot_importer = CsvOffsetSnapshotImporter {
         file_path: "offsets.csv",
-        consumer_group: "testconsumergroup",
+        consumer_group: "console-consumer",
     };
     let result = offset_snapshot_importer.import()?;
 
     let transformed_result = get_target_offsets(
         "localhost:9092",
-        &["orders"],
-        "test",
+        &["orders-1-restore", "orders-2-restore", "orders-3-restore"],
+        "Offset",
         result.iter().map(|r| &r.offset).collect(),
     )
     .await?;

@@ -27,7 +27,9 @@ pub enum TransformationError {
     OffsetMappingTransformationError(OffsetMappingTransformationError),
     #[error("Failed to fetch metadata. Reason: {0}")]
     MetadataFetchFailed(String),
-    #[error("Failed to fetch watermarks for topic {topic}, partition {partition}. Reason: {reason}")]
+    #[error(
+        "Failed to fetch watermarks for topic {topic}, partition {partition}. Reason: {reason}"
+    )]
     WatermarkFetchFailed {
         topic: String,
         partition: i32,
@@ -43,11 +45,13 @@ pub enum TransformationError {
 
 #[derive(Error, Debug)]
 pub enum OffsetMappingTransformationError {
-    #[error("Source offset {source_offset} already present in result. Target offset is {target_offset}. Previous target offset was {previous_target_offset}")]
+    #[error(
+        "Source offset {source_offset} already present in result. Target offset is {target_offset}. Previous target offset was {previous_target_offset}"
+    )]
     SourceOffsetAlreadyPresent {
         source_offset: i64,
         target_offset: i64,
-        previous_target_offset: i64
+        previous_target_offset: i64,
     },
 }
 

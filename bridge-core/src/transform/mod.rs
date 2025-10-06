@@ -22,7 +22,7 @@ pub async fn get_target_offsets(
     topics: &[&str],
     offset_header_key: &str,
     source_offsets: Vec<&i64>,
-) -> Result<HashMap<i64, i64>, TransformationError> {
+) -> Result<HashMap<String, HashMap<i64, i64>>, TransformationError> {
     // Validate input parameters
     if source_offsets.is_empty() {
         return Err(TransformationError::InvalidInput(
@@ -90,9 +90,9 @@ pub async fn get_target_offsets(
             &source_offsets,
             &source_offset,
             &consume_result.offset(),
+            consume_result.topic(),
         )?;
 
-        // Safe watermark lookup with proper error handling
         let water_mark = topic_partition_watermarks
             .get(consume_result.topic())
             .and_then(|partitions| partitions.get(&consume_result.partition()))

@@ -13,7 +13,7 @@ pub fn get_offset_from_header(
     }
 
     let header = headers.iter().find(|h| h.key == offset_header_key);
-    
+
     match header {
         Some(header_value) => match header_value.value {
             Some(value) => {
@@ -22,7 +22,7 @@ pub fn get_offset_from_header(
                         "Failed to parse header value as UTF-8: {e}"
                     ))
                 })?;
-                
+
                 parsed_from_utf8.parse::<i64>().map_err(|e| {
                     FetchOffsetError::ErrorParsingHeader(format!(
                         "Could not parse '{parsed_from_utf8}' to i64: {e}"
