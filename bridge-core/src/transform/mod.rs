@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use log::info;
-use rdkafka::{Message, consumer::Consumer};
+use rdkafka::{consumer::{Consumer, StreamConsumer}, metadata::Metadata, Message};
 
 use crate::transform::{
     consumer_initialization::{initialize_consumer, manage_topic_subscriptions},
@@ -62,7 +62,7 @@ pub async fn get_target_offsets(
             None => Err(FetchOffsetError::NoHeadersInMessage),
         }?;
 
-        if source_offsets.contains(source_offset) {
+        if source_offsets.contains(&&source_offset) {
             insert_offset_transformations(
                 &mut transformations,
                 &source_offset,
@@ -108,7 +108,7 @@ fn validate_input_parameters(
 async fn setup_consumer_and_metadata(
     brokers: &str,
     topics: &[&str],
-) -> Result<(rdkafka::consumer::StreamConsumer, rdkafka::Metadata), TransformationError> {
+) -> Result<(StreamConsumer, Metadata), TransformationError> {
     let consumer = initialize_consumer(brokers)?;
     manage_topic_subscriptions(&consumer, topics)?;
 

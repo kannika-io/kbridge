@@ -53,14 +53,12 @@ mod tests {
     #[test]
     fn test_insert_offset_transformations_new_topic_and_mapping() {
         let mut transformations = HashMap::new();
-        let source_offsets = vec![&100i64, &200i64];
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &500i64;
         let topic = "test-topic";
 
         let result = insert_offset_transformations(
             &mut transformations,
-            &source_offsets,
             source_offset_from_message,
             current_offset_from_message,
             topic,
@@ -79,14 +77,12 @@ mod tests {
         existing_offsets.insert(50i64, 250i64);
         transformations.insert("test-topic".to_string(), existing_offsets);
 
-        let source_offsets = vec![&100i64, &200i64];
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &500i64;
         let topic = "test-topic";
 
         let result = insert_offset_transformations(
             &mut transformations,
-            &source_offsets,
             source_offset_from_message,
             current_offset_from_message,
             topic,
@@ -106,14 +102,12 @@ mod tests {
         existing_offsets.insert(100i64, 500i64);
         transformations.insert("test-topic".to_string(), existing_offsets);
 
-        let source_offsets = vec![&100i64, &200i64];
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &500i64;
         let topic = "test-topic";
 
         let result = insert_offset_transformations(
             &mut transformations,
-            &source_offsets,
             source_offset_from_message,
             current_offset_from_message,
             topic,
@@ -130,14 +124,12 @@ mod tests {
         existing_offsets.insert(100i64, 500i64);
         transformations.insert("test-topic".to_string(), existing_offsets);
 
-        let source_offsets = vec![&100i64, &200i64];
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &600i64;
         let topic = "test-topic";
 
         let result = insert_offset_transformations(
             &mut transformations,
-            &source_offsets,
             source_offset_from_message,
             current_offset_from_message,
             topic,
@@ -158,40 +150,18 @@ mod tests {
     }
 
     #[test]
-    fn test_insert_offset_transformations_source_offset_not_in_list() {
-        let mut transformations = HashMap::new();
-        let source_offsets = vec![&200i64, &300i64];
-        let source_offset_from_message = &100i64;
-        let current_offset_from_message = &500i64;
-        let topic = "test-topic";
-
-        let result = insert_offset_transformations(
-            &mut transformations,
-            &source_offsets,
-            source_offset_from_message,
-            current_offset_from_message,
-            topic,
-        );
-
-        assert!(result.is_ok());
-        assert!(transformations.is_empty());
-    }
-
-    #[test]
     fn test_insert_offset_transformations_multiple_topics() {
         let mut transformations = HashMap::new();
         let mut existing_offsets = HashMap::new();
         existing_offsets.insert(50i64, 250i64);
         transformations.insert("topic1".to_string(), existing_offsets);
 
-        let source_offsets = vec![&100i64, &200i64];
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &500i64;
         let topic = "topic2";
 
         let result = insert_offset_transformations(
             &mut transformations,
-            &source_offsets,
             source_offset_from_message,
             current_offset_from_message,
             topic,
@@ -203,25 +173,5 @@ mod tests {
         assert!(transformations.contains_key("topic2"));
         assert_eq!(transformations["topic1"][&50i64], 250i64);
         assert_eq!(transformations["topic2"][&100i64], 500i64);
-    }
-
-    #[test]
-    fn test_insert_offset_transformations_empty_source_offsets() {
-        let mut transformations = HashMap::new();
-        let source_offsets: Vec<&i64> = vec![];
-        let source_offset_from_message = &100i64;
-        let current_offset_from_message = &500i64;
-        let topic = "test-topic";
-
-        let result = insert_offset_transformations(
-            &mut transformations,
-            &source_offsets,
-            source_offset_from_message,
-            current_offset_from_message,
-            topic,
-        );
-
-        assert!(result.is_ok());
-        assert!(transformations.is_empty());
     }
 }
