@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use rdkafka::error::KafkaError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -74,5 +75,23 @@ impl Display for KafkaMessage {
             "Additional message Info: Topic: {}, Partition: {}, Offset: {}",
             self.topic, self.partition, self.offset
         )
+    }
+}
+
+impl From<OffsetMappingTransformationError> for TransformationError {
+    fn from(value: OffsetMappingTransformationError) -> Self {
+        TransformationError::OffsetMappingTransformationError(value)
+    }
+}
+
+impl From<KafkaError> for TransformationError {
+    fn from(value: KafkaError) -> Self {
+        TransformationError::KafkaError(value.to_string())
+    }
+}
+
+impl From<FetchOffsetError> for TransformationError {
+    fn from(value: FetchOffsetError) -> Self {
+        TransformationError::FetchOffsetError(value)
     }
 }

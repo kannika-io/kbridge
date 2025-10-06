@@ -16,7 +16,7 @@ pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, Transformati
 
     let mut config = ClientConfig::new();
 
-    info!("Initializing consumer with brokers: {}", brokers);
+    info!("Initializing consumer with brokers: {brokers}");
     config
         .set("bootstrap.servers", brokers)
         .set("group.id", "test")
@@ -27,8 +27,7 @@ pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, Transformati
 
     config.create().map_err(|kafka_error| {
         TransformationError::ConsumerInitializationFailed(format!(
-            "Failed to create consumer: {}",
-            kafka_error
+            "Failed to create consumer: {kafka_error}"
         ))
     })
 }
@@ -44,12 +43,12 @@ pub fn manage_topic_subscriptions(
     }
 
     let topic_selector = topics.join(",");
-    info!("Subscribing to topics: {}", topic_selector);
-    
-    consumer.subscribe(topics).map_err(|kafka_error| {
-        TransformationError::SubscribingFailed {
-            message: format!("Failed to subscribe to topics: {}", kafka_error),
+    info!("Subscribing to topics: {topic_selector}");
+
+    consumer
+        .subscribe(topics)
+        .map_err(|kafka_error| TransformationError::SubscribingFailed {
+            message: format!("Failed to subscribe to topics: {kafka_error}"),
             topic_selector,
-        }
-    })
+        })
 }
