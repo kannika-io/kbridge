@@ -169,4 +169,58 @@ mod tests {
             _ => panic!("Expected InvalidInput error"),
         }
     }
+
+    #[tokio::test]
+    async fn test_get_target_offsets_empty_source_offsets() {
+        let brokers = "localhost:9092";
+        let topics = &["test-topic"];
+        let offset_header_key = "source-offset";
+        let source_offsets = vec![];
+
+        let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert_eq!(msg, "Source offsets cannot be empty");
+            }
+            _ => panic!("Expected InvalidInput error for empty source offsets"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_target_offsets_empty_offset_header_key() {
+        let brokers = "localhost:9092";
+        let topics = &["test-topic"];
+        let offset_header_key = "";
+        let source_offsets = vec![&100i64, &200i64];
+
+        let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert_eq!(msg, "Offset header key cannot be empty");
+            }
+            _ => panic!("Expected InvalidInput error for empty offset header key"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_target_offsets_empty_brokers() {
+        let brokers = "";
+        let topics = &["test-topic"];
+        let offset_header_key = "source-offset";
+        let source_offsets = vec![&100i64, &200i64];
+
+        let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert_eq!(msg, "Brokers string cannot be empty");
+            }
+            _ => panic!("Expected InvalidInput error for empty brokers"),
+        }
+    }
 }
