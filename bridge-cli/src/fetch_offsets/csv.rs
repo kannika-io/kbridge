@@ -14,25 +14,15 @@ pub struct CsvOffsetSnapshotImporter {
 impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
     fn import(&self) -> Result<OffsetSnapshot, ImportError> {
         if let Ok(mut reader) = csv::Reader::from_path(self.file_path) {
-            reader.set_headers(csv::StringRecord::from(vec![
-                "topic",
-                "partition",
-                "offset",
-            ]));
+            reader.set_headers(csv::StringRecord::from(vec!["topic", "partition", "offset"]));
             import_records(reader.deserialize::<Record>(), self.consumer_group)
         } else {
-            Err(ImportError::ResourceNotFound(format!(
-                "{} could not be opened.",
-                self.file_path
-            )))
+            Err(ImportError::ResourceNotFound(format!("{} could not be opened.", self.file_path)))
         }
     }
 }
 
-fn import_records(
-    records: impl Iterator<Item = Result<Record, impl Error>>,
-    consumer_group: &str,
-) -> Result<Vec<OffsetRecord>, ImportError> {
+fn import_records(records: impl Iterator<Item = Result<Record, impl Error>>, consumer_group: &str) -> Result<Vec<OffsetRecord>, ImportError> {
     let mut parse_errors: Vec<String> = vec![];
     let mut snapshot: OffsetSnapshot = vec![];
     for record in records {
@@ -70,11 +60,7 @@ mod tests {
         let data = "\"streamiz.weather.combined\",0,54
                         \"streamiz.weather.combined\",1,81";
         let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
-        reader.set_headers(csv::StringRecord::from(vec![
-            "topic",
-            "partition",
-            "offset",
-        ]));
+        reader.set_headers(csv::StringRecord::from(vec!["topic", "partition", "offset"]));
         let result = import_records(reader.deserialize::<Record>(), "testing");
 
         let assertion = OffsetRecord {
@@ -92,11 +78,7 @@ mod tests {
         let data = "\"streamiz.weather.combined\",0
                         \"streamiz.weather.combined\",1,81";
         let mut reader = csv::ReaderBuilder::new().from_reader(data.as_bytes());
-        reader.set_headers(csv::StringRecord::from(vec![
-            "topic",
-            "partition",
-            "offset",
-        ]));
+        reader.set_headers(csv::StringRecord::from(vec!["topic", "partition", "offset"]));
         let result = import_records(reader.deserialize::<Record>(), "testing");
 
         assert!(result.is_err());

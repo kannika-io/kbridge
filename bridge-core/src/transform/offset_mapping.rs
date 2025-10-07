@@ -1,4 +1,4 @@
-use crate::transform::{transformation_errors::OffsetMappingTransformationError, Partition, SourceOffset, TargetOffset, Topic};
+use crate::transform::{Partition, SourceOffset, TargetOffset, Topic, transformation_errors::OffsetMappingTransformationError};
 use log::info;
 use std::collections::HashMap;
 
@@ -17,22 +17,17 @@ pub fn insert_offset_transformations(
                 Some(existing_target_offset) => {
                     // Source offset already mapped - this could indicate duplicate processing
                     if existing_target_offset != current_offset_from_message {
-                        return Err(
-                            OffsetMappingTransformationError::SourceOffsetAlreadyPresent {
-                                source_offset: *source_offset_from_message,
-                                target_offset: *current_offset_from_message,
-                                previous_target_offset: *existing_target_offset,
-                            },
-                        );
+                        return Err(OffsetMappingTransformationError::SourceOffsetAlreadyPresent {
+                            source_offset: *source_offset_from_message,
+                            target_offset: *current_offset_from_message,
+                            previous_target_offset: *existing_target_offset,
+                        });
                     }
                 }
                 None => {
                     // New mapping
-                    transformations_for_topic
-                        .insert(*source_offset_from_message, *current_offset_from_message);
-                    info!(
-                        "Mapped source offset {source_offset_from_message} to target offset {current_offset_from_message}"
-                    );
+                    transformations_for_topic.insert(*source_offset_from_message, *current_offset_from_message);
+                    info!("Mapped source offset {source_offset_from_message} to target offset {current_offset_from_message}");
                 }
             };
         }
@@ -40,9 +35,7 @@ pub fn insert_offset_transformations(
             let mut offsets: HashMap<i64, i64> = HashMap::new();
             offsets.insert(*source_offset_from_message, *current_offset_from_message);
             transformations.insert((topic, partition), offsets);
-            info!(
-                "Mapped source offset {source_offset_from_message} to target offset {current_offset_from_message}"
-            );
+            info!("Mapped source offset {source_offset_from_message} to target offset {current_offset_from_message}");
         }
     }
     Ok(())
@@ -61,13 +54,7 @@ mod tests {
         let partition = 1;
         let key = (topic.clone(), partition);
 
-        let result = insert_offset_transformations(
-            &mut transformations,
-            source_offset_from_message,
-            current_offset_from_message,
-            topic,
-            partition,
-        );
+        let result = insert_offset_transformations(&mut transformations, source_offset_from_message, current_offset_from_message, topic, partition);
 
         assert!(result.is_ok());
         assert_eq!(transformations.len(), 1);
@@ -88,13 +75,7 @@ mod tests {
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &500i64;
 
-        let result = insert_offset_transformations(
-            &mut transformations,
-            source_offset_from_message,
-            current_offset_from_message,
-            topic,
-            partition,
-        );
+        let result = insert_offset_transformations(&mut transformations, source_offset_from_message, current_offset_from_message, topic, partition);
 
         assert!(result.is_ok());
         assert_eq!(transformations.len(), 1);
@@ -117,13 +98,7 @@ mod tests {
         let source_offset_from_message = &100i64;
         let current_offset_from_message = &500i64;
 
-        let result = insert_offset_transformations(
-            &mut transformations,
-            source_offset_from_message,
-            current_offset_from_message,
-            topic,
-            partition,
-        );
+        let result = insert_offset_transformations(&mut transformations, source_offset_from_message, current_offset_from_message, topic, partition);
 
         assert!(result.is_ok());
         assert_eq!(transformations[&key][&100i64], 500i64);
@@ -143,13 +118,7 @@ mod tests {
         let current_offset_from_message = &600i64;
         let topic = "test-topic".to_string();
 
-        let result = insert_offset_transformations(
-            &mut transformations,
-            source_offset_from_message,
-            current_offset_from_message,
-            topic,
-            partition,
-        );
+        let result = insert_offset_transformations(&mut transformations, source_offset_from_message, current_offset_from_message, topic, partition);
 
         assert!(result.is_err());
         match result.unwrap_err() {

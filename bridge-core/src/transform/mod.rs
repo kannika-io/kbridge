@@ -1,16 +1,12 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use log::{info, trace};
-use rdkafka::{
-    Message,
-};
+use rdkafka::Message;
 
 use crate::{
     OffsetSnapshot,
     transform::{
-        consumer_initialization::{
-            setup_consumer_and_metadata,
-        },
+        consumer_initialization::setup_consumer_and_metadata,
         header::get_offset_from_header,
         offset_mapping::insert_offset_transformations,
         transformation_errors::{FetchOffsetError, TransformationError},
@@ -70,8 +66,8 @@ mod watermarks;
 /// let offset_header_key = "source-offset";
 /// let source_offsets : OffsetSnapshot = vec![
 ///     OffsetRecord {
-///         topic: "test-topic".to_string(), 
-///         partition: 1, offset: 200i64, 
+///         topic: "test-topic".to_string(),
+///         partition: 1, offset: 200i64,
 ///         consumer_group: "console-consumer".to_string()
 ///     }
 /// ];
@@ -119,9 +115,7 @@ pub async fn get_target_offsets(
         .collect();
 
     if topics_and_partitions_to_check.is_empty() {
-        return Err(TransformationError::NoValidPartitions(
-            topics.iter().map(|s| s.to_string()).collect(),
-        ));
+        return Err(TransformationError::NoValidPartitions(topics.iter().map(|s| s.to_string()).collect()));
     }
 
     info!("Topics to check: {topics_and_partitions_to_check:?}");
@@ -129,19 +123,11 @@ pub async fn get_target_offsets(
 
     // Consume all messages from the topics we are subscribed to
     while !source_offsets.is_empty() && !topics_and_partitions_to_check.is_empty() {
-        let consume_result =
-            consumer
-                .recv()
-                .await
-                .map_err(|e| TransformationError::FailedToReceiveMessages {
-                    message: e.to_string(),
-                    topic_selector: topics.join(","),
-                })?;
-        trace!(
-            "Processing offset {} for topic {}",
-            consume_result.offset(),
-            consume_result.topic()
-        );
+        let consume_result = consumer.recv().await.map_err(|e| TransformationError::FailedToReceiveMessages {
+            message: e.to_string(),
+            topic_selector: topics.join(","),
+        })?;
+        trace!("Processing offset {} for topic {}", consume_result.offset(), consume_result.topic());
 
         let source_offset = match consume_result.headers() {
             Some(headers) => get_offset_from_header(headers, offset_header_key),
@@ -150,11 +136,7 @@ pub async fn get_target_offsets(
 
         if source_offsets
             .iter()
-            .any(|o| {
-                o.partition == consume_result.partition()
-                    && o.offset == source_offset
-                    && consume_result.topic() == o.topic
-            })
+            .any(|o| o.partition == consume_result.partition() && o.offset == source_offset && consume_result.topic() == o.topic)
         {
             insert_offset_transformations(
                 &mut transformations,
@@ -165,19 +147,18 @@ pub async fn get_target_offsets(
             )?;
         }
 
-        let water_mark = get_topic_partition_watermarks(
-            &topic_partition_watermarks,
-            consume_result.topic(),
-            consume_result.partition(),
-        )?;
+        let water_mark = get_topic_partition_watermarks(&topic_partition_watermarks, consume_result.topic(), consume_result.partition())?;
 
         if water_mark == &(consume_result.offset() + 1) {
-            topics_and_partitions_to_check
-                .retain(|t| !(t.0 == consume_result.topic() && t.1 == consume_result.partition()));
+            topics_and_partitions_to_check.retain(|t| !(t.0 == consume_result.topic() && t.1 == consume_result.partition()));
         }
     }
 
-    Ok(transformations)
+    if topics_and_partitions_to_check.is_empty() {
+        todo!()
+    } else {
+        Ok(transformations)
+    }
 }
 
 pub type Partition = i32;
@@ -185,20 +166,13 @@ pub type Topic = String;
 pub type SourceOffset = i64;
 pub type TargetOffset = i64;
 
-fn validate_input_parameters(
-    source_offsets: &OffsetSnapshot,
-    offset_header_key: &str,
-) -> Result<(), TransformationError> {
+fn validate_input_parameters(source_offsets: &OffsetSnapshot, offset_header_key: &str) -> Result<(), TransformationError> {
     if source_offsets.is_empty() {
-        return Err(TransformationError::InvalidInput(
-            "Source offsets cannot be empty".to_string(),
-        ));
+        return Err(TransformationError::InvalidInput("Source offsets cannot be empty".to_string()));
     }
 
     if offset_header_key.is_empty() {
-        return Err(TransformationError::InvalidInput(
-            "Offset header key cannot be empty".to_string(),
-        ));
+        return Err(TransformationError::InvalidInput("Offset header key cannot be empty".to_string()));
     }
 
     Ok(())
@@ -212,11 +186,7 @@ fn get_topic_partition_watermarks<'a>(
     topic_partition_watermarks
         .get(topic)
         .and_then(|partitions| partitions.get(&partition))
-        .ok_or_else(|| {
-            TransformationError::InvalidInput(format!(
-                "No watermark found for topic {topic} partition {partition}"
-            ))
-        })
+        .ok_or_else(|| TransformationError::InvalidInput(format!("No watermark found for topic {topic} partition {partition}")))
 }
 
 #[cfg(test)]
@@ -243,8 +213,7 @@ mod tests {
     fn test_get_topic_partition_watermarks_topic_not_found() {
         let topic_partition_watermarks = HashMap::new();
 
-        let result =
-            get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
+        let result = get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -278,7 +247,7 @@ mod tests {
         let brokers = "localhost:9092";
         let topics = &["test-topic"];
         let offset_header_key = "source-offset";
-        let source_offsets : OffsetSnapshot = vec![];
+        let source_offsets: OffsetSnapshot = vec![];
 
         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
 
@@ -296,13 +265,12 @@ mod tests {
         let brokers = "localhost:9092";
         let topics = &["test-topic"];
         let offset_header_key = "";
-        let source_offsets : OffsetSnapshot = vec![
-            OffsetRecord {
-                topic: "test-topic".to_string(), 
-                partition: 1, offset: 200i64, 
-                consumer_group: "console-consumer".to_string()
-            }
-        ];
+        let source_offsets: OffsetSnapshot = vec![OffsetRecord {
+            topic: "test-topic".to_string(),
+            partition: 1,
+            offset: 200i64,
+            consumer_group: "console-consumer".to_string(),
+        }];
 
         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
 
@@ -320,17 +288,19 @@ mod tests {
         let brokers = "";
         let topics = &["test-topic"];
         let offset_header_key = "source-offset";
-        let source_offsets : OffsetSnapshot = vec![
+        let source_offsets: OffsetSnapshot = vec![
             OffsetRecord {
-                topic: "test-topic".to_string(), 
-                partition: 1, offset: 100i64, 
-                consumer_group: "console-consumer".to_string()
+                topic: "test-topic".to_string(),
+                partition: 1,
+                offset: 100i64,
+                consumer_group: "console-consumer".to_string(),
             },
             OffsetRecord {
-                topic: "test-topic".to_string(), 
-                partition: 2, offset: 200i64, 
-                consumer_group: "console-consumer".to_string()
-            }
+                topic: "test-topic".to_string(),
+                partition: 2,
+                offset: 200i64,
+                consumer_group: "console-consumer".to_string(),
+            },
         ];
 
         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
