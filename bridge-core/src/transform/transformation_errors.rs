@@ -29,6 +29,8 @@ pub enum TransformationError {
     Timeout,
     #[error("No valid partitions found for topics: {0:?}")]
     NoValidPartitions(Vec<String>),
+    #[error("No all source offsets were found in the restored topics: {0:?}")]
+    NotAllSourceOffsetsFound(Vec<(String, i32)>),
 }
 
 #[derive(Error, Debug)]

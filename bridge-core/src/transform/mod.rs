@@ -155,9 +155,9 @@ pub async fn get_target_offsets(
     }
 
     if topics_and_partitions_to_check.is_empty() {
-        todo!()
-    } else {
         Ok(transformations)
+    } else {
+        Err(TransformationError::NotAllSourceOffsetsFound(topics_and_partitions_to_check))
     }
 }
 
