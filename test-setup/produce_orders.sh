@@ -7,7 +7,7 @@ set -e
 # Configuration
 TOPIC=$1
 NUM_MESSAGES=$2
-BOOTSTRAP_SERVERS="localhost:9092"
+BOOTSTRAP_SERVERS=$3
 
 echo "Starting to produce $NUM_MESSAGES messages to topic '$TOPIC'..."
 

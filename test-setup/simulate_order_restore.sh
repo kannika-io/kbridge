@@ -6,9 +6,9 @@ set -e
 
 # Configuration
 TOPIC=$1
-BOOTSTRAP_SERVERS="localhost:9092"
-TARGET_TOPIC=$2
-NUM_MESSAGES=$3
+NUM_MESSAGES=$2
+SOURCE_BOOTSTRAP_SERVERS=$3
+TARGET_BOOTSTRAP_SERVERS=$4
 
 echo "Starting to consume $NUM_MESSAGES messages from topic '$TOPIC' for restoration..."
 
@@ -16,16 +16,16 @@ PIPE_FILE=$(mktemp -u)
 mkfifo "$PIPE_FILE"
 
 kafka-console-producer.sh \
-     --bootstrap-server $BOOTSTRAP_SERVERS\
+     --bootstrap-server $TARGET_BOOTSTRAP_SERVERS \
      --property "parse.headers=true"\
      --property "headers.delimiter=|"\
      --batch-size 1 \
-     --topic $TARGET_TOPIC < "$PIPE_FILE" &
+     --topic $TOPIC < "$PIPE_FILE" &
 
 PRODUCER_PID=$!
 
 kafka-console-consumer.sh \
-    --bootstrap-server $BOOTSTRAP_SERVERS \
+    --bootstrap-server $SOURCE_BOOTSTRAP_SERVERS \
     --property print.offset=true \
     --topic $TOPIC \
     --max-messages $NUM_MESSAGES \

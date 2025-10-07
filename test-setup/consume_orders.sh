@@ -6,7 +6,7 @@ set -e
 TOPIC=$1
 NUM_MESSAGES=$2
 CONSUMER_GROUP=$3
-BOOTSTRAP_SERVERS="localhost:9092"
+BOOTSTRAP_SERVERS=$4
 
 kafka-console-consumer.sh \
     --bootstrap-server $BOOTSTRAP_SERVERS \
