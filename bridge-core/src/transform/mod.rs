@@ -280,12 +280,12 @@ fn check_and_update_partition_completion(
         message.topic(),
         message.partition(),
     )?;
-    
+
     if water_mark == &(message.offset() + 1) {
         topics_and_partitions_to_check
             .retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
     }
-    
+
     Ok(())
 }
 
@@ -308,7 +308,7 @@ fn handle_missing_offsets(
             missing_offset.2,
             missing_offset.3,
         ));
-        
+
         if let Some(nearest_offset) = nearest_offset_option {
             let consumer_group_transformation = transformations.get_mut(&missing_offset.0.clone());
             if let Some(transformation) = consumer_group_transformation {
@@ -333,7 +333,7 @@ fn handle_missing_offsets(
             still_missing_offsets.push(missing_offset);
         }
     }
-    
+
     if still_missing_offsets.is_empty() {
         Ok(transformations)
     } else {
@@ -380,7 +380,8 @@ mod tests {
     fn test_get_topic_partition_watermarks_topic_not_found() {
         let topic_partition_watermarks = HashMap::new();
 
-        let result = get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
+        let result =
+            get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
 
         assert!(result.is_err());
         match result.unwrap_err() {
