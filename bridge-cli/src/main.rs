@@ -18,10 +18,10 @@ async fn main() -> Result<(), GeneralError> {
     let result = offset_snapshot_importer.import()?;
 
     let transformed_result = get_target_offsets(
-        "localhost:9092",
-        &["orders-1-restore", "orders-2-restore", "orders-3-restore"],
+        "localhost:9093",
+        &["orders-1", "orders-2", "orders-3"],
         "Offset",
-        result.iter().map(|r| &r.offset).collect(),
+        &result
     )
     .await?;
 

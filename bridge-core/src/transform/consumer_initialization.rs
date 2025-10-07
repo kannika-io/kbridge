@@ -1,11 +1,28 @@
+use std::time::Duration;
+
 use log::info;
 use rdkafka::{
     ClientConfig,
     config::RDKafkaLogLevel,
     consumer::{Consumer, StreamConsumer},
+    metadata::Metadata,
 };
 
 use crate::transform::transformation_errors::TransformationError;
+
+pub async fn setup_consumer_and_metadata(
+    brokers: &str,
+    topics: &[&str],
+) -> Result<(StreamConsumer, Metadata), TransformationError> {
+    let consumer = initialize_consumer(brokers)?;
+    manage_topic_subscriptions(&consumer, topics)?;
+
+    let metadata = consumer
+        .fetch_metadata(None, Duration::from_secs(5))
+        .map_err(|e| TransformationError::MetadataFetchFailed(e.to_string()))?;
+
+    Ok((consumer, metadata))
+}
 
 pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
     if brokers.is_empty() {

@@ -1,14 +1,21 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap};
 
-use log::info;
+use log::{info, trace};
 use rdkafka::{
     Message,
-    consumer::{Consumer, StreamConsumer},
-    metadata::Metadata,
 };
 
-use crate::transform::{
-    consumer_initialization::{initialize_consumer, manage_topic_subscriptions}, header::get_offset_from_header, offset_mapping::insert_offset_transformations, transformation_errors::{FetchOffsetError, TransformationError}, watermarks::get_high_watermark
+use crate::{
+    OffsetSnapshot,
+    transform::{
+        consumer_initialization::{
+            setup_consumer_and_metadata,
+        },
+        header::get_offset_from_header,
+        offset_mapping::insert_offset_transformations,
+        transformation_errors::{FetchOffsetError, TransformationError},
+        watermarks::get_high_watermark,
+    },
 };
 
 mod consumer_initialization;
@@ -35,7 +42,7 @@ mod watermarks;
 ///
 /// Returns a nested HashMap where:
 /// - Outer key: topic name (String)
-/// - Inner key: source offset (i64) 
+/// - Inner key: source offset (i64)
 /// - Inner value: target offset (i64) - the actual Kafka message offset
 ///
 /// # Errors
@@ -55,14 +62,21 @@ mod watermarks;
 /// ```rust
 /// use std::collections::HashMap;
 /// use bridge_core::transform::get_target_offsets;
+/// use bridge_core::{ OffsetRecord, OffsetSnapshot };
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let brokers = "localhost:9092";
 /// let topics = &["orders", "payments"];
 /// let offset_header_key = "source-offset";
-/// let source_offsets = vec![&100i64, &200i64, &300i64];
+/// let source_offsets : OffsetSnapshot = vec![
+///     OffsetRecord {
+///         topic: "test-topic".to_string(), 
+///         partition: 1, offset: 200i64, 
+///         consumer_group: "console-consumer".to_string()
+///     }
+/// ];
 ///
-/// let mappings = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await?;
+/// let mappings = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await?;
 ///
 /// // mappings might look like:
 /// // {
@@ -88,9 +102,9 @@ pub async fn get_target_offsets(
     brokers: &str,
     topics: &[&str],
     offset_header_key: &str,
-    source_offsets: Vec<&i64>,
-) -> Result<HashMap<String,HashMap<i64, i64>>, TransformationError> {
-    validate_input_parameters(&source_offsets, offset_header_key)?;
+    source_offsets: &OffsetSnapshot,
+) -> Result<HashMap<(String, Partition), HashMap<i64, i64>>, TransformationError> {
+    validate_input_parameters(source_offsets, offset_header_key)?;
     let (consumer, metadata) = setup_consumer_and_metadata(brokers, topics).await?;
 
     let mut transformations = HashMap::new();
@@ -111,7 +125,7 @@ pub async fn get_target_offsets(
     }
 
     info!("Topics to check: {topics_and_partitions_to_check:?}");
-    info!("Initialization completed");
+    info!("Source Offsets: {source_offsets:?}");
 
     // Consume all messages from the topics we are subscribed to
     while !source_offsets.is_empty() && !topics_and_partitions_to_check.is_empty() {
@@ -123,18 +137,31 @@ pub async fn get_target_offsets(
                     message: e.to_string(),
                     topic_selector: topics.join(","),
                 })?;
+        trace!(
+            "Processing offset {} for topic {}",
+            consume_result.offset(),
+            consume_result.topic()
+        );
 
         let source_offset = match consume_result.headers() {
             Some(headers) => get_offset_from_header(headers, offset_header_key),
             None => Err(FetchOffsetError::NoHeadersInMessage),
         }?;
 
-        if source_offsets.contains(&&source_offset) {
+        if source_offsets
+            .iter()
+            .any(|o| {
+                o.partition == consume_result.partition()
+                    && o.offset == source_offset
+                    && consume_result.topic() == o.topic
+            })
+        {
             insert_offset_transformations(
                 &mut transformations,
                 &source_offset,
                 &consume_result.offset(),
-                consume_result.topic()
+                consume_result.topic().to_string(),
+                consume_result.partition(),
             )?;
         }
 
@@ -153,8 +180,13 @@ pub async fn get_target_offsets(
     Ok(transformations)
 }
 
+pub type Partition = i32;
+pub type Topic = String;
+pub type SourceOffset = i64;
+pub type TargetOffset = i64;
+
 fn validate_input_parameters(
-    source_offsets: &[&i64],
+    source_offsets: &OffsetSnapshot,
     offset_header_key: &str,
 ) -> Result<(), TransformationError> {
     if source_offsets.is_empty() {
@@ -170,20 +202,6 @@ fn validate_input_parameters(
     }
 
     Ok(())
-}
-
-async fn setup_consumer_and_metadata(
-    brokers: &str,
-    topics: &[&str],
-) -> Result<(StreamConsumer, Metadata), TransformationError> {
-    let consumer = initialize_consumer(brokers)?;
-    manage_topic_subscriptions(&consumer, topics)?;
-
-    let metadata = consumer
-        .fetch_metadata(None, Duration::from_secs(5))
-        .map_err(|e| TransformationError::MetadataFetchFailed(e.to_string()))?;
-
-    Ok((consumer, metadata))
 }
 
 fn get_topic_partition_watermarks<'a>(
@@ -203,6 +221,8 @@ fn get_topic_partition_watermarks<'a>(
 
 #[cfg(test)]
 mod tests {
+    use crate::OffsetRecord;
+
     use super::*;
 
     #[test]
@@ -258,9 +278,9 @@ mod tests {
         let brokers = "localhost:9092";
         let topics = &["test-topic"];
         let offset_header_key = "source-offset";
-        let source_offsets = vec![];
+        let source_offsets : OffsetSnapshot = vec![];
 
-        let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
+        let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -276,9 +296,15 @@ mod tests {
         let brokers = "localhost:9092";
         let topics = &["test-topic"];
         let offset_header_key = "";
-        let source_offsets = vec![&100i64, &200i64];
+        let source_offsets : OffsetSnapshot = vec![
+            OffsetRecord {
+                topic: "test-topic".to_string(), 
+                partition: 1, offset: 200i64, 
+                consumer_group: "console-consumer".to_string()
+            }
+        ];
 
-        let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
+        let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -294,9 +320,20 @@ mod tests {
         let brokers = "";
         let topics = &["test-topic"];
         let offset_header_key = "source-offset";
-        let source_offsets = vec![&100i64, &200i64];
+        let source_offsets : OffsetSnapshot = vec![
+            OffsetRecord {
+                topic: "test-topic".to_string(), 
+                partition: 1, offset: 100i64, 
+                consumer_group: "console-consumer".to_string()
+            },
+            OffsetRecord {
+                topic: "test-topic".to_string(), 
+                partition: 2, offset: 200i64, 
+                consumer_group: "console-consumer".to_string()
+            }
+        ];
 
-        let result = get_target_offsets(brokers, topics, offset_header_key, source_offsets).await;
+        let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
