@@ -8,7 +8,7 @@ use rdkafka::{
 };
 
 use crate::transform::{
-    consumer_initialization::{initialize_consumer, manage_topic_subscriptions}, header::get_offset_from_header, offset_mapping::insert_transformations, transformation_errors::{FetchOffsetError, TransformationError}, watermarks::get_high_watermark
+    consumer_initialization::{initialize_consumer, manage_topic_subscriptions}, header::get_offset_from_header, offset_mapping::insert_offset_transformations, transformation_errors::{FetchOffsetError, TransformationError}, watermarks::get_high_watermark
 };
 
 mod consumer_initialization;
@@ -130,11 +130,11 @@ pub async fn get_target_offsets(
         }?;
 
         if source_offsets.contains(&&source_offset) {
-            insert_transformations(
+            insert_offset_transformations(
                 &mut transformations,
                 &source_offset,
                 &consume_result.offset(),
-                &consume_result.topic()
+                consume_result.topic()
             )?;
         }
 
