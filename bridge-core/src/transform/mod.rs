@@ -37,9 +37,8 @@ mod watermarks;
 /// # Returns
 ///
 /// Returns a nested HashMap where:
-/// - Outer key: topic name (String)
-/// - Inner key: source offset (i64)
-/// - Inner value: target offset (i64) - the actual Kafka message offset
+/// - Outer key: consumer group name (String)
+/// - Inner value: Vector of tuples containing (topic, partition, source_offset, target_offset)
 ///
 /// # Errors
 ///
@@ -58,26 +57,35 @@ mod watermarks;
 /// ```rust
 /// use std::collections::HashMap;
 /// use bridge_core::transform::get_target_offsets;
-/// use bridge_core::{ OffsetRecord, OffsetSnapshot };
+/// use bridge_core::{OffsetRecord, OffsetSnapshot};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let brokers = "localhost:9092";
 /// let topics = &["orders", "payments"];
 /// let offset_header_key = "source-offset";
-/// let source_offsets : OffsetSnapshot = vec![
+/// let source_offsets: OffsetSnapshot = vec![
 ///     OffsetRecord {
-///         topic: "test-topic".to_string(),
-///         partition: 1, offset: 200i64,
-///         consumer_group: "console-consumer".to_string()
-///     }
+///         topic: "orders".to_string(),
+///         partition: 0,
+///         offset: 100,
+///         consumer_group: "my-consumer-group".to_string(),
+///     },
+///     OffsetRecord {
+///         topic: "payments".to_string(),
+///         partition: 1,
+///         offset: 200,
+///         consumer_group: "my-consumer-group".to_string(),
+///     },
 /// ];
 ///
 /// let mappings = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await?;
 ///
 /// // mappings might look like:
 /// // {
-/// //   "orders": { 100: 1523, 200: 1847 },
-/// //   "payments": { 300: 892 }
+/// //   "my-consumer-group": [
+/// //     ("orders".to_string(), 0, 100, 1523),
+/// //     ("payments".to_string(), 1, 200, 1847)
+/// //   ]
 /// // }
 /// # Ok(())
 /// # }
@@ -101,12 +109,6 @@ pub async fn get_target_offsets(
     source_offsets: &OffsetSnapshot,
 ) -> Result<HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>, TransformationError> {
     validate_input_parameters(source_offsets, offset_header_key)?;
-
-    if source_offsets.is_empty() {
-        return Err(TransformationError::InvalidInput(
-            "No source offsets provided.".to_string(),
-        ));
-    }
 
     let (consumer, metadata) = setup_consumer_and_metadata(brokers, topics).await?;
 
