@@ -163,109 +163,25 @@ pub async fn get_target_offsets(
             consume_result.topic()
         );
 
-        let source_offset = match consume_result.headers() {
-            Some(headers) => get_offset_from_header(headers, offset_header_key),
-            None => Err(FetchOffsetError::NoHeadersInMessage),
-        }?;
+        let source_offset = extract_source_offset_from_message(&consume_result, offset_header_key)?;
 
-        let source_offsets_for_partition: Vec<&OffsetRecord> = source_offsets
-            .iter()
-            .filter(|o| {
-                o.partition == consume_result.partition() && o.topic == consume_result.topic()
-            })
-            .collect();
-
-        for offset in source_offsets_for_partition.iter() {
-            if offset.offset == source_offset {
-                insert_offset_transformations(
-                    &mut transformations,
-                    &offset.offset,
-                    &consume_result.offset(),
-                    consume_result.topic().to_string(),
-                    consume_result.partition(),
-                    offset.consumer_group.clone(),
-                )?;
-
-                missing_offsets.retain(|o| {
-                    !(o.0 == offset.consumer_group
-                        && o.1 == offset.topic
-                        && o.2 == offset.partition
-                        && o.3 == offset.offset)
-                });
-            } else if !nearest_offsets.contains_key(&(
-                offset.consumer_group.clone(),
-                offset.topic.clone(),
-                offset.partition,
-                offset.offset,
-            )) && source_offset > offset.offset
-            {
-                nearest_offsets.insert(
-                    (
-                        offset.consumer_group.clone(),
-                        offset.topic.clone(),
-                        offset.partition,
-                        offset.offset,
-                    ),
-                    source_offset,
-                );
-            }
-        }
-
-        let water_mark = get_topic_partition_watermarks(
-            &topic_partition_watermarks,
-            consume_result.topic(),
-            consume_result.partition(),
+        process_message_for_offset_matching(
+            &consume_result,
+            source_offset,
+            source_offsets,
+            &mut transformations,
+            &mut missing_offsets,
+            &mut nearest_offsets,
         )?;
-        if water_mark == &(consume_result.offset() + 1) {
-            topics_and_partitions_to_check
-                .retain(|t| !(t.0 == consume_result.topic() && t.1 == consume_result.partition()));
-        }
+
+        check_and_update_partition_completion(
+            &consume_result,
+            &topic_partition_watermarks,
+            &mut topics_and_partitions_to_check,
+        )?;
     }
 
-    if missing_offsets.is_empty() {
-        Ok(transformations)
-    } else {
-        info!("{missing_offsets:?}");
-
-        let mut still_missing_offsets = vec![];
-        for missing_offset in missing_offsets {
-            let nearest_offset_option: Option<&i64> = nearest_offsets.get(&(
-                missing_offset.0.clone(),
-                missing_offset.1.clone(),
-                missing_offset.2,
-                missing_offset.3,
-            ));
-            if let Some(nearest_offset) = nearest_offset_option {
-                let consumer_group_transformation =
-                    transformations.get_mut(&missing_offset.0.clone());
-                if let Some(transformation) = consumer_group_transformation {
-                    transformation.push((
-                        missing_offset.1.clone(),
-                        missing_offset.2,
-                        missing_offset.3,
-                        *nearest_offset,
-                    ));
-                } else {
-                    transformations.insert(
-                        missing_offset.0.clone(),
-                        vec![(
-                            missing_offset.1.clone(),
-                            missing_offset.2,
-                            missing_offset.3,
-                            *nearest_offset,
-                        )],
-                    );
-                }
-            } else {
-                still_missing_offsets.push(missing_offset);
-            }
-        }
-        if still_missing_offsets.is_empty() {
-            Ok(transformations)
-        } else {
-            Err(TransformationError::MissingOffsets(still_missing_offsets))
-        }
-    }
+    handle_missing_offsets(transformations, missing_offsets, nearest_offsets)
 }
 
 pub type Partition = i32;
@@ -290,6 +206,139 @@ fn validate_input_parameters(
     }
 
     Ok(())
+}
+
+fn extract_source_offset_from_message(
+    message: &rdkafka::message::BorrowedMessage,
+    offset_header_key: &str,
+) -> Result<i64, TransformationError> {
+    match message.headers() {
+        Some(headers) => get_offset_from_header(headers, offset_header_key).map_err(Into::into),
+        None => Err(FetchOffsetError::NoHeadersInMessage.into()),
+    }
+}
+
+fn process_message_for_offset_matching(
+    message: &rdkafka::message::BorrowedMessage,
+    source_offset: i64,
+    source_offsets: &OffsetSnapshot,
+    transformations: &mut HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
+    missing_offsets: &mut Vec<(ConsumerGroup, Topic, Partition, Offset)>,
+    nearest_offsets: &mut HashMap<(ConsumerGroup, Topic, Partition, Offset), Offset>,
+) -> Result<(), TransformationError> {
+    let source_offsets_for_partition: Vec<&OffsetRecord> = source_offsets
+        .iter()
+        .filter(|o| o.partition == message.partition() && o.topic == message.topic())
+        .collect();
+
+    for offset in source_offsets_for_partition.iter() {
+        if offset.offset == source_offset {
+            insert_offset_transformations(
+                transformations,
+                &offset.offset,
+                &message.offset(),
+                message.topic().to_string(),
+                message.partition(),
+                offset.consumer_group.clone(),
+            )?;
+
+            missing_offsets.retain(|o| {
+                !(o.0 == offset.consumer_group
+                    && o.1 == offset.topic
+                    && o.2 == offset.partition
+                    && o.3 == offset.offset)
+            });
+        } else if !nearest_offsets.contains_key(&(
+            offset.consumer_group.clone(),
+            offset.topic.clone(),
+            offset.partition,
+            offset.offset,
+        )) && source_offset > offset.offset
+        {
+            nearest_offsets.insert(
+                (
+                    offset.consumer_group.clone(),
+                    offset.topic.clone(),
+                    offset.partition,
+                    offset.offset,
+                ),
+                source_offset,
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn check_and_update_partition_completion(
+    message: &rdkafka::message::BorrowedMessage,
+    topic_partition_watermarks: &HashMap<String, HashMap<i32, i64>>,
+    topics_and_partitions_to_check: &mut Vec<(String, i32)>,
+) -> Result<(), TransformationError> {
+    let water_mark = get_topic_partition_watermarks(
+        topic_partition_watermarks,
+        message.topic(),
+        message.partition(),
+    )?;
+    
+    if water_mark == &(message.offset() + 1) {
+        topics_and_partitions_to_check
+            .retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
+    }
+    
+    Ok(())
+}
+
+fn handle_missing_offsets(
+    mut transformations: HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
+    missing_offsets: Vec<(ConsumerGroup, Topic, Partition, Offset)>,
+    nearest_offsets: HashMap<(ConsumerGroup, Topic, Partition, Offset), Offset>,
+) -> Result<HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>, TransformationError> {
+    if missing_offsets.is_empty() {
+        return Ok(transformations);
+    }
+
+    info!("{missing_offsets:?}");
+
+    let mut still_missing_offsets = vec![];
+    for missing_offset in missing_offsets {
+        let nearest_offset_option: Option<&i64> = nearest_offsets.get(&(
+            missing_offset.0.clone(),
+            missing_offset.1.clone(),
+            missing_offset.2,
+            missing_offset.3,
+        ));
+        
+        if let Some(nearest_offset) = nearest_offset_option {
+            let consumer_group_transformation = transformations.get_mut(&missing_offset.0.clone());
+            if let Some(transformation) = consumer_group_transformation {
+                transformation.push((
+                    missing_offset.1.clone(),
+                    missing_offset.2,
+                    missing_offset.3,
+                    *nearest_offset,
+                ));
+            } else {
+                transformations.insert(
+                    missing_offset.0.clone(),
+                    vec![(
+                        missing_offset.1.clone(),
+                        missing_offset.2,
+                        missing_offset.3,
+                        *nearest_offset,
+                    )],
+                );
+            }
+        } else {
+            still_missing_offsets.push(missing_offset);
+        }
+    }
+    
+    if still_missing_offsets.is_empty() {
+        Ok(transformations)
+    } else {
+        Err(TransformationError::MissingOffsets(still_missing_offsets))
+    }
 }
 
 fn get_topic_partition_watermarks<'a>(
