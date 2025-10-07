@@ -10,7 +10,10 @@ use rdkafka::{
 
 use crate::transform::transformation_errors::TransformationError;
 
-pub async fn setup_consumer_and_metadata(brokers: &str, topics: &[&str]) -> Result<(StreamConsumer, Metadata), TransformationError> {
+pub async fn setup_consumer_and_metadata(
+    brokers: &str,
+    topics: &[&str],
+) -> Result<(StreamConsumer, Metadata), TransformationError> {
     let consumer = initialize_consumer(brokers)?;
     manage_topic_subscriptions(&consumer, topics)?;
 
@@ -21,9 +24,13 @@ pub async fn setup_consumer_and_metadata(brokers: &str, topics: &[&str]) -> Resu
     Ok((consumer, metadata))
 }
 
+// TODO: map<String> of consumer properties to initialize consumer
+// TODO: move to bridge-kafka
 pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
     if brokers.is_empty() {
-        return Err(TransformationError::InvalidInput("Brokers string cannot be empty".to_string()));
+        return Err(TransformationError::InvalidInput(
+            "Brokers string cannot be empty".to_string(),
+        ));
     }
 
     let mut config = ClientConfig::new();
@@ -37,21 +44,30 @@ pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, Transformati
         .set("enable.auto.commit", "false")
         .set_log_level(RDKafkaLogLevel::Debug);
 
-    config
-        .create()
-        .map_err(|kafka_error| TransformationError::ConsumerInitializationFailed(format!("Failed to create consumer: {kafka_error}")))
+    config.create().map_err(|kafka_error| {
+        TransformationError::ConsumerInitializationFailed(format!(
+            "Failed to create consumer: {kafka_error}"
+        ))
+    })
 }
 
-pub fn manage_topic_subscriptions(consumer: &StreamConsumer, topics: &[&str]) -> Result<(), TransformationError> {
+pub fn manage_topic_subscriptions(
+    consumer: &StreamConsumer,
+    topics: &[&str],
+) -> Result<(), TransformationError> {
     if topics.is_empty() {
-        return Err(TransformationError::InvalidInput("Topics list cannot be empty".to_string()));
+        return Err(TransformationError::InvalidInput(
+            "Topics list cannot be empty".to_string(),
+        ));
     }
 
     let topic_selector = topics.join(",");
     info!("Subscribing to topics: {topic_selector}");
 
-    consumer.subscribe(topics).map_err(|kafka_error| TransformationError::SubscribingFailed {
-        message: format!("Failed to subscribe to topics: {kafka_error}"),
-        topic_selector,
-    })
+    consumer
+        .subscribe(topics)
+        .map_err(|kafka_error| TransformationError::SubscribingFailed {
+            message: format!("Failed to subscribe to topics: {kafka_error}"),
+            topic_selector,
+        })
 }

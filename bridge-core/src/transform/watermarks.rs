@@ -8,10 +8,18 @@ use rdkafka::{
 
 use crate::transform::transformation_errors::TransformationError;
 
-pub fn get_high_watermark(consumer: &StreamConsumer, metadata: &Metadata, topics: &[&str]) -> Result<HashMap<String, HashMap<i32, i64>>, TransformationError> {
+pub fn get_high_watermark(
+    consumer: &StreamConsumer,
+    metadata: &Metadata,
+    topics: &[&str],
+) -> Result<HashMap<String, HashMap<i32, i64>>, TransformationError> {
     let mut topic_partition_watermarks: HashMap<String, HashMap<i32, i64>> = HashMap::new();
 
-    for topic in metadata.topics().iter().filter(|t| topics.contains(&t.name())) {
+    for topic in metadata
+        .topics()
+        .iter()
+        .filter(|t| topics.contains(&t.name()))
+    {
         let mut partition_map = HashMap::new();
 
         for partition in topic.partitions() {
@@ -21,7 +29,12 @@ pub fn get_high_watermark(consumer: &StreamConsumer, metadata: &Metadata, topics
                 Ok((_low, high)) => {
                     if high > 0 {
                         partition_map.insert(partition_id, high);
-                        info!("Watermark for {}-{}: high={}", topic.name(), partition_id, high);
+                        info!(
+                            "Watermark for {}-{}: high={}",
+                            topic.name(),
+                            partition_id,
+                            high
+                        );
                     }
                 }
                 Err(e) => {

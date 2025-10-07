@@ -8,11 +8,17 @@ pub enum TransformationError {
     #[error("Consumer initialization failed. Reason: {0}")]
     ConsumerInitializationFailed(String),
     #[error("Consumer subscription failed. Reason: {message}, TopicSelector: {topic_selector}")]
-    SubscribingFailed { message: String, topic_selector: String },
+    SubscribingFailed {
+        message: String,
+        topic_selector: String,
+    },
     #[error("Kafka Error. Reason: {0}")]
     KafkaError(String),
     #[error("Failed to receive messages. Reason: {message}, TopicSelector: {topic_selector}")]
-    FailedToReceiveMessages { message: String, topic_selector: String },
+    FailedToReceiveMessages {
+        message: String,
+        topic_selector: String,
+    },
     #[error("Retrieving offset header failed. Reason: {0}")]
     RetrievingOffsetHeaderValueFailed(String),
     #[error("Offset header from message could not be fetched. Reason: {0}")]
@@ -21,8 +27,14 @@ pub enum TransformationError {
     OffsetMappingTransformationError(OffsetMappingTransformationError),
     #[error("Failed to fetch metadata. Reason: {0}")]
     MetadataFetchFailed(String),
-    #[error("Failed to fetch watermarks for topic {topic}, partition {partition}. Reason: {reason}")]
-    WatermarkFetchFailed { topic: String, partition: i32, reason: String },
+    #[error(
+        "Failed to fetch watermarks for topic {topic}, partition {partition}. Reason: {reason}"
+    )]
+    WatermarkFetchFailed {
+        topic: String,
+        partition: i32,
+        reason: String,
+    },
     #[error("Invalid input parameters. Reason: {0}")]
     InvalidInput(String),
     #[error("Timeout occurred while waiting for messages")]
@@ -31,11 +43,15 @@ pub enum TransformationError {
     NoValidPartitions(Vec<String>),
     #[error("No all source offsets were found in the restored topics: {0:?}")]
     NotAllSourceOffsetsFound(Vec<(String, i32)>),
+    #[error("Nearest offset not found.")]
+    NearestOffsetNotFound,
 }
 
 #[derive(Error, Debug)]
 pub enum OffsetMappingTransformationError {
-    #[error("Source offset {source_offset} already present in result. Target offset is {target_offset}. Previous target offset was {previous_target_offset}")]
+    #[error(
+        "Source offset {source_offset} already present in result. Target offset is {target_offset}. Previous target offset was {previous_target_offset}"
+    )]
     SourceOffsetAlreadyPresent {
         source_offset: i64,
         target_offset: i64,

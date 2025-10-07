@@ -1,4 +1,14 @@
 services:
+  broker-init:
+    image: confluentinc/cp-kafka:8.0.0
+    command: [ "/bin/bash", "-c", "/create_topics.sh"] 
+    depends_on:
+      broker-target:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./create_topics.sh
+        target: /create_topics.sh
   broker-source:
     image: confluentinc/cp-kafka:8.0.0
     environment:

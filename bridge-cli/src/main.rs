@@ -17,7 +17,13 @@ async fn main() -> Result<(), GeneralError> {
     };
     let result = offset_snapshot_importer.import()?;
 
-    let transformed_result = get_target_offsets("localhost:9093", &["orders-1", "orders-2", "orders-3"], "Offset", &result).await?;
+    let transformed_result = get_target_offsets(
+        "localhost:9093",
+        &["orders-1", "orders-2", "orders-3"],
+        "Offset",
+        &result,
+    )
+    .await?;
 
     println!("{transformed_result:?}");
 
