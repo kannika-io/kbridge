@@ -43,8 +43,8 @@ pub enum TransformationError {
     NoValidPartitions(Vec<String>),
     #[error("No all source offsets were found in the restored topics: {0:?}")]
     NotAllSourceOffsetsFound(Vec<(String, i32)>),
-    #[error("Nearest offset not found.")]
-    NearestOffsetNotFound,
+    #[error("Missing offsets: {0:?}")]
+    MissingOffsets(Vec<(String, String, i32, i64)>),
 }
 
 #[derive(Error, Debug)]

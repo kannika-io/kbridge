@@ -261,7 +261,7 @@ pub async fn get_target_offsets(
         if still_missing_offsets.is_empty() {
             Ok(transformations)
         } else {
-            Err(TransformationError::NearestOffsetNotFound)
+            Err(TransformationError::MissingOffsets(still_missing_offsets))
         }
     }
 }
@@ -311,122 +311,122 @@ mod tests {
 
     use super::*;
 
-//     #[test]
-//     fn test_get_topic_partition_watermarks_success() {
-//         let mut topic_partition_watermarks = HashMap::new();
-//         let mut partitions = HashMap::new();
-//         partitions.insert(0, 100i64);
-//         partitions.insert(1, 200i64);
-//         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
-// 
-//         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 0);
-// 
-//         assert!(result.is_ok());
-//         assert_eq!(*result.unwrap(), 100i64);
-//     }
-// 
-//     #[test]
-//     fn test_get_topic_partition_watermarks_topic_not_found() {
-//         let topic_partition_watermarks = HashMap::new();
-// 
-//         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
-// 
-//         assert!(result.is_err());
-//         match result.unwrap_err() {
-//             TransformationError::InvalidInput(msg) => {
-//                 assert!(msg.contains("No watermark found for topic nonexistent-topic partition 0"));
-//             }
-//             _ => panic!("Expected InvalidInput error"),
-//         }
-//     }
-// 
-//     #[test]
-//     fn test_get_topic_partition_watermarks_partition_not_found() {
-//         let mut topic_partition_watermarks = HashMap::new();
-//         let mut partitions = HashMap::new();
-//         partitions.insert(0, 100i64);
-//         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
-// 
-//         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 1);
-// 
-//         assert!(result.is_err());
-//         match result.unwrap_err() {
-//             TransformationError::InvalidInput(msg) => {
-//                 assert!(msg.contains("No watermark found for topic test-topic partition 1"));
-//             }
-//             _ => panic!("Expected InvalidInput error"),
-//         }
-//     }
-// 
-//     #[tokio::test]
-//     async fn test_get_target_offsets_empty_source_offsets() {
-//         let brokers = "localhost:9092";
-//         let topics = &["test-topic"];
-//         let offset_header_key = "source-offset";
-//         let source_offsets: OffsetSnapshot = vec![];
-// 
-//         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
-// 
-//         assert!(result.is_err());
-//         match result.unwrap_err() {
-//             TransformationError::InvalidInput(msg) => {
-//                 assert_eq!(msg, "Source offsets cannot be empty");
-//             }
-//             _ => panic!("Expected InvalidInput error for empty source offsets"),
-//         }
-//     }
-// 
-//     #[tokio::test]
-//     async fn test_get_target_offsets_empty_offset_header_key() {
-//         let brokers = "localhost:9092";
-//         let topics = &["test-topic"];
-//         let offset_header_key = "";
-//         let source_offsets: OffsetSnapshot = vec![OffsetRecord {
-//             topic: "test-topic".to_string(),
-//             partition: 1,
-//             offset: 200i64,
-//             consumer_group: "console-consumer".to_string(),
-//         }];
-// 
-//         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
-// 
-//         assert!(result.is_err());
-//         match result.unwrap_err() {
-//             TransformationError::InvalidInput(msg) => {
-//                 assert_eq!(msg, "Offset header key cannot be empty");
-//             }
-//             _ => panic!("Expected InvalidInput error for empty offset header key"),
-//         }
-//     }
-// 
-//     #[tokio::test]
-//     async fn test_get_target_offsets_empty_brokers() {
-//         let brokers = "";
-//         let topics = &["test-topic"];
-//         let offset_header_key = "source-offset";
-//         let source_offsets: OffsetSnapshot = vec![
-//             OffsetRecord {
-//                 topic: "test-topic".to_string(),
-//                 partition: 1,
-//                 offset: 100i64,
-//                 consumer_group: "console-consumer".to_string(),
-//             },
-//             OffsetRecord {
-//                 topic: "test-topic".to_string(),
-//                 partition: 2,
-//                 offset: 200i64,
-//                 consumer_group: "console-consumer".to_string(),
-//             },
-//         ];
-// 
-//         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
-// 
-//         assert!(result.is_err());
-//         match result.unwrap_err() {
-//             TransformationError::InvalidInput(msg) => {
-//                 assert_eq!(msg, "Brokers string cannot be empty");
-//             }
-//             _ => panic!("Expected InvalidInput error for empty brokers"),
-//         }
-//     }
+    //     #[test]
+    //     fn test_get_topic_partition_watermarks_success() {
+    //         let mut topic_partition_watermarks = HashMap::new();
+    //         let mut partitions = HashMap::new();
+    //         partitions.insert(0, 100i64);
+    //         partitions.insert(1, 200i64);
+    //         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+    //
+    //         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 0);
+    //
+    //         assert!(result.is_ok());
+    //         assert_eq!(*result.unwrap(), 100i64);
+    //     }
+    //
+    //     #[test]
+    //     fn test_get_topic_partition_watermarks_topic_not_found() {
+    //         let topic_partition_watermarks = HashMap::new();
+    //
+    //         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "nonexistent-topic", 0);
+    //
+    //         assert!(result.is_err());
+    //         match result.unwrap_err() {
+    //             TransformationError::InvalidInput(msg) => {
+    //                 assert!(msg.contains("No watermark found for topic nonexistent-topic partition 0"));
+    //             }
+    //             _ => panic!("Expected InvalidInput error"),
+    //         }
+    //     }
+    //
+    //     #[test]
+    //     fn test_get_topic_partition_watermarks_partition_not_found() {
+    //         let mut topic_partition_watermarks = HashMap::new();
+    //         let mut partitions = HashMap::new();
+    //         partitions.insert(0, 100i64);
+    //         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+    //
+    //         let result = get_topic_partition_watermarks(&topic_partition_watermarks, "test-topic", 1);
+    //
+    //         assert!(result.is_err());
+    //         match result.unwrap_err() {
+    //             TransformationError::InvalidInput(msg) => {
+    //                 assert!(msg.contains("No watermark found for topic test-topic partition 1"));
+    //             }
+    //             _ => panic!("Expected InvalidInput error"),
+    //         }
+    //     }
+    //
+    //     #[tokio::test]
+    //     async fn test_get_target_offsets_empty_source_offsets() {
+    //         let brokers = "localhost:9092";
+    //         let topics = &["test-topic"];
+    //         let offset_header_key = "source-offset";
+    //         let source_offsets: OffsetSnapshot = vec![];
+    //
+    //         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
+    //
+    //         assert!(result.is_err());
+    //         match result.unwrap_err() {
+    //             TransformationError::InvalidInput(msg) => {
+    //                 assert_eq!(msg, "Source offsets cannot be empty");
+    //             }
+    //             _ => panic!("Expected InvalidInput error for empty source offsets"),
+    //         }
+    //     }
+    //
+    //     #[tokio::test]
+    //     async fn test_get_target_offsets_empty_offset_header_key() {
+    //         let brokers = "localhost:9092";
+    //         let topics = &["test-topic"];
+    //         let offset_header_key = "";
+    //         let source_offsets: OffsetSnapshot = vec![OffsetRecord {
+    //             topic: "test-topic".to_string(),
+    //             partition: 1,
+    //             offset: 200i64,
+    //             consumer_group: "console-consumer".to_string(),
+    //         }];
+    //
+    //         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
+    //
+    //         assert!(result.is_err());
+    //         match result.unwrap_err() {
+    //             TransformationError::InvalidInput(msg) => {
+    //                 assert_eq!(msg, "Offset header key cannot be empty");
+    //             }
+    //             _ => panic!("Expected InvalidInput error for empty offset header key"),
+    //         }
+    //     }
+    //
+    //     #[tokio::test]
+    //     async fn test_get_target_offsets_empty_brokers() {
+    //         let brokers = "";
+    //         let topics = &["test-topic"];
+    //         let offset_header_key = "source-offset";
+    //         let source_offsets: OffsetSnapshot = vec![
+    //             OffsetRecord {
+    //                 topic: "test-topic".to_string(),
+    //                 partition: 1,
+    //                 offset: 100i64,
+    //                 consumer_group: "console-consumer".to_string(),
+    //             },
+    //             OffsetRecord {
+    //                 topic: "test-topic".to_string(),
+    //                 partition: 2,
+    //                 offset: 200i64,
+    //                 consumer_group: "console-consumer".to_string(),
+    //             },
+    //         ];
+    //
+    //         let result = get_target_offsets(brokers, topics, offset_header_key, &source_offsets).await;
+    //
+    //         assert!(result.is_err());
+    //         match result.unwrap_err() {
+    //             TransformationError::InvalidInput(msg) => {
+    //                 assert_eq!(msg, "Brokers string cannot be empty");
+    //             }
+    //             _ => panic!("Expected InvalidInput error for empty brokers"),
+    //         }
+    //     }
 }
