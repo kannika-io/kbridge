@@ -1,41 +1,34 @@
 use std::collections::HashMap;
 use std::io;
 
-use log::{error, info};
+use log::error;
 use rdkafka::{
-    consumer::{BaseConsumer, CommitMode, Consumer}, error::KafkaError, ClientConfig, Offset, TopicPartitionList
+    ClientConfig, Offset, TopicPartitionList,
+    consumer::{BaseConsumer, CommitMode, Consumer},
+    error::KafkaError,
 };
 use thiserror::Error;
 
 use crate::{ConsumerGroup, TransformationRecord};
 
 pub async fn apply_target_offsets(
-    brokers: &str,
+    consumer_config: &mut ClientConfig,
     target_offsets: &HashMap<ConsumerGroup, Vec<TransformationRecord>>,
 ) -> Result<(), ApplyOffsetsError> {
-    info!("Initializing kafka client with brokers: {brokers}");
-
     for offset in target_offsets {
-        let consumer: BaseConsumer = ClientConfig::new()
-            .set("bootstrap.servers", brokers)
-            .set("enable.auto.commit", "false")
-            .set("group.id", offset.0)
-            .create()?;
+        consumer_config.set("group.id", offset.0);
+        let consumer: BaseConsumer = consumer_config.create()?;
 
         let mut topic_partition_list = TopicPartitionList::new();
 
         for transformation in offset.1 {
-            topic_partition_list
-                .add_partition_offset(
-                    transformation.0.as_str(),
-                    transformation.1,
-                    Offset::Offset(transformation.3),
-                )
-                .unwrap();
+            topic_partition_list.add_partition_offset(
+                transformation.0.as_str(),
+                transformation.1,
+                Offset::Offset(transformation.3),
+            )?;
         }
-        consumer
-            .commit(&topic_partition_list, CommitMode::Sync)
-            .unwrap();
+        consumer.commit(&topic_partition_list, CommitMode::Sync)?;
     }
     Ok(())
 }

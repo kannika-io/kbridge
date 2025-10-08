@@ -1,5 +1,4 @@
-use std::fmt::Display;
-
+use rdkafka::error::KafkaError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,7 +11,7 @@ pub enum TransformationError {
         topic_selector: String,
     },
     #[error("Kafka Error. Reason: {0}")]
-    KafkaError(String),
+    KafkaError(#[from] KafkaError),
     #[error("Failed to receive messages. Reason: {message}, TopicSelector: {topic_selector}")]
     FailedToReceiveMessages {
         message: String,
@@ -66,21 +65,4 @@ pub enum FetchOffsetError {
     HeaderNotFound,
     #[error("No headers in message")]
     NoHeadersInMessage,
-}
-
-#[derive(Debug)]
-pub struct KafkaMessage {
-    pub partition: i32,
-    pub offset: i64,
-    pub topic: String,
-}
-
-impl Display for KafkaMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Additional message Info: Topic: {}, Partition: {}, Offset: {}",
-            self.topic, self.partition, self.offset
-        )
-    }
 }

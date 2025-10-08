@@ -13,3 +13,4 @@ serde = { workspace = true }
 tokio =  { workspace = true }
 simple_logger =  { workspace = true }
 thiserror = { workspace = true }
+rdkafka = { workspace = true }

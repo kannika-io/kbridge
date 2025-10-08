@@ -1,8 +1,19 @@
+use rdkafka::Message;
 use rdkafka::message::Headers;
 
-use crate::transform::transformation_errors::FetchOffsetError;
+use crate::transform::errors::{FetchOffsetError, TransformationError};
 
-pub fn get_offset_from_header(
+pub fn extract_source_offset_from_message(
+    message: &rdkafka::message::BorrowedMessage,
+    offset_header_key: &str,
+) -> Result<i64, TransformationError> {
+    match message.headers() {
+        Some(headers) => get_offset_from_header(headers, offset_header_key).map_err(Into::into),
+        None => Err(FetchOffsetError::NoHeadersInMessage.into()),
+    }
+}
+
+fn get_offset_from_header(
     headers: &rdkafka::message::BorrowedHeaders,
     offset_header_key: &str,
 ) -> Result<i64, FetchOffsetError> {

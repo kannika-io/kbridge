@@ -50,6 +50,7 @@ version = "0.1.0"
 dependencies = [
  "bridge-core",
  "csv",
+ "rdkafka",
  "serde",
  "simple_logger",
  "thiserror 2.0.17",

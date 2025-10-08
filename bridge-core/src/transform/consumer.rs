@@ -3,18 +3,17 @@ use std::time::Duration;
 use log::info;
 use rdkafka::{
     ClientConfig,
-    config::RDKafkaLogLevel,
     consumer::{Consumer, StreamConsumer},
     metadata::Metadata,
 };
 
-use crate::transform::transformation_errors::TransformationError;
+use crate::transform::errors::TransformationError;
 
 pub async fn setup_consumer_and_metadata(
-    brokers: &str,
     topics: &[&str],
+    transformer_consumer_config: ClientConfig,
 ) -> Result<(StreamConsumer, Metadata), TransformationError> {
-    let consumer = initialize_consumer(brokers)?;
+    let consumer = initialize_consumer(transformer_consumer_config)?;
     manage_topic_subscriptions(&consumer, topics)?;
 
     let metadata = consumer
@@ -24,26 +23,10 @@ pub async fn setup_consumer_and_metadata(
     Ok((consumer, metadata))
 }
 
-// TODO: map<String> of consumer properties to initialize consumer
-pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
-    if brokers.is_empty() {
-        return Err(TransformationError::InvalidInput(
-            "Brokers string cannot be empty".to_string(),
-        ));
-    }
-
-    let mut config = ClientConfig::new();
-
-    info!("Initializing consumer with brokers: {brokers}");
-    config
-        .set("bootstrap.servers", brokers)
-        .set("group.id", "test")
-        .set("auto.offset.reset", "earliest")
-        .set("enable.partition.eof", "false")
-        .set("enable.auto.commit", "false")
-        .set_log_level(RDKafkaLogLevel::Debug);
-
-    config.create().map_err(|kafka_error| {
+pub fn initialize_consumer(
+    transformer_consumer_config: ClientConfig,
+) -> Result<StreamConsumer, TransformationError> {
+    transformer_consumer_config.create().map_err(|kafka_error| {
         TransformationError::ConsumerInitializationFailed(format!(
             "Failed to create consumer: {kafka_error}"
         ))
