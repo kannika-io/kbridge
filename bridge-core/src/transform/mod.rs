@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
-use rdkafka::{ClientConfig, Message, consumer::Consumer};
+use rdkafka::{ClientConfig, consumer::Consumer};
 
 use crate::{
-    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetRecord, OffsetSnapshot, Partition, Topic,
+    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetSnapshot, Partition, Topic,
     TransformationRecord,
     transform::{
         consumer::setup_consumer_and_metadata,
-        consumer_group_offset_mapping::insert_offset_transformations,
-        errors::{FetchOffsetError, TransformationError},
+        errors::TransformationError,
         watermarks::get_high_watermark,
     },
 };

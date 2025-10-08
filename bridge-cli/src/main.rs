@@ -30,7 +30,6 @@ async fn main() -> Result<(), GeneralError> {
         .set("bootstrap.servers", export_bootstrap_url)
         .set("group.id", "test")
         .set("auto.offset.reset", "earliest")
-        .set("enable.partition.eof", "false")
         .set("enable.auto.commit", "false")
         .set_log_level(RDKafkaLogLevel::Debug);
 
