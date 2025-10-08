@@ -1,4 +1,5 @@
 use bridge_core::{
+    export::apply_target_offsets,
     import::{ImportError, OffsetSnapshotImporter},
     transform::{get_target_offsets, transformation_errors::TransformationError},
 };
@@ -10,7 +11,10 @@ mod fetch_offsets;
 
 #[tokio::main]
 async fn main() -> Result<(), GeneralError> {
-    simple_logger::SimpleLogger::new().env().init().unwrap();
+    simple_logger::SimpleLogger::new()
+        .env()
+        .init().unwrap();
+
     let offset_snapshot_importer = CsvOffsetSnapshotImporter {
         file_path: "offsets.csv",
         consumer_group: "console-consumer",
@@ -26,6 +30,10 @@ async fn main() -> Result<(), GeneralError> {
     .await?;
 
     println!("{transformed_result:?}");
+    apply_target_offsets("localhost:9093", &transformed_result)
+        .await
+        .unwrap();
+
 
     Ok(())
 }

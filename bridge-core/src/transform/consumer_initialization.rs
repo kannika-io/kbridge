@@ -25,7 +25,6 @@ pub async fn setup_consumer_and_metadata(
 }
 
 // TODO: map<String> of consumer properties to initialize consumer
-// TODO: move to bridge-kafka
 pub fn initialize_consumer(brokers: &str) -> Result<StreamConsumer, TransformationError> {
     if brokers.is_empty() {
         return Err(TransformationError::InvalidInput(

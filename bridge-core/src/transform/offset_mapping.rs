@@ -1,5 +1,6 @@
 use crate::transform::{
-    transformation_errors::OffsetMappingTransformationError, ConsumerGroup, TransformationRecord, Offset, Partition, Topic
+    ConsumerGroup, Offset, Partition, Topic, TransformationRecord,
+    transformation_errors::OffsetMappingTransformationError,
 };
 use log::info;
 use std::collections::HashMap;

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use log::{info, trace};
-use rdkafka::Message;
+use rdkafka::{consumer::Consumer, Message};
 
 use crate::{
-    OffsetRecord, OffsetSnapshot,
+    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetRecord, OffsetSnapshot, Partition, Topic,
+    TransformationRecord,
     transform::{
         consumer_initialization::setup_consumer_and_metadata,
         header::get_offset_from_header,
@@ -181,20 +182,9 @@ pub async fn get_target_offsets(
         )?;
     }
 
+    consumer.unassign().unwrap();
     handle_missing_offsets(transformations, missing_offsets, nearest_offsets)
 }
-
-fn get_partitions_to_investigate()
-{
-    
-}
-
-pub type Partition = i32;
-pub type Topic = String;
-pub type ConsumerGroup = String;
-pub type Offset = i64;
-pub type ConsumerGroupRecord = (ConsumerGroup, Topic, Partition, Offset);
-pub type TransformationRecord = (Topic, Partition, Offset, Offset);
 
 fn validate_input_parameters(
     source_offsets: &OffsetSnapshot,
@@ -300,7 +290,7 @@ fn handle_missing_offsets(
     mut transformations: HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
     missing_offsets: Vec<(ConsumerGroup, Topic, Partition, Offset)>,
     nearest_offsets: HashMap<(ConsumerGroup, Topic, Partition, Offset), Offset>,
-) -> Result<HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>, TransformationError> {
+) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
     if missing_offsets.is_empty() {
         return Ok(transformations);
     }
