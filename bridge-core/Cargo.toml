@@ -1,11 +1,13 @@
 [package]
 name = "bridge-core"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
 
 [dependencies]
-kafka = "0.10.0"
-rdkafka = "0.38.0"
-tokio = { version = "1.47.1", features = ["full"] }
-log = "0.4.27"
-thiserror = "2.0.17"
+kafka = { workspace = true }
+rdkafka = { workspace = true }
+tokio = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
