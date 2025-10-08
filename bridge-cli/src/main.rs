@@ -57,8 +57,9 @@ async fn main() -> Result<(), GeneralError> {
 
     let result = offset_snapshot_importer.import()?;
 
+    let topics_refs: Vec<&str> = args.topics.iter().map(|s| s.as_str()).collect();
     let transformed_result =
-        get_target_offsets(transformer_consumer_config, &args.topics, "Offset", &result).await?;
+        get_target_offsets(transformer_consumer_config, &topics_refs, "Offset", &result).await?;
 
     println!("{transformed_result:?}");
     apply_target_offsets(&mut exporter_base_config, &transformed_result).await?;
