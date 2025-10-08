@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 use std::io;
 
-use kafka::client::{CommitOffset, GroupOffsetStorage, KafkaClient};
 use log::{error, info};
 use rdkafka::{
-    ClientConfig, Offset, TopicPartitionList,
-    consumer::{BaseConsumer, Consumer},
-    error::KafkaError,
+    consumer::{BaseConsumer, CommitMode, Consumer}, error::KafkaError, ClientConfig, Offset, TopicPartitionList
 };
 use thiserror::Error;
 
@@ -37,7 +34,7 @@ pub async fn apply_target_offsets(
                 .unwrap();
         }
         consumer
-            .commit(&topic_partition_list, rdkafka::consumer::CommitMode::Sync)
+            .commit(&topic_partition_list, CommitMode::Sync)
             .unwrap();
     }
     Ok(())
