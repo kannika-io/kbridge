@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 
 use bridge_core::{
     OffsetRecord, OffsetSnapshot,
@@ -7,7 +7,7 @@ use bridge_core::{
 use serde::Deserialize;
 
 pub struct CsvOffsetSnapshotImporter {
-    pub file_path: String,
+    pub file_path: PathBuf,
     pub consumer_group: String,
 }
 
@@ -19,10 +19,13 @@ impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
                 "partition",
                 "offset",
             ]));
-            import_records(reader.deserialize::<Record>(), self.consumer_group.to_string())
+            import_records(
+                reader.deserialize::<Record>(),
+                self.consumer_group.to_string(),
+            )
         } else {
             Err(ImportError::ResourceNotFound(format!(
-                "{} could not be opened.",
+                "{:?} could not be opened.",
                 self.file_path
             )))
         }

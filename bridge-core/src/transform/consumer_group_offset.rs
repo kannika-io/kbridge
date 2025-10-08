@@ -1,8 +1,10 @@
-use std::collections::HashMap;
-use rdkafka::Message;
-use crate::{ConsumerGroup, ConsumerGroupRecord, Offset, OffsetRecord, OffsetSnapshot, TransformationRecord};
 use crate::transform::consumer_group_offset_mapping::insert_offset_transformations;
 use crate::transform::errors::TransformationError;
+use crate::{
+    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetRecord, OffsetSnapshot, TransformationRecord,
+};
+use rdkafka::Message;
+use std::collections::HashMap;
 
 pub fn try_find_missing_offsets(
     message: &rdkafka::message::BorrowedMessage,

@@ -1,7 +1,11 @@
 use std::{collections::HashMap, time::Duration};
 
 use log::info;
-use rdkafka::{consumer::{Consumer, StreamConsumer}, metadata::Metadata, Message};
+use rdkafka::{
+    Message,
+    consumer::{Consumer, StreamConsumer},
+    metadata::Metadata,
+};
 
 use crate::transform::errors::TransformationError;
 
@@ -17,8 +21,7 @@ pub fn update_partitions_to_check(
     )?;
 
     if water_mark == &(message.offset() + 1) {
-        partitions_to_check
-            .retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
+        partitions_to_check.retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
     }
 
     Ok(())
@@ -37,7 +40,6 @@ fn get_topic_partition_watermarks<'a>(
             ))
         })
 }
-
 
 pub fn get_high_watermark(
     consumer: &StreamConsumer,
@@ -88,8 +90,8 @@ pub fn get_high_watermark(
 
 #[cfg(test)]
 mod tests {
-    use crate::transform::watermarks::get_topic_partition_watermarks;
     use super::*;
+    use crate::transform::watermarks::get_topic_partition_watermarks;
 
     #[test]
     fn test_get_topic_partition_watermarks_success() {

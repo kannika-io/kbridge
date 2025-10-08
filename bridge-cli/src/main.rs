@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use bridge_core::{
     export::{ApplyOffsetsError, apply_target_offsets},
     import::{ImportError, OffsetSnapshotImporter},
@@ -15,15 +17,20 @@ mod fetch_offsets;
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(short, long)]
+    /// The bootstrap server URL for the Kafka Broker where we want to restore the offsets
     bootstrap_server: String,
 
-    #[arg(short, long, default_value_t = String::from("./offsets.csv"))]
-    offsets_csv_file_location: String,
+    #[arg(short, long)]
+    /// Path to CSV file containing the offsets
+    offsets_csv_file_location: PathBuf,
 
     #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
+    /// Consumer group ID that will be used to fetch the records
     consumer_group_id: String,
 
-    #[arg(short, long, default_value_t = String::from("Offset"))]
+    // TODO what is the default in kannika
+    #[arg(short, long)]
+    /// Header in target messages that contains the offsets of the source topic
     legacy_offset_header: String,
 }
 
