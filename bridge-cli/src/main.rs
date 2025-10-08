@@ -33,19 +33,7 @@ async fn main() -> Result<(), GeneralError> {
 #[derive(Error, Debug)]
 enum GeneralError {
     #[error("Failed during importing of source offsets. Reason: {0}")]
-    ImportError(ImportError),
+    ImportError(#[from] ImportError),
     #[error("Failed during offset transformation. Reason: {0}")]
-    TransformationError(TransformationError),
-}
-
-impl From<TransformationError> for GeneralError {
-    fn from(value: TransformationError) -> Self {
-        GeneralError::TransformationError(value)
-    }
-}
-
-impl From<ImportError> for GeneralError {
-    fn from(value: ImportError) -> Self {
-        GeneralError::ImportError(value)
-    }
+    TransformationError(#[from] TransformationError),
 }

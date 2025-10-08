@@ -107,7 +107,7 @@ pub async fn get_target_offsets(
     topics: &[&str],
     offset_header_key: &str,
     source_offsets: &OffsetSnapshot,
-) -> Result<HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>, TransformationError> {
+) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
     validate_input_parameters(source_offsets, offset_header_key)?;
 
     let (consumer, metadata) = setup_consumer_and_metadata(brokers, topics).await?;
@@ -115,21 +115,21 @@ pub async fn get_target_offsets(
     let mut transformations = HashMap::new();
 
     // Fetch water marks for topics and partitions
-    // We need this to be able to exit the consumer loop later
+    // We need this to be able to exit the consumer loop
     let topic_partition_watermarks = get_high_watermark(&consumer, &metadata, topics)?;
 
-    let mut topics_and_partitions_to_check: Vec<(String, i32)> = topic_partition_watermarks
+    let mut partitions_to_search: Vec<(String, i32)> = topic_partition_watermarks
         .iter()
         .flat_map(|t| t.1.iter().map(|p| (t.0.to_string(), *p.0)))
         .collect();
 
-    if topics_and_partitions_to_check.is_empty() {
-        return Err(TransformationError::NoValidPartitions(
+    if partitions_to_search.is_empty() {
+        return Err(TransformationError::NoPartitionsToSearch(
             topics.iter().map(|s| s.to_string()).collect(),
         ));
     }
 
-    info!("Topics to check: {topics_and_partitions_to_check:?}");
+    info!("Topics to check: {partitions_to_search:?}");
     info!("Source Offsets: {source_offsets:?}");
 
     let mut missing_offsets: Vec<(ConsumerGroup, Topic, Partition, Offset)> = source_offsets
@@ -148,7 +148,7 @@ pub async fn get_target_offsets(
         HashMap::new();
 
     // Consume all messages from the topics we are subscribed to
-    while !topics_and_partitions_to_check.is_empty() {
+    while !partitions_to_search.is_empty() {
         let consume_result =
             consumer
                 .recv()
@@ -165,7 +165,7 @@ pub async fn get_target_offsets(
 
         let source_offset = extract_source_offset_from_message(&consume_result, offset_header_key)?;
 
-        process_message_for_offset_matching(
+        try_find_missing_offsets(
             &consume_result,
             source_offset,
             source_offsets,
@@ -177,17 +177,24 @@ pub async fn get_target_offsets(
         check_and_update_partition_completion(
             &consume_result,
             &topic_partition_watermarks,
-            &mut topics_and_partitions_to_check,
+            &mut partitions_to_search,
         )?;
     }
 
     handle_missing_offsets(transformations, missing_offsets, nearest_offsets)
 }
 
+fn get_partitions_to_investigate()
+{
+    
+}
+
 pub type Partition = i32;
 pub type Topic = String;
 pub type ConsumerGroup = String;
 pub type Offset = i64;
+pub type ConsumerGroupRecord = (ConsumerGroup, Topic, Partition, Offset);
+pub type TransformationRecord = (Topic, Partition, Offset, Offset);
 
 fn validate_input_parameters(
     source_offsets: &OffsetSnapshot,
@@ -218,13 +225,13 @@ fn extract_source_offset_from_message(
     }
 }
 
-fn process_message_for_offset_matching(
+fn try_find_missing_offsets(
     message: &rdkafka::message::BorrowedMessage,
     source_offset: i64,
     source_offsets: &OffsetSnapshot,
-    transformations: &mut HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
-    missing_offsets: &mut Vec<(ConsumerGroup, Topic, Partition, Offset)>,
-    nearest_offsets: &mut HashMap<(ConsumerGroup, Topic, Partition, Offset), Offset>,
+    transformations: &mut HashMap<ConsumerGroup, Vec<TransformationRecord>>,
+    missing_offsets: &mut Vec<ConsumerGroupRecord>,
+    nearest_offsets: &mut HashMap<ConsumerGroupRecord, Offset>,
 ) -> Result<(), TransformationError> {
     let source_offsets_for_partition: Vec<&OffsetRecord> = source_offsets
         .iter()

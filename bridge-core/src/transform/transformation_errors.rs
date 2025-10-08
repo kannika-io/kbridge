@@ -1,6 +1,5 @@
 use std::fmt::Display;
 
-use rdkafka::error::KafkaError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,9 +21,9 @@ pub enum TransformationError {
     #[error("Retrieving offset header failed. Reason: {0}")]
     RetrievingOffsetHeaderValueFailed(String),
     #[error("Offset header from message could not be fetched. Reason: {0}")]
-    FetchOffsetError(FetchOffsetError),
+    FetchOffsetError(#[from] FetchOffsetError),
     #[error("Error during offset mapping transformation. Reason: {0}")]
-    OffsetMappingTransformationError(OffsetMappingTransformationError),
+    OffsetMappingTransformationError(#[from] OffsetMappingTransformationError),
     #[error("Failed to fetch metadata. Reason: {0}")]
     MetadataFetchFailed(String),
     #[error(
@@ -40,7 +39,7 @@ pub enum TransformationError {
     #[error("Timeout occurred while waiting for messages")]
     Timeout,
     #[error("No valid partitions found for topics: {0:?}")]
-    NoValidPartitions(Vec<String>),
+    NoPartitionsToSearch(Vec<String>),
     #[error("No all source offsets were found in the restored topics: {0:?}")]
     NotAllSourceOffsetsFound(Vec<(String, i32)>),
     #[error("Missing offsets: {0:?}")]
@@ -83,23 +82,5 @@ impl Display for KafkaMessage {
             "Additional message Info: Topic: {}, Partition: {}, Offset: {}",
             self.topic, self.partition, self.offset
         )
-    }
-}
-
-impl From<OffsetMappingTransformationError> for TransformationError {
-    fn from(value: OffsetMappingTransformationError) -> Self {
-        TransformationError::OffsetMappingTransformationError(value)
-    }
-}
-
-impl From<KafkaError> for TransformationError {
-    fn from(value: KafkaError) -> Self {
-        TransformationError::KafkaError(value.to_string())
-    }
-}
-
-impl From<FetchOffsetError> for TransformationError {
-    fn from(value: FetchOffsetError) -> Self {
-        TransformationError::FetchOffsetError(value)
     }
 }

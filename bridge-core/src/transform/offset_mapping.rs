@@ -1,14 +1,13 @@
 use crate::transform::{
-    ConsumerGroup, Offset, Partition, Topic,
-    transformation_errors::OffsetMappingTransformationError,
+    transformation_errors::OffsetMappingTransformationError, ConsumerGroup, TransformationRecord, Offset, Partition, Topic
 };
 use log::info;
 use std::collections::HashMap;
 
 pub fn insert_offset_transformations(
-    transformations: &mut HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
-    source_offset_from_message: &i64,
-    current_offset_from_message: &i64,
+    transformations: &mut HashMap<ConsumerGroup, Vec<TransformationRecord>>,
+    source_offset_from_message: &Offset,
+    current_offset_from_message: &Offset,
     topic: Topic,
     partition: Partition,
     consumer_group: ConsumerGroup,
