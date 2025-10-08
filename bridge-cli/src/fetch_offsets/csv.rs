@@ -7,19 +7,19 @@ use bridge_core::{
 use serde::Deserialize;
 
 pub struct CsvOffsetSnapshotImporter {
-    pub file_path: &'static str,
-    pub consumer_group: &'static str,
+    pub file_path: String,
+    pub consumer_group: String,
 }
 
 impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
     fn import(&self) -> Result<OffsetSnapshot, ImportError> {
-        if let Ok(mut reader) = csv::Reader::from_path(self.file_path) {
+        if let Ok(mut reader) = csv::Reader::from_path(&self.file_path) {
             reader.set_headers(csv::StringRecord::from(vec![
                 "topic",
                 "partition",
                 "offset",
             ]));
-            import_records(reader.deserialize::<Record>(), self.consumer_group)
+            import_records(reader.deserialize::<Record>(), self.consumer_group.to_string())
         } else {
             Err(ImportError::ResourceNotFound(format!(
                 "{} could not be opened.",
@@ -31,7 +31,7 @@ impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
 
 fn import_records(
     records: impl Iterator<Item = Result<Record, impl Error>>,
-    consumer_group: &str,
+    consumer_group: String,
 ) -> Result<Vec<OffsetRecord>, ImportError> {
     let mut parse_errors: Vec<String> = vec![];
     let mut snapshot: OffsetSnapshot = vec![];
@@ -75,7 +75,7 @@ mod tests {
             "partition",
             "offset",
         ]));
-        let result = import_records(reader.deserialize::<Record>(), "testing");
+        let result = import_records(reader.deserialize::<Record>(), "testing".to_string());
 
         let assertion = OffsetRecord {
             topic: "streamiz.weather.combined".to_string(),
@@ -97,7 +97,7 @@ mod tests {
             "partition",
             "offset",
         ]));
-        let result = import_records(reader.deserialize::<Record>(), "testing");
+        let result = import_records(reader.deserialize::<Record>(), "testing".to_string());
 
         assert!(result.is_err());
     }
@@ -105,8 +105,8 @@ mod tests {
     #[test]
     fn test_import_from_non_existing_file_should_fail() {
         let offset_snapshot = CsvOffsetSnapshotImporter {
-            file_path: "nonexistingfiles.csv",
-            consumer_group: "testconsumergroup",
+            file_path: "nonexistingfiles.csv".to_string(),
+            consumer_group: "testconsumergroup".to_string(),
         };
         let result = offset_snapshot.import();
 

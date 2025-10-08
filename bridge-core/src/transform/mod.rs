@@ -2,26 +2,25 @@ use std::collections::HashMap;
 
 use rdkafka::{ClientConfig, consumer::Consumer};
 
-use crate::{
-    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetSnapshot, Partition, Topic,
-    TransformationRecord,
-    transform::{
-        consumer::setup_consumer_and_metadata,
-        errors::TransformationError,
-        watermarks::get_high_watermark,
-    },
-};
 use crate::transform::consumer_group_offset::try_find_missing_offsets;
 use crate::transform::consumer_group_offset_mapping::handle_missing_offsets;
 use crate::transform::message_header::extract_source_offset_from_message;
 use crate::transform::watermarks::update_partitions_to_check;
+use crate::{
+    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetSnapshot, Partition, Topic,
+    TransformationRecord,
+    transform::{
+        consumer::setup_consumer_and_metadata, errors::TransformationError,
+        watermarks::get_high_watermark,
+    },
+};
 
 mod consumer;
-mod message_header;
+mod consumer_group_offset;
 mod consumer_group_offset_mapping;
 pub mod errors;
+mod message_header;
 mod watermarks;
-mod consumer_group_offset;
 
 /// Transforms source offsets to target offsets by consuming Kafka messages and matching header values.
 ///
@@ -89,7 +88,7 @@ mod consumer_group_offset;
 ///     },
 /// ];
 ///
-/// let mappings = get_target_offsets(transformer_consumer_config, topics, offset_header_key, &source_offsets).await?;
+/// let mappings = get_target_offsets(transformer_consumer_config, offset_header_key, &source_offsets).await?;
 ///
 /// // mappings might look like:
 /// // {
@@ -115,21 +114,22 @@ mod consumer_group_offset;
 /// 8. Return the complete mapping of source offsets to target offsets
 pub async fn get_target_offsets(
     transformer_consumer_config: ClientConfig,
-    topics: &[&str],
     offset_header_key: &str,
     source_offsets: &OffsetSnapshot,
 ) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
     validate_input_parameters(source_offsets, offset_header_key)?;
 
+    let topics: Vec<&str> = source_offsets.iter().map(|o| o.topic.as_str()).collect();
+
     // Initialize consumer
     let (consumer, metadata) =
-        setup_consumer_and_metadata(topics, transformer_consumer_config).await?;
+        setup_consumer_and_metadata(&topics, transformer_consumer_config).await?;
 
     let mut transformations = HashMap::new();
 
     // Fetch watermarks for topics and partitions
     // We need this to be able to exit the consumer loop
-    let topic_partition_watermarks = get_high_watermark(&consumer, &metadata, topics)?;
+    let topic_partition_watermarks = get_high_watermark(&consumer, &metadata, &topics)?;
 
     let mut partitions_to_search: Vec<(Topic, Partition)> = topic_partition_watermarks
         .iter()
@@ -154,8 +154,7 @@ pub async fn get_target_offsets(
         })
         .collect();
 
-    let mut nearest_offsets =
-        HashMap::new();
+    let mut nearest_offsets = HashMap::new();
 
     // Consume all messages from the topics we are subscribed to
     while !partitions_to_search.is_empty() {
@@ -210,12 +209,11 @@ fn validate_input_parameters(
 
 #[cfg(test)]
 mod tests {
-    use crate::OffsetRecord;
     use super::*;
+    use crate::OffsetRecord;
 
     #[tokio::test]
     async fn test_get_target_offsets_empty_source_offsets() {
-        let topics = &["test-topic"];
         let offset_header_key = "source-offset";
         let source_offsets: OffsetSnapshot = vec![];
 
@@ -229,7 +227,6 @@ mod tests {
 
         let result = get_target_offsets(
             transformer_consumer_config,
-            topics,
             offset_header_key,
             &source_offsets,
         )
@@ -246,7 +243,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_target_offsets_empty_offset_header_key() {
-        let topics = &["test-topic"];
         let offset_header_key = "";
         let source_offsets: OffsetSnapshot = vec![OffsetRecord {
             topic: "test-topic".to_string(),
@@ -265,7 +261,6 @@ mod tests {
 
         let result = get_target_offsets(
             transformer_consumer_config,
-            topics,
             offset_header_key,
             &source_offsets,
         )
@@ -282,7 +277,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_target_offsets_empty_brokers() {
-        let topics = &["test-topic"];
         let offset_header_key = "source-offset";
         let source_offsets: OffsetSnapshot = vec![
             OffsetRecord {
@@ -309,7 +303,6 @@ mod tests {
 
         let result = get_target_offsets(
             transformer_consumer_config,
-            topics,
             offset_header_key,
             &source_offsets,
         )
@@ -318,7 +311,10 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::MetadataFetchFailed(msg) => {
-                assert_eq!(msg, "Meta data fetch error: BrokerTransportFailure (Local: Broker transport failure)");
+                assert_eq!(
+                    msg,
+                    "Meta data fetch error: BrokerTransportFailure (Local: Broker transport failure)"
+                );
             }
             other => panic!("{other:?}"),
         }

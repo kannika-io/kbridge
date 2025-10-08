@@ -14,3 +14,4 @@ tokio =  { workspace = true }
 simple_logger =  { workspace = true }
 thiserror = { workspace = true }
 rdkafka = { workspace = true }
+clap = { version = "4.5.48", features = ["derive"] }

@@ -14,7 +14,7 @@ mod fetch_offsets;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = String::from("localhost:9093"))]
+    #[arg(short, long)]
     bootstrap_server: String,
 
     #[arg(short, long, default_value_t = String::from("./offsets.csv"))]
@@ -23,8 +23,8 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
     consumer_group_id: String,
 
-    #[arg(short, long)]
-    topics: Vec<String>,
+    #[arg(short, long, default_value_t = String::from("Offset"))]
+    legacy_offset_header: String,
 }
 
 #[tokio::main]
@@ -52,14 +52,16 @@ async fn main() -> Result<(), GeneralError> {
         .set("bootstrap.servers", args.bootstrap_server.as_str())
         .set("group.id", &args.consumer_group_id)
         .set("auto.offset.reset", "earliest")
-        .set("enable.auto.commit", "false")
-        .set_log_level(RDKafkaLogLevel::Debug);
+        .set("enable.auto.commit", "false");
 
     let result = offset_snapshot_importer.import()?;
 
-    let topics_refs: Vec<&str> = args.topics.iter().map(|s| s.as_str()).collect();
-    let transformed_result =
-        get_target_offsets(transformer_consumer_config, &topics_refs, "Offset", &result).await?;
+    let transformed_result = get_target_offsets(
+        transformer_consumer_config,
+        &args.legacy_offset_header,
+        &result,
+    )
+    .await?;
 
     println!("{transformed_result:?}");
     apply_target_offsets(&mut exporter_base_config, &transformed_result).await?;

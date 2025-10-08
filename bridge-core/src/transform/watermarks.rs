@@ -88,7 +88,6 @@ pub fn get_high_watermark(
 
 #[cfg(test)]
 mod tests {
-    use crate::OffsetRecord;
     use crate::transform::watermarks::get_topic_partition_watermarks;
     use super::*;
 
