@@ -19,6 +19,8 @@ kafka-console-producer.sh \
      --bootstrap-server $TARGET_BOOTSTRAP_SERVERS \
      --property "parse.headers=true"\
      --property "headers.delimiter=|"\
+     --property "parse.key=true"\
+     --property "key.separator=|"\
      --batch-size 1 \
      --topic $TOPIC < "$PIPE_FILE" &
 
