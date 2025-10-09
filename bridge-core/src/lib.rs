@@ -20,6 +20,7 @@ pub type ConsumerGroup = String;
 pub type Offset = i64;
 pub type ConsumerGroupRecord = (ConsumerGroup, Topic, Partition, Offset);
 pub type TransformationRecord = (Topic, Partition, Offset, Offset);
+pub type ApplicationRecord = (Topic, Partition, Offset);
 
 impl Display for OffsetRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

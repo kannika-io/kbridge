@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use bridge_core::{
+    ApplicationRecord, ConsumerGroup,
     export::{ApplyOffsetsError, apply_target_offsets},
     import::{ImportError, OffsetSnapshotImporter},
     transform::{errors::TransformationError, get_target_offsets},
@@ -39,8 +40,20 @@ enum Commands {
         /// Path to CSV file containing the offsets
         source_offsets_csv_file_location: PathBuf,
     },
-}
+    ApplyIntermediaryCsv {
+        #[arg(short, long)]
+        /// The bootstrap server URL for the Kafka Broker
+        bootstrap_server: String,
 
+        #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
+        /// Consumer group ID that will be used to fetch the records
+        consumer_group_id: String,
+
+        #[arg(short, long)]
+        /// Path to CSV file containing the offsets
+        intermediary_offsets_csv_file_location: PathBuf,
+    },
+}
 
 #[tokio::main]
 async fn main() -> Result<(), GeneralError> {
@@ -74,9 +87,41 @@ async fn main() -> Result<(), GeneralError> {
 
             for consumer_group in transformed_result {
                 for item in consumer_group.1 {
-                    println!("{},{},{},{}", consumer_group.0, item.0, item.1, item.3)
+                    println!(
+                        "{},{},{},{}",
+                        consumer_group.0, item.0, item.1, item.3
+                    )
                 }
             }
+        }
+        Commands::ApplyIntermediaryCsv {
+            bootstrap_server,
+            consumer_group_id,
+            intermediary_offsets_csv_file_location,
+        } => {
+            let mut exporter_base_config = ClientConfig::new();
+            exporter_base_config
+                .set("bootstrap.servers", bootstrap_server.as_str())
+                .set("enable.auto.commit", "false")
+                .set("group.id", consumer_group_id.as_str());
+
+            let offset_snapshot_importer = CsvOffsetSnapshotImporter {
+                file_path: intermediary_offsets_csv_file_location,
+            };
+            let intermediary_result = offset_snapshot_importer.import()?;
+
+            let mut mapped_intermediary_result: HashMap<ConsumerGroup, Vec<ApplicationRecord>> =
+                HashMap::new();
+
+            for item in intermediary_result {
+                let value = (item.topic, item.partition, item.offset);
+                mapped_intermediary_result
+                    .entry(item.consumer_group)
+                    .and_modify(|list| list.push(value.clone()))
+                    .or_insert(vec![value.clone()]);
+            }
+
+            apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result).await?;
         }
     };
 
@@ -86,11 +131,9 @@ async fn main() -> Result<(), GeneralError> {
 #[derive(Error, Debug)]
 enum GeneralError {
     #[error("Failed during importing of source offsets. Reason: {0}")]
-    ImportError(#[from] ImportError),
+    Import(#[from] ImportError),
     #[error("Failed during offset transformation. Reason: {0}")]
-    TransformationError(#[from] TransformationError),
+    Transformation(#[from] TransformationError),
     #[error("Failed during offset transformation. Reason: {0}")]
-    ApplyOffsetsError(#[from] ApplyOffsetsError),
-    #[error("Failed to initialize logging. Reason: {0}")]
-    InitializeLoggingFailed(String),
+    ApplyOffsets(#[from] ApplyOffsetsError),
 }

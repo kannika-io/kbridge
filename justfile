@@ -23,3 +23,4 @@ run-example:
 	just setup && \
 	just export-offsets && \
 	RUST_LOG=WARN cargo run --  --bootstrap-server localhost:9093 --legacy-offset-header Offset --offsets-csv-file-location ./offsets.csv
+
