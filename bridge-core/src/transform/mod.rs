@@ -286,7 +286,7 @@ mod tests {
                 consumer_group: "console-consumer".to_string(),
             },
             OffsetRecord {
-                topic: "test-topic".to_string(),
+                topic: "test-topic-2".to_string(),
                 partition: 2,
                 offset: 200i64,
                 consumer_group: "console-consumer".to_string(),

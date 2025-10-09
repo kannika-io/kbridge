@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_import_from_non_existing_file_should_fail() {
         let offset_snapshot = CsvOffsetSnapshotImporter {
-            file_path: "nonexistingfiles.csv".to_string(),
+            file_path: "nonexistingfiles.csv".into(),
             consumer_group: "testconsumergroup".to_string(),
         };
         let result = offset_snapshot.import();
