@@ -9,7 +9,7 @@ use rdkafka::{
 };
 use thiserror::Error;
 
-use crate::{ConsumerGroup, ApplicationRecord};
+use crate::{ApplicationRecord, ConsumerGroup};
 
 pub async fn apply_target_offsets(
     consumer_config: &mut ClientConfig,

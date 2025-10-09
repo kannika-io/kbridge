@@ -36,6 +36,7 @@ pub fn fetch_all_consumer_group_offsets(
         for committed_offset in committed_offsets.elements() {
             match committed_offset.offset().to_raw() {
                 Some(value) => {
+                    // -1001 means no offset is present
                     if value != -1001 {
                         let value = OffsetRecord {
                             topic: committed_offset.topic().to_string(),
