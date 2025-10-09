@@ -213,8 +213,13 @@ async fn main() -> Result<(), GeneralError> {
                 Ok(value) => {
                     if value == "Y" {
                         println!("Executing operation.");
-                        apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result)
-                            .await?
+                        let result = apply_target_offsets(
+                            &mut exporter_base_config,
+                            &mapped_intermediary_result,
+                        )
+                        .await;
+                        println!("Operation executed");
+                        result?
                     } else {
                         println!("Doing nothing.");
                     }

@@ -16,11 +16,10 @@ setup:
 	./test-setup/consume_orders.sh orders-2 772 console-consumer-2 localhost:9092 && \
 	./test-setup/consume_orders.sh orders-3 802 console-consumer-2 localhost:9092
 
-export-offsets:
-	/usr/local/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --export --all-groups --all-topics --to-current --dry-run --reset-offsets > offsets.csv
+apply-offsets:
+	cargo run -- fetch-source -b localhost:9092 | cargo run -- calculate-intermediary --bootstrap-server localhost:9093 --from-stdin --legacy-offset-header Offset | cargo run -- apply-intermediary -b localhost:9093 --from-stdin
 
 run-example:
 	just setup && \
-	just export-offsets && \
-	RUST_LOG=WARN cargo run --  --bootstrap-server localhost:9093 --legacy-offset-header Offset --offsets-csv-file-location ./offsets.csv
+	just apply-offsets
 
