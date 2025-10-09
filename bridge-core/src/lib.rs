@@ -4,7 +4,7 @@ pub mod export;
 pub mod import;
 pub mod transform;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct OffsetRecord {
     pub topic: String,
     pub partition: i32,

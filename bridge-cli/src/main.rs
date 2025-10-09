@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    io::{BufRead, stdin},
+    path::PathBuf,
+};
 
 use bridge_core::{
     ApplicationRecord, ConsumerGroup,
@@ -8,7 +12,10 @@ use bridge_core::{
 };
 use clap::{Parser, Subcommand, command};
 use comfy_table::Table;
-use fetch_offsets::admin_client::{ImportOffsetsError, fetch_all_consumer_group_offsets};
+use fetch_offsets::{
+    admin_client::{ImportOffsetsError, fetch_all_consumer_group_offsets},
+    csv::convert,
+};
 use inquire::Text;
 use rdkafka::ClientConfig;
 use thiserror::Error;
@@ -46,7 +53,11 @@ enum Commands {
 
         #[arg(short, long)]
         /// Path to CSV file containing the offsets
-        source_offsets_csv_file_location: PathBuf,
+        source_offsets_csv_file_location: Option<PathBuf>,
+
+        #[arg(short, long, action)]
+        /// Whether to read CSV file from stdin
+        from_stdin: bool,
     },
     ApplyIntermediary {
         #[arg(short, long)]
@@ -59,7 +70,11 @@ enum Commands {
 
         #[arg(short, long)]
         /// Path to CSV file containing the offsets
-        intermediary_offsets_csv_file_location: PathBuf,
+        intermediary_offsets_csv_file_location: Option<PathBuf>,
+
+        #[arg(short, long, action)]
+        /// Whether to read CSV file from stdin
+        from_stdin: bool,
     },
 }
 
@@ -89,10 +104,27 @@ async fn main() -> Result<(), GeneralError> {
             bootstrap_server,
             consumer_group_id,
             legacy_offset_header,
+            from_stdin,
         } => {
-            let offset_snapshot_importer = CsvOffsetSnapshotImporter {
-                file_path: source_offsets_csv_file_location,
-            };
+            let result = match from_stdin {
+                true => Ok(stdin()
+                    .lock()
+                    .lines()
+                    .map_while(Result::ok)
+                    .filter_map(|line| convert(line).ok())
+                    .collect()),
+                false => {
+                    if let Some(path) = source_offsets_csv_file_location {
+                        let offset_snapshot_importer =
+                            CsvOffsetSnapshotImporter { file_path: path };
+                        offset_snapshot_importer.import()
+                    } else {
+                        Err(ImportError::ResourceNotFound(
+                            "Import path is required if --from-stdin is not specified.".to_string(),
+                        ))
+                    }
+                }
+            }?;
 
             let mut transformer_consumer_config = ClientConfig::new();
             transformer_consumer_config
@@ -100,8 +132,6 @@ async fn main() -> Result<(), GeneralError> {
                 .set("group.id", consumer_group_id.as_str())
                 .set("auto.offset.reset", "earliest")
                 .set("enable.auto.commit", "false");
-
-            let result = offset_snapshot_importer.import()?;
 
             let transformed_result =
                 get_target_offsets(transformer_consumer_config, &legacy_offset_header, &result)
@@ -117,22 +147,38 @@ async fn main() -> Result<(), GeneralError> {
             bootstrap_server,
             consumer_group_id,
             intermediary_offsets_csv_file_location,
+            from_stdin,
         } => {
+            let result = match from_stdin {
+                true => Ok(stdin()
+                    .lock()
+                    .lines()
+                    .map_while(Result::ok)
+                    .filter_map(|line| convert(line).ok())
+                    .collect()),
+                false => {
+                    if let Some(path) = intermediary_offsets_csv_file_location {
+                        let offset_snapshot_importer =
+                            CsvOffsetSnapshotImporter { file_path: path };
+                        offset_snapshot_importer.import()
+                    } else {
+                        Err(ImportError::ResourceNotFound(
+                            "Import path is required if --from-stdin is not specified.".to_string(),
+                        ))
+                    }
+                }
+            }?;
+
             let mut exporter_base_config = ClientConfig::new();
             exporter_base_config
                 .set("bootstrap.servers", bootstrap_server.as_str())
                 .set("enable.auto.commit", "false")
                 .set("group.id", consumer_group_id.as_str());
 
-            let offset_snapshot_importer = CsvOffsetSnapshotImporter {
-                file_path: intermediary_offsets_csv_file_location,
-            };
-            let intermediary_result = offset_snapshot_importer.import()?;
-
             let mut mapped_intermediary_result: HashMap<ConsumerGroup, Vec<ApplicationRecord>> =
                 HashMap::new();
 
-            for item in &intermediary_result {
+            for item in &result {
                 let value = (item.topic.to_string(), item.partition, item.offset);
                 mapped_intermediary_result
                     .entry(item.consumer_group.clone())
@@ -149,7 +195,7 @@ async fn main() -> Result<(), GeneralError> {
                 "Target Offset",
             ]);
 
-            for intermediate_result_item in &intermediary_result {
+            for intermediate_result_item in &result {
                 table.add_row(vec![
                     intermediate_result_item.consumer_group.clone(),
                     intermediate_result_item.topic.clone(),

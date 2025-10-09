@@ -12,6 +12,13 @@ pub struct CsvOffsetSnapshotImporter {
 
 const CSV_HEADERS: [&str; 4] = ["consumer_group", "topic", "partition", "offset"];
 
+pub fn convert(value: String) -> Result<OffsetRecord, ImportError> {
+    let mut reader = csv::ReaderBuilder::new().from_reader(value.as_bytes());
+    reader.set_headers(csv::StringRecord::from(CSV_HEADERS.to_vec()));
+    let result = import_records(reader.deserialize::<Record>())?;
+    Ok(result[0].clone())
+}
+
 impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
     fn import(&self) -> Result<OffsetSnapshot, ImportError> {
         if let Ok(mut reader) = csv::Reader::from_path(&self.file_path) {
