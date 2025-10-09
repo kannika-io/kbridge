@@ -1,2 +1,2 @@
-pub mod admin_client;
+pub mod client;
 pub mod csv;

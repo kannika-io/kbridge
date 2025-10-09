@@ -13,7 +13,7 @@ use bridge_core::{
 use clap::{Parser, Subcommand, command};
 use comfy_table::Table;
 use fetch_offsets::{
-    admin_client::{ImportOffsetsError, fetch_all_consumer_group_offsets},
+    client::{ImportOffsetsError, fetch_all_consumer_group_offsets},
     csv::convert,
 };
 use inquire::Text;
