@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rdkafka::{ClientConfig, consumer::Consumer};
 
@@ -119,7 +119,14 @@ pub async fn get_target_offsets(
 ) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
     validate_input_parameters(source_offsets, offset_header_key)?;
 
-    let topics: Vec<&str> = source_offsets.iter().map(|o| o.topic.as_str()).collect();
+    let topics: Vec<&str> = source_offsets
+        .iter()
+        .map(|o| o.topic.as_str())
+        // Filter out duplicates. source_offsets can contain duplicate topic names in case multiple
+        // consumer groups are present
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
 
     // Initialize consumer
     let (consumer, metadata) =
