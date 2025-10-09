@@ -6,7 +6,7 @@ use bridge_core::{
     transform::{errors::TransformationError, get_target_offsets},
 };
 use clap::{Parser, command};
-use rdkafka::{ClientConfig, config::RDKafkaLogLevel};
+use rdkafka::ClientConfig;
 use thiserror::Error;
 
 use crate::fetch_offsets::csv::CsvOffsetSnapshotImporter;
@@ -28,7 +28,6 @@ struct Args {
     /// Consumer group ID that will be used to fetch the records
     consumer_group_id: String,
 
-    // TODO what is the default in kannika
     #[arg(short, long)]
     /// Header in target messages that contains the offsets of the source topic
     legacy_offset_header: String,

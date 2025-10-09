@@ -21,7 +21,5 @@ export-offsets:
 run-example:
 	just setup && \
 	just export-offsets && \
-	RUST_LOG=warn cargo run
-	# Ensure cleanup has occurred on target topic - legacy offset will not be available anymore due to retention settings
-	sleep 10
-	RUST_LOG=warn cargo run
+	sleep 10 && \
+	RUST_LOG=WARN cargo run --  --bootstrap-server localhost:9093 --legacy-offset-header Offset --offsets-csv-file-location ./offsets.csv
