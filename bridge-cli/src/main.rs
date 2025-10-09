@@ -44,7 +44,6 @@ async fn main() -> Result<(), GeneralError> {
 
     let offset_snapshot_importer = CsvOffsetSnapshotImporter {
         file_path: args.offsets_csv_file_location,
-        consumer_group: "console-consumer".to_string(),
     };
 
     let mut exporter_base_config = ClientConfig::new();
