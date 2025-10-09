@@ -1,0 +1,17 @@
+[package]
+name = "bridge-cli"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+
+[dependencies]
+bridge-core = { path = "../bridge-core" }
+
+csv = { workspace = true }
+serde = { workspace = true }
+tokio =  { workspace = true }
+simple_logger =  { workspace = true }
+thiserror = { workspace = true }
+rdkafka = { workspace = true }
+clap = { version = "4.5.48", features = ["derive"] }

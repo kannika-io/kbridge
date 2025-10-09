@@ -1,0 +1,13 @@
+[package]
+name = "bridge-core"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+
+[dependencies]
+kafka = { workspace = true }
+rdkafka = { workspace = true }
+tokio = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

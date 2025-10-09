@@ -1,0 +1,93 @@
+services:
+  broker-init:
+    image: confluentinc/cp-kafka:8.0.0
+    command: [ "/bin/bash", "-c", "/create_topics.sh"] 
+    depends_on:
+      broker-target:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./create_topics.sh
+        target: /create_topics.sh
+  broker-source:
+    image: confluentinc/cp-kafka:8.0.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker-source:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker-source:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker-source:29092,CONTROLLER://broker-source:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true" 
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: kafka-topics --bootstrap-server broker-source:29092 --list
+      interval: 1s
+      timeout: 60s
+      retries: 60
+    ports:
+      - 9092:9092
+  broker-target:
+    image: confluentinc/cp-kafka:8.0.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker-target:29092,PLAINTEXT_HOST://localhost:9093'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker-target:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker-target:29092,CONTROLLER://broker-target:29093,PLAINTEXT_HOST://0.0.0.0:9093'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true" 
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qz'
+    healthcheck:
+      test: kafka-topics --bootstrap-server broker-target:29092 --list
+      interval: 1s
+      timeout: 60s
+      retries: 60
+    ports:
+      - 9093:9093
+  redpanda-console-source:
+    image: redpandadata/console:latest
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["broker-source:29092"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      broker-source:
+        condition: service_healthy
+  redpanda-console-target:
+    image: redpandadata/console:latest
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["broker-target:29092"]
+    ports:
+      - "8081:8080"
+    depends_on:
+      broker-target:
+        condition: service_healthy
