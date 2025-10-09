@@ -7,6 +7,9 @@ use bridge_core::{
     transform::{errors::TransformationError, get_target_offsets},
 };
 use clap::{Parser, Subcommand, command};
+use comfy_table::Table;
+use fetch_offsets::admin_client::{ImportOffsetsError, fetch_all_consumer_group_offsets};
+use inquire::Text;
 use rdkafka::ClientConfig;
 use thiserror::Error;
 
@@ -23,7 +26,12 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    CalculateIntermediaryCsv {
+    FetchSource {
+        #[arg(short, long)]
+        /// The bootstrap server URL for the Kafka Broker
+        bootstrap_server: String,
+    },
+    CalculateIntermediary {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
         bootstrap_server: String,
@@ -40,7 +48,7 @@ enum Commands {
         /// Path to CSV file containing the offsets
         source_offsets_csv_file_location: PathBuf,
     },
-    ApplyIntermediaryCsv {
+    ApplyIntermediary {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
         bootstrap_server: String,
@@ -62,7 +70,21 @@ async fn main() -> Result<(), GeneralError> {
     env_logger::init();
 
     match args.command {
-        Commands::CalculateIntermediaryCsv {
+        Commands::FetchSource { bootstrap_server } => {
+            let mut admin_config = ClientConfig::new();
+            admin_config.set("bootstrap.servers", bootstrap_server.as_str());
+            let result = fetch_all_consumer_group_offsets(&mut admin_config)?;
+            for consumer_group in result {
+                println!(
+                    "{},{},{},{}",
+                    consumer_group.consumer_group,
+                    consumer_group.topic,
+                    consumer_group.partition,
+                    consumer_group.offset
+                )
+            }
+        }
+        Commands::CalculateIntermediary {
             source_offsets_csv_file_location,
             bootstrap_server,
             consumer_group_id,
@@ -87,14 +109,11 @@ async fn main() -> Result<(), GeneralError> {
 
             for consumer_group in transformed_result {
                 for item in consumer_group.1 {
-                    println!(
-                        "{},{},{},{}",
-                        consumer_group.0, item.0, item.1, item.3
-                    )
+                    println!("{},{},{},{}", consumer_group.0, item.0, item.1, item.3)
                 }
             }
         }
-        Commands::ApplyIntermediaryCsv {
+        Commands::ApplyIntermediary {
             bootstrap_server,
             consumer_group_id,
             intermediary_offsets_csv_file_location,
@@ -113,15 +132,49 @@ async fn main() -> Result<(), GeneralError> {
             let mut mapped_intermediary_result: HashMap<ConsumerGroup, Vec<ApplicationRecord>> =
                 HashMap::new();
 
-            for item in intermediary_result {
-                let value = (item.topic, item.partition, item.offset);
+            for item in &intermediary_result {
+                let value = (item.topic.to_string(), item.partition, item.offset);
                 mapped_intermediary_result
-                    .entry(item.consumer_group)
+                    .entry(item.consumer_group.clone())
                     .and_modify(|list| list.push(value.clone()))
                     .or_insert(vec![value.clone()]);
             }
 
-            apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result).await?;
+            let mut table = Table::new();
+
+            table.set_header(vec![
+                "Consumer Group",
+                "Topic",
+                "Partition",
+                "Target Offset",
+            ]);
+
+            for intermediate_result_item in &intermediary_result {
+                table.add_row(vec![
+                    intermediate_result_item.consumer_group.clone(),
+                    intermediate_result_item.topic.clone(),
+                    intermediate_result_item.partition.to_string(),
+                    intermediate_result_item.offset.to_string(),
+                ]);
+            }
+
+            println!("{table}");
+
+            let prompt =
+                Text::new("The offsets above will be applied. Are you sure? (Y/n)").prompt();
+
+            match prompt {
+                Ok(value) => {
+                    if value == "Y" {
+                        println!("Executing operation.");
+                        apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result)
+                            .await?
+                    } else {
+                        println!("Doing nothing.");
+                    }
+                }
+                _ => println!("The operation has been cancelled."),
+            };
         }
     };
 
@@ -136,4 +189,6 @@ enum GeneralError {
     Transformation(#[from] TransformationError),
     #[error("Failed during offset transformation. Reason: {0}")]
     ApplyOffsets(#[from] ApplyOffsetsError),
+    #[error("Failed during offset import. Reason: {0}")]
+    ImportOffsets(#[from] ImportOffsetsError),
 }
