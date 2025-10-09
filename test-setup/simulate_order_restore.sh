@@ -29,6 +29,7 @@ PRODUCER_PID=$!
 kafka-console-consumer.sh \
     --bootstrap-server $SOURCE_BOOTSTRAP_SERVERS \
     --property print.offset=true \
+    --property print.key=true \
     --topic $TOPIC \
     --max-messages $NUM_MESSAGES \
     --from-beginning \
