@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::metadata::Metadata;
-use rdkafka::consumer::Consumer;
 
 use crate::get_unique_topics_from_offset_snapshot;
 use crate::transform::consumer_group_offset::try_find_missing_offsets;

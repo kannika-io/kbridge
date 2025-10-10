@@ -5,9 +5,9 @@ use errors::GeneralError;
 mod apply_target_offsets;
 mod args;
 mod calculate_target_offsets;
+mod errors;
 mod fetch_offsets;
 mod fetch_source_offsets;
-mod errors;
 mod helpers;
 
 #[tokio::main]
@@ -62,4 +62,3 @@ async fn main() -> Result<(), GeneralError> {
         }
     }
 }
-

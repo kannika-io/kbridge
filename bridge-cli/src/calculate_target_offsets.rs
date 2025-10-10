@@ -8,9 +8,7 @@ use bridge_core::{
 };
 use rdkafka::ClientConfig;
 
-use crate::{
-    helpers::fetch_offset_records, GeneralError
-};
+use crate::{GeneralError, helpers::fetch_offset_records};
 
 pub async fn execute(
     source_offsets_csv_file_location: Option<PathBuf>,
