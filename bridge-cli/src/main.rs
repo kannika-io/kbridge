@@ -1,6 +1,6 @@
 use args::{Args, Commands};
 use bridge_core::{
-    export::ApplyOffsetsError, import::ImportError, transform::errors::TransformationError,
+    export::ApplyOffsetsError, import::ImportError, transform::errors::{FetchOffsetError, TransformationError},
 };
 use clap::Parser;
 use fetch_offsets::client::ImportOffsetsError;
@@ -75,4 +75,6 @@ enum GeneralError {
     ApplyOffsets(#[from] ApplyOffsetsError),
     #[error("Failed during offset import. Reason: {0}")]
     ImportOffsets(#[from] ImportOffsetsError),
+    #[error("Failed during offset import. Reason: {0}")]
+    FetchSourceOffsetsError(#[from] FetchOffsetError),
 }

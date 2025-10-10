@@ -88,7 +88,7 @@ mod watermarks;
 ///     },
 /// ];
 ///
-/// let mappings = get_target_offsets(transformer_consumer_config, offset_header_key, &source_offsets).await?;
+/// let mappings = get_target_offsets(&mut transformer_consumer_config, offset_header_key, &source_offsets).await?;
 ///
 /// // mappings might look like:
 /// // {
