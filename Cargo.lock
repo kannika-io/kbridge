@@ -113,6 +113,7 @@ dependencies = [
  "csv",
  "env_logger",
  "inquire",
+ "log",
  "rdkafka",
  "serde",
  "thiserror 2.0.17",

@@ -1,16 +1,14 @@
 use args::{Args, Commands};
-use bridge_core::{
-    export::ApplyOffsetsError, import::ImportError, transform::errors::{FetchOffsetError, TransformationError},
-};
 use clap::Parser;
-use fetch_offsets::client::ImportOffsetsError;
-use thiserror::Error;
+use errors::GeneralError;
 
 mod apply_target_offsets;
 mod args;
 mod calculate_target_offsets;
 mod fetch_offsets;
 mod fetch_source_offsets;
+mod errors;
+mod helpers;
 
 #[tokio::main]
 async fn main() -> Result<(), GeneralError> {
@@ -65,16 +63,3 @@ async fn main() -> Result<(), GeneralError> {
     }
 }
 
-#[derive(Error, Debug)]
-enum GeneralError {
-    #[error("Failed during importing of source offsets. Reason: {0}")]
-    Import(#[from] ImportError),
-    #[error("Failed during offset transformation. Reason: {0}")]
-    Transformation(#[from] TransformationError),
-    #[error("Failed during offset transformation. Reason: {0}")]
-    ApplyOffsets(#[from] ApplyOffsetsError),
-    #[error("Failed during offset import. Reason: {0}")]
-    ImportOffsets(#[from] ImportOffsetsError),
-    #[error("Failed during offset import. Reason: {0}")]
-    FetchSourceOffsetsError(#[from] FetchOffsetError),
-}

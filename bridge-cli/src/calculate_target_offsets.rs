@@ -3,14 +3,13 @@ use std::path::PathBuf;
 use bridge_core::{
     OffsetRecord,
     client_config::ConfigBuilder,
-    import::{ImportError, OffsetSnapshotImporter},
-    transform::get_target_offsets,
+    get_unique_topics_from_offset_snapshot,
+    transform::{consumer::setup_consumer_and_metadata, get_target_offsets},
 };
 use rdkafka::ClientConfig;
 
 use crate::{
-    GeneralError,
-    fetch_offsets::csv::{CsvOffsetSnapshotImporter, get_from_stdin},
+    helpers::fetch_offset_records, GeneralError
 };
 
 pub async fn execute(
@@ -22,19 +21,7 @@ pub async fn execute(
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
 ) -> Result<(), GeneralError> {
-    let result: Vec<OffsetRecord> = match from_stdin {
-        true => Ok(get_from_stdin()),
-        false => {
-            if let Some(path) = source_offsets_csv_file_location {
-                let offset_snapshot_importer = CsvOffsetSnapshotImporter { file_path: path };
-                offset_snapshot_importer.import()
-            } else {
-                Err(ImportError::ResourceNotFound(
-                    "Import path is required if --from-stdin is not specified.".to_string(),
-                ))
-            }
-        }
-    }?;
+    let result = fetch_offset_records(from_stdin, source_offsets_csv_file_location)?;
 
     let result_filtered: Vec<OffsetRecord> = result
         .into_iter()
@@ -48,12 +35,14 @@ pub async fn execute(
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
 
-    let transformed_result = get_target_offsets(
-        &mut transformer_consumer_config,
-        &legacy_offset_header,
-        &result_filtered,
-    )
-    .await?;
+    let topics: Vec<&str> = get_unique_topics_from_offset_snapshot(&result_filtered);
+
+    // Initialize consumer
+    let (consumer, metadata) =
+        setup_consumer_and_metadata(&topics, &mut transformer_consumer_config).await?;
+
+    let transformed_result =
+        get_target_offsets(&legacy_offset_header, &result_filtered, consumer, metadata).await?;
 
     for consumer_group in transformed_result {
         for item in consumer_group.1 {

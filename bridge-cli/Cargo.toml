@@ -9,6 +9,7 @@ edition.workspace = true
 bridge-core = { path = "../bridge-core" }
 
 csv = { workspace = true }
+log = { workspace = true }
 serde = { workspace = true }
 tokio =  { workspace = true }
 thiserror = { workspace = true }

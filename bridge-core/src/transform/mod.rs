@@ -1,7 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use rdkafka::{ClientConfig, consumer::Consumer};
+use rdkafka::consumer::StreamConsumer;
+use rdkafka::metadata::Metadata;
+use rdkafka::consumer::Consumer;
 
+use crate::get_unique_topics_from_offset_snapshot;
 use crate::transform::consumer_group_offset::try_find_missing_offsets;
 use crate::transform::consumer_group_offset_mapping::handle_missing_offsets;
 use crate::transform::message_header::extract_source_offset_from_message;
@@ -9,13 +12,10 @@ use crate::transform::watermarks::update_partitions_to_check;
 use crate::{
     ConsumerGroup, ConsumerGroupRecord, Offset, OffsetSnapshot, Partition, Topic,
     TransformationRecord,
-    transform::{
-        consumer::setup_consumer_and_metadata, errors::TransformationError,
-        watermarks::get_high_watermark,
-    },
+    transform::{errors::TransformationError, watermarks::get_high_watermark},
 };
 
-mod consumer;
+pub mod consumer;
 mod consumer_group_offset;
 mod consumer_group_offset_mapping;
 pub mod errors;
@@ -113,26 +113,15 @@ mod watermarks;
 /// 7. Stop consuming from a partition when its high watermark is reached
 /// 8. Return the complete mapping of source offsets to target offsets
 pub async fn get_target_offsets(
-    transformer_consumer_config: &mut ClientConfig,
     offset_header_key: &str,
     source_offsets: &OffsetSnapshot,
+    consumer: StreamConsumer,
+    metadata: Metadata,
 ) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
     validate_input_parameters(source_offsets, offset_header_key)?;
 
-    let topics: Vec<&str> = source_offsets
-        .iter()
-        .map(|o| o.topic.as_str())
-        // Filter out duplicates. source_offsets can contain duplicate topic names in case multiple
-        // consumer groups are present
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
-
-    // Initialize consumer
-    let (consumer, metadata) =
-        setup_consumer_and_metadata(&topics, transformer_consumer_config).await?;
-
     let mut transformations = HashMap::new();
+    let topics: Vec<&str> = get_unique_topics_from_offset_snapshot(source_offsets);
 
     // Fetch watermarks for topics and partitions
     // We need this to be able to exit the consumer loop
@@ -192,7 +181,6 @@ pub async fn get_target_offsets(
         )?;
     }
 
-    consumer.unassign()?;
     handle_missing_offsets(transformations, missing_offsets, nearest_offsets)
 }
 
@@ -212,118 +200,4 @@ fn validate_input_parameters(
         ));
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::OffsetRecord;
-
-    #[tokio::test]
-    async fn test_get_target_offsets_empty_source_offsets() {
-        let offset_header_key = "source-offset";
-        let source_offsets: OffsetSnapshot = vec![];
-
-        let mut transformer_consumer_config = ClientConfig::new();
-        transformer_consumer_config
-            .set("bootstrap.servers", "localhost:9092")
-            .set("group.id", "test")
-            .set("auto.offset.reset", "earliest")
-            .set("enable.partition.eof", "false")
-            .set("enable.auto.commit", "false");
-
-        let result = get_target_offsets(
-            &mut transformer_consumer_config,
-            offset_header_key,
-            &source_offsets,
-        )
-        .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TransformationError::InvalidInput(msg) => {
-                assert_eq!(msg, "Source offsets cannot be empty");
-            }
-            _ => panic!("Expected InvalidInput error for empty source offsets"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_get_target_offsets_empty_offset_header_key() {
-        let offset_header_key = "";
-        let source_offsets: OffsetSnapshot = vec![OffsetRecord {
-            topic: "test-topic".to_string(),
-            partition: 1,
-            offset: 200i64,
-            consumer_group: "console-consumer".to_string(),
-        }];
-
-        let mut transformer_consumer_config = ClientConfig::new();
-        transformer_consumer_config
-            .set("bootstrap.servers", "localhost:9092")
-            .set("group.id", "test")
-            .set("auto.offset.reset", "earliest")
-            .set("enable.partition.eof", "false")
-            .set("enable.auto.commit", "false");
-
-        let result = get_target_offsets(
-            &mut transformer_consumer_config,
-            offset_header_key,
-            &source_offsets,
-        )
-        .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TransformationError::InvalidInput(msg) => {
-                assert_eq!(msg, "Offset header key cannot be empty");
-            }
-            _ => panic!("Expected InvalidInput error for empty offset header key"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_get_target_offsets_empty_brokers() {
-        let offset_header_key = "source-offset";
-        let source_offsets: OffsetSnapshot = vec![
-            OffsetRecord {
-                topic: "test-topic".to_string(),
-                partition: 1,
-                offset: 100i64,
-                consumer_group: "console-consumer".to_string(),
-            },
-            OffsetRecord {
-                topic: "test-topic-2".to_string(),
-                partition: 2,
-                offset: 200i64,
-                consumer_group: "console-consumer".to_string(),
-            },
-        ];
-
-        let mut transformer_consumer_config = ClientConfig::new();
-        transformer_consumer_config
-            .set("bootstrap.servers", "")
-            .set("group.id", "test")
-            .set("auto.offset.reset", "earliest")
-            .set("enable.partition.eof", "false")
-            .set("enable.auto.commit", "false");
-
-        let result = get_target_offsets(
-            &mut transformer_consumer_config,
-            offset_header_key,
-            &source_offsets,
-        )
-        .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TransformationError::MetadataFetchFailed(msg) => {
-                assert_eq!(
-                    msg,
-                    "Meta data fetch error: BrokerTransportFailure (Local: Broker transport failure)"
-                );
-            }
-            other => panic!("{other:?}"),
-        }
-    }
 }

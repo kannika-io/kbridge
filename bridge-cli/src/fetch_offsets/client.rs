@@ -35,7 +35,7 @@ pub fn fetch_metadata(consumer: BaseConsumer) -> Result<Metadata, FetchMetadataE
     Ok(Metadata {
         consumer_groups: group_list
             .groups()
-            .into_iter()
+            .iter()
             .map(|g| g.name().to_string())
             .collect(),
         topics_and_partitions,

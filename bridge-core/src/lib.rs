@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 pub mod client_config;
 pub mod export;
@@ -14,6 +14,17 @@ pub struct OffsetRecord {
 }
 
 pub type OffsetSnapshot = Vec<OffsetRecord>;
+
+pub fn get_unique_topics_from_offset_snapshot(offset_snapshot: &OffsetSnapshot) -> Vec<&str> {
+    offset_snapshot
+        .iter()
+        .map(|o| o.topic.as_str())
+        // Filter out duplicates. source_offsets can contain duplicate topic names in case multiple
+        // consumer groups are present
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect()
+}
 
 pub type Partition = i32;
 pub type Topic = String;

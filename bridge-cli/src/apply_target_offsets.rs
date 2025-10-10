@@ -1,19 +1,11 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use bridge_core::{
-    ApplicationRecord, ConsumerGroup,
-    client_config::ConfigBuilder,
-    export,
-    import::{ImportError, OffsetSnapshotImporter},
-};
+use bridge_core::{ApplicationRecord, ConsumerGroup, client_config::ConfigBuilder, export};
 use comfy_table::Table;
 use inquire::Text;
 use rdkafka::ClientConfig;
 
-use crate::{
-    GeneralError,
-    fetch_offsets::csv::{CsvOffsetSnapshotImporter, get_from_stdin},
-};
+use crate::{GeneralError, helpers::fetch_offset_records};
 
 pub async fn execute(
     bootstrap_server: String,
@@ -23,19 +15,7 @@ pub async fn execute(
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
 ) -> Result<(), GeneralError> {
-    let result = match from_stdin {
-        true => Ok(get_from_stdin()),
-        false => {
-            if let Some(path) = intermediary_offsets_csv_file_location {
-                let offset_snapshot_importer = CsvOffsetSnapshotImporter { file_path: path };
-                offset_snapshot_importer.import()
-            } else {
-                Err(ImportError::ResourceNotFound(
-                    "Import path is required if --from-stdin is not specified.".to_string(),
-                ))
-            }
-        }
-    }?;
+    let result = fetch_offset_records(from_stdin, intermediary_offsets_csv_file_location)?;
 
     let mut exporter_base_config = ClientConfig::new();
     exporter_base_config
@@ -81,19 +61,15 @@ pub async fn execute(
     let prompt = Text::new("The offsets above will be applied. Are you sure? (Y/n)").prompt();
 
     match prompt {
-        Ok(value) => {
-            if value == "Y" {
-                println!("Executing operation.");
-                let result = export::apply_target_offsets(
-                    &mut exporter_base_config,
-                    &mapped_intermediary_result,
-                )
-                .await;
-                println!("Operation executed");
-                result?
-            } else {
-                println!("Doing nothing.");
-            }
+        Ok(value) if value == "Y" => {
+            println!("Executing operation.");
+            let result = export::apply_target_offsets(
+                &mut exporter_base_config,
+                &mapped_intermediary_result,
+            )
+            .await;
+            println!("Operation executed");
+            result?
         }
         _ => println!("The operation has been cancelled."),
     };

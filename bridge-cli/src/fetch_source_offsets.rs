@@ -4,11 +4,23 @@ use bridge_core::client_config::ConfigBuilder;
 use rdkafka::{ClientConfig, consumer::BaseConsumer, error::KafkaError};
 use thiserror::Error;
 
-use crate::fetch_offsets::client::{
-    FetchMetadataError, ImportOffsetsError, fetch_all_consumer_group_offsets, fetch_metadata,
+use crate::{
+    GeneralError,
+    fetch_offsets::client::{
+        FetchMetadataError, ImportOffsetsError, fetch_all_consumer_group_offsets, fetch_metadata,
+    },
 };
 
 pub fn execute(
+    bootstrap_server: String,
+    optional_client_properties: Option<Vec<String>>,
+    topics: Option<Vec<String>>,
+) -> Result<(), GeneralError> {
+    execute_internal(bootstrap_server, optional_client_properties, topics)
+        .map_err(GeneralError::FetchSourceOffsetsError)
+}
+
+pub fn execute_internal(
     bootstrap_server: String,
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
@@ -43,7 +55,7 @@ pub fn execute(
 }
 
 #[derive(Error, Debug)]
-enum FetchSourceOffsetsError {
+pub enum FetchSourceOffsetsError {
     #[error("Kafka Error. Reason: {0}")]
     KafkaError(#[from] KafkaError),
 
