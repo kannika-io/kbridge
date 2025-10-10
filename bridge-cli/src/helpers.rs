@@ -7,6 +7,7 @@ use bridge_core::{
 
 use crate::fetch_offsets::csv::{CsvOffsetSnapshotImporter, get_from_stdin};
 
+/// Fetches offset records, either from stdin or from a CSV file on the specified path
 pub fn fetch_offset_records(
     from_stdin: bool,
     source_offsets_csv_file_location: Option<PathBuf>,

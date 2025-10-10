@@ -3,9 +3,7 @@ use bridge_core::{
 };
 use thiserror::Error;
 
-use crate::{
-    fetch_offsets::client::ImportOffsetsError, fetch_source_offsets::FetchSourceOffsetsError,
-};
+use crate::{fetch_offsets::client::ImportOffsetsError, sub_commands::errors::FetchSourceOffsetsError};
 
 #[derive(Error, Debug)]
 pub enum GeneralError {

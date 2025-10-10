@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 
 use bridge_core::client_config::ConfigBuilder;
-use rdkafka::{ClientConfig, consumer::BaseConsumer, error::KafkaError};
-use thiserror::Error;
+use rdkafka::{ClientConfig, consumer::BaseConsumer};
 
 use crate::{
     GeneralError,
-    fetch_offsets::client::{
-        FetchMetadataError, ImportOffsetsError, fetch_all_committed_consumer_group_offsets, fetch_metadata,
-    },
+    fetch_offsets::client::{fetch_all_committed_consumer_group_offsets, fetch_metadata},
 };
+
+use super::errors::FetchSourceOffsetsError;
 
 pub fn execute(
     bootstrap_server: String,
@@ -52,16 +51,4 @@ pub fn execute_internal(
             )
         });
     Ok(())
-}
-
-#[derive(Error, Debug)]
-pub enum FetchSourceOffsetsError {
-    #[error("Kafka Error. Reason: {0}")]
-    KafkaError(#[from] KafkaError),
-
-    #[error("Error while fetching metadata. Reason: {0}")]
-    FetchMetadataError(#[from] FetchMetadataError),
-
-    #[error("Error while importing offsets. Reason: {0}")]
-    ImportOffsetserror(#[from] ImportOffsetsError),
 }
