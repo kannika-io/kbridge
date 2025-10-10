@@ -1,0 +1,57 @@
+use std::path::PathBuf;
+
+use clap::{arg, command, Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    FetchSource {
+        #[arg(short, long)]
+        /// The bootstrap server URL for the Kafka Broker
+        bootstrap_server: String,
+    },
+    CalculateIntermediary {
+        #[arg(short, long)]
+        /// The bootstrap server URL for the Kafka Broker
+        bootstrap_server: String,
+
+        #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
+        /// Consumer group ID that will be used to fetch the records
+        consumer_group_id: String,
+
+        #[arg(short, long)]
+        /// Header in target messages that contains the offsets of the source topic
+        legacy_offset_header: String,
+
+        #[arg(short, long)]
+        /// Path to CSV file containing the offsets
+        source_offsets_csv_file_location: Option<PathBuf>,
+
+        #[arg(short, long, action)]
+        /// Whether to read CSV file from stdin
+        from_stdin: bool,
+    },
+    ApplyIntermediary {
+        #[arg(short, long)]
+        /// The bootstrap server URL for the Kafka Broker
+        bootstrap_server: String,
+
+        #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
+        /// Consumer group ID that will be used to fetch the records
+        consumer_group_id: String,
+
+        #[arg(short, long)]
+        /// Path to CSV file containing the offsets
+        intermediary_offsets_csv_file_location: Option<PathBuf>,
+
+        #[arg(short, long, action)]
+        /// Whether to read CSV file from stdin
+        from_stdin: bool,
+    },
+}

@@ -1,20 +1,20 @@
 use std::{
     collections::HashMap,
     io::{BufRead, stdin},
-    path::PathBuf,
 };
 
+use args::{Args, Commands};
 use bridge_core::{
     ApplicationRecord, ConsumerGroup,
     export::{ApplyOffsetsError, apply_target_offsets},
     import::{ImportError, OffsetSnapshotImporter},
     transform::{errors::TransformationError, get_target_offsets},
 };
-use clap::{Parser, Subcommand, command};
+use clap::Parser;
 use comfy_table::Table;
 use fetch_offsets::{
-    client::{ImportOffsetsError, fetch_all_consumer_group_offsets},
-    csv::convert,
+    client::{fetch_all_consumer_group_offsets, ImportOffsetsError},
+    csv::get_from_stdin,
 };
 use inquire::Text;
 use rdkafka::ClientConfig;
@@ -22,61 +22,8 @@ use thiserror::Error;
 
 use crate::fetch_offsets::csv::CsvOffsetSnapshotImporter;
 
+mod args;
 mod fetch_offsets;
-
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Args {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    FetchSource {
-        #[arg(short, long)]
-        /// The bootstrap server URL for the Kafka Broker
-        bootstrap_server: String,
-    },
-    CalculateIntermediary {
-        #[arg(short, long)]
-        /// The bootstrap server URL for the Kafka Broker
-        bootstrap_server: String,
-
-        #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
-        /// Consumer group ID that will be used to fetch the records
-        consumer_group_id: String,
-
-        #[arg(short, long)]
-        /// Header in target messages that contains the offsets of the source topic
-        legacy_offset_header: String,
-
-        #[arg(short, long)]
-        /// Path to CSV file containing the offsets
-        source_offsets_csv_file_location: Option<PathBuf>,
-
-        #[arg(short, long, action)]
-        /// Whether to read CSV file from stdin
-        from_stdin: bool,
-    },
-    ApplyIntermediary {
-        #[arg(short, long)]
-        /// The bootstrap server URL for the Kafka Broker
-        bootstrap_server: String,
-
-        #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
-        /// Consumer group ID that will be used to fetch the records
-        consumer_group_id: String,
-
-        #[arg(short, long)]
-        /// Path to CSV file containing the offsets
-        intermediary_offsets_csv_file_location: Option<PathBuf>,
-
-        #[arg(short, long, action)]
-        /// Whether to read CSV file from stdin
-        from_stdin: bool,
-    },
-}
 
 #[tokio::main]
 async fn main() -> Result<(), GeneralError> {
@@ -107,12 +54,7 @@ async fn main() -> Result<(), GeneralError> {
             from_stdin,
         } => {
             let result = match from_stdin {
-                true => Ok(stdin()
-                    .lock()
-                    .lines()
-                    .map_while(Result::ok)
-                    .filter_map(|line| convert(line).ok())
-                    .collect()),
+                true => Ok(get_from_stdin()),
                 false => {
                     if let Some(path) = source_offsets_csv_file_location {
                         let offset_snapshot_importer =
@@ -150,12 +92,7 @@ async fn main() -> Result<(), GeneralError> {
             from_stdin,
         } => {
             let result = match from_stdin {
-                true => Ok(stdin()
-                    .lock()
-                    .lines()
-                    .map_while(Result::ok)
-                    .filter_map(|line| convert(line).ok())
-                    .collect()),
+                true => Ok(get_from_stdin()),
                 false => {
                     if let Some(path) = intermediary_offsets_csv_file_location {
                         let offset_snapshot_importer =

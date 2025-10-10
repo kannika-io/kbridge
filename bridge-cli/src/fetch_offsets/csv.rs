@@ -1,4 +1,8 @@
-use std::{error::Error, path::PathBuf};
+use std::{
+    error::Error,
+    io::{BufRead, stdin},
+    path::PathBuf,
+};
 
 use bridge_core::{
     OffsetRecord, OffsetSnapshot,
@@ -11,6 +15,15 @@ pub struct CsvOffsetSnapshotImporter {
 }
 
 const CSV_HEADERS: [&str; 4] = ["consumer_group", "topic", "partition", "offset"];
+
+pub fn get_from_stdin() -> Vec<OffsetRecord> {
+    stdin()
+        .lock()
+        .lines()
+        .map_while(Result::ok)
+        .filter_map(|line| convert(line).ok())
+        .collect()
+}
 
 pub fn convert(value: String) -> Result<OffsetRecord, ImportError> {
     let mut reader = csv::ReaderBuilder::new().from_reader(value.as_bytes());
