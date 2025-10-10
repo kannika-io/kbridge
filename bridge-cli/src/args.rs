@@ -21,7 +21,7 @@ pub enum Commands {
         #[arg(short, long)]
         optional_client_properties: Option<Vec<String>>,
     },
-    CalculateIntermediary {
+    CalculateTarget {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
         bootstrap_server: String,
@@ -47,7 +47,7 @@ pub enum Commands {
         #[arg(short, long)]
         optional_client_properties: Option<Vec<String>>,
     },
-    ApplyIntermediary {
+    ApplyTarget {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
         bootstrap_server: String,
