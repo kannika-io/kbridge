@@ -21,6 +21,7 @@ pub async fn execute(
     intermediary_offsets_csv_file_location: Option<PathBuf>,
     from_stdin: bool,
     optional_client_properties: Option<Vec<String>>,
+    topics: Option<Vec<String>>,
 ) -> Result<(), GeneralError> {
     let result = match from_stdin {
         true => Ok(get_from_stdin()),
@@ -46,13 +47,16 @@ pub async fn execute(
     let mut mapped_intermediary_result: HashMap<ConsumerGroup, Vec<ApplicationRecord>> =
         HashMap::new();
 
-    for item in &result {
-        let value = (item.topic.to_string(), item.partition, item.offset);
-        mapped_intermediary_result
-            .entry(item.consumer_group.clone())
-            .and_modify(|list| list.push(value.clone()))
-            .or_insert(vec![value.clone()]);
-    }
+    result
+        .iter()
+        .filter(|r| topics.as_ref().is_none_or(|t| t.contains(&r.topic)))
+        .for_each(|item| {
+            let value = (item.topic.to_string(), item.partition, item.offset);
+            mapped_intermediary_result
+                .entry(item.consumer_group.clone())
+                .and_modify(|list| list.push(value.clone()))
+                .or_insert(vec![value.clone()]);
+        });
 
     let mut table = Table::new();
 

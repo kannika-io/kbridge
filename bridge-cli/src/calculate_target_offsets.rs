@@ -1,10 +1,17 @@
 use std::path::PathBuf;
 
-use bridge_core::{client_config::ConfigBuilder, import::{ImportError, OffsetSnapshotImporter}, transform::get_target_offsets};
+use bridge_core::{
+    OffsetRecord,
+    client_config::ConfigBuilder,
+    import::{ImportError, OffsetSnapshotImporter},
+    transform::get_target_offsets,
+};
 use rdkafka::ClientConfig;
 
-use crate::{fetch_offsets::csv::{get_from_stdin, CsvOffsetSnapshotImporter}, GeneralError};
-
+use crate::{
+    GeneralError,
+    fetch_offsets::csv::{CsvOffsetSnapshotImporter, get_from_stdin},
+};
 
 pub async fn execute(
     source_offsets_csv_file_location: Option<PathBuf>,
@@ -13,8 +20,9 @@ pub async fn execute(
     legacy_offset_header: String,
     from_stdin: bool,
     optional_client_properties: Option<Vec<String>>,
+    topics: Option<Vec<String>>,
 ) -> Result<(), GeneralError> {
-    let result = match from_stdin {
+    let result: Vec<OffsetRecord> = match from_stdin {
         true => Ok(get_from_stdin()),
         false => {
             if let Some(path) = source_offsets_csv_file_location {
@@ -28,6 +36,11 @@ pub async fn execute(
         }
     }?;
 
+    let result_filtered : Vec<OffsetRecord> = result
+        .into_iter()
+        .filter(|o| topics.as_ref().is_none_or(|t| t.contains(&o.topic)))
+        .collect();
+
     let mut transformer_consumer_config = ClientConfig::new();
     transformer_consumer_config
         .set_bootstrap_server(bootstrap_server.as_str())
@@ -38,7 +51,7 @@ pub async fn execute(
     let transformed_result = get_target_offsets(
         &mut transformer_consumer_config,
         &legacy_offset_header,
-        &result,
+        &result_filtered,
     )
     .await?;
 

@@ -20,6 +20,10 @@ pub enum Commands {
         /// ssl.key.password=test
         #[arg(short, long)]
         optional_client_properties: Option<Vec<String>>,
+
+        /// Specify topics. If no topics specified, all topics will be used.
+        #[arg(short, long)]
+        topics: Option<Vec<String>>,
     },
     CalculateTarget {
         #[arg(short, long)]
@@ -46,6 +50,10 @@ pub enum Commands {
         /// ssl.key.password=test
         #[arg(short, long)]
         optional_client_properties: Option<Vec<String>>,
+
+        /// Specify topics. If no topics specified, all topics will be used.
+        #[arg(short, long)]
+        topics: Option<Vec<String>>,
     },
     ApplyTarget {
         #[arg(short, long)]
@@ -68,5 +76,9 @@ pub enum Commands {
         /// ssl.key.password=test
         #[arg(short, long)]
         optional_client_properties: Option<Vec<String>>,
+
+        /// Specify topics. If no topics specified, all topics will be used.
+        #[arg(short, long)]
+        topics: Option<Vec<String>>,
     },
 }
