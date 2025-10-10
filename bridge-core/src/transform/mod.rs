@@ -113,7 +113,7 @@ mod watermarks;
 /// 7. Stop consuming from a partition when its high watermark is reached
 /// 8. Return the complete mapping of source offsets to target offsets
 pub async fn get_target_offsets(
-    transformer_consumer_config: ClientConfig,
+    transformer_consumer_config: &mut ClientConfig,
     offset_header_key: &str,
     source_offsets: &OffsetSnapshot,
 ) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
@@ -233,7 +233,7 @@ mod tests {
             .set("enable.auto.commit", "false");
 
         let result = get_target_offsets(
-            transformer_consumer_config,
+            &mut transformer_consumer_config,
             offset_header_key,
             &source_offsets,
         )
@@ -267,7 +267,7 @@ mod tests {
             .set("enable.auto.commit", "false");
 
         let result = get_target_offsets(
-            transformer_consumer_config,
+            &mut transformer_consumer_config,
             offset_header_key,
             &source_offsets,
         )
@@ -309,7 +309,7 @@ mod tests {
             .set("enable.auto.commit", "false");
 
         let result = get_target_offsets(
-            transformer_consumer_config,
+            &mut transformer_consumer_config,
             offset_header_key,
             &source_offsets,
         )

@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+pub mod client_config;
 pub mod export;
 pub mod import;
 pub mod transform;

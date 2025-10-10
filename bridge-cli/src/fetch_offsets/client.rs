@@ -1,4 +1,4 @@
-use bridge_core::{OffsetRecord, OffsetSnapshot};
+use bridge_core::{OffsetRecord, OffsetSnapshot, client_config::ConfigBuilder};
 use rdkafka::{
     ClientConfig, TopicPartitionList,
     consumer::{BaseConsumer, Consumer},
@@ -20,7 +20,7 @@ pub fn fetch_all_consumer_group_offsets(
 
     for group in group_list.groups() {
         let group_id = group.name();
-        consumer_config.set("group.id", group_id);
+        consumer_config.set_consumer_group_id(group_id);
 
         let group_consumer: BaseConsumer = consumer_config.create()?;
         let mut topic_partition_list = TopicPartitionList::new();

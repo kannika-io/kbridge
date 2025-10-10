@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{arg, command, Parser, Subcommand};
+use clap::{Parser, Subcommand, arg, command};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -15,6 +15,11 @@ pub enum Commands {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
         bootstrap_server: String,
+
+        /// Additional properties for the kafka client, separated by a '='. e.g.:
+        /// ssl.key.password=test
+        #[arg(short, long)]
+        optional_client_properties: Option<Vec<String>>,
     },
     CalculateIntermediary {
         #[arg(short, long)]
@@ -36,6 +41,11 @@ pub enum Commands {
         #[arg(short, long, action)]
         /// Whether to read CSV file from stdin
         from_stdin: bool,
+
+        /// Additional properties for the kafka client, separated by a '='. e.g.:
+        /// ssl.key.password=test
+        #[arg(short, long)]
+        optional_client_properties: Option<Vec<String>>,
     },
     ApplyIntermediary {
         #[arg(short, long)]
@@ -53,5 +63,10 @@ pub enum Commands {
         #[arg(short, long, action)]
         /// Whether to read CSV file from stdin
         from_stdin: bool,
+
+        /// Additional properties for the kafka client, separated by a comma. e.g.:
+        /// ssl.key.password=test
+        #[arg(short, long)]
+        optional_client_properties: Option<Vec<String>>,
     },
 }

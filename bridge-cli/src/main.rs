@@ -1,11 +1,9 @@
-use std::{
-    collections::HashMap,
-    io::{BufRead, stdin},
-};
+use std::collections::HashMap;
 
 use args::{Args, Commands};
 use bridge_core::{
     ApplicationRecord, ConsumerGroup,
+    client_config::ConfigBuilder,
     export::{ApplyOffsetsError, apply_target_offsets},
     import::{ImportError, OffsetSnapshotImporter},
     transform::{errors::TransformationError, get_target_offsets},
@@ -13,7 +11,7 @@ use bridge_core::{
 use clap::Parser;
 use comfy_table::Table;
 use fetch_offsets::{
-    client::{fetch_all_consumer_group_offsets, ImportOffsetsError},
+    client::{ImportOffsetsError, fetch_all_consumer_group_offsets},
     csv::get_from_stdin,
 };
 use inquire::Text;
@@ -32,9 +30,14 @@ async fn main() -> Result<(), GeneralError> {
     env_logger::init();
 
     match args.command {
-        Commands::FetchSource { bootstrap_server } => {
+        Commands::FetchSource {
+            bootstrap_server,
+            optional_client_properties,
+        } => {
             let mut admin_config = ClientConfig::new();
-            admin_config.set("bootstrap.servers", bootstrap_server.as_str());
+            admin_config
+                .set_bootstrap_server(bootstrap_server.as_str())
+                .set_optional_properties(optional_client_properties);
             let result = fetch_all_consumer_group_offsets(&mut admin_config)?;
             for consumer_group in result {
                 println!(
@@ -52,6 +55,7 @@ async fn main() -> Result<(), GeneralError> {
             consumer_group_id,
             legacy_offset_header,
             from_stdin,
+            optional_client_properties,
         } => {
             let result = match from_stdin {
                 true => Ok(get_from_stdin()),
@@ -70,14 +74,17 @@ async fn main() -> Result<(), GeneralError> {
 
             let mut transformer_consumer_config = ClientConfig::new();
             transformer_consumer_config
-                .set("bootstrap.servers", bootstrap_server.as_str())
-                .set("group.id", consumer_group_id.as_str())
-                .set("auto.offset.reset", "earliest")
-                .set("enable.auto.commit", "false");
+                .set_bootstrap_server(bootstrap_server.as_str())
+                .set_consumer_group_id(consumer_group_id.as_str())
+                .set_optional_properties(optional_client_properties)
+                .disable_auto_commit();
 
-            let transformed_result =
-                get_target_offsets(transformer_consumer_config, &legacy_offset_header, &result)
-                    .await?;
+            let transformed_result = get_target_offsets(
+                &mut transformer_consumer_config,
+                &legacy_offset_header,
+                &result,
+            )
+            .await?;
 
             for consumer_group in transformed_result {
                 for item in consumer_group.1 {
@@ -90,6 +97,7 @@ async fn main() -> Result<(), GeneralError> {
             consumer_group_id,
             intermediary_offsets_csv_file_location,
             from_stdin,
+            optional_client_properties,
         } => {
             let result = match from_stdin {
                 true => Ok(get_from_stdin()),
@@ -108,9 +116,10 @@ async fn main() -> Result<(), GeneralError> {
 
             let mut exporter_base_config = ClientConfig::new();
             exporter_base_config
-                .set("bootstrap.servers", bootstrap_server.as_str())
-                .set("enable.auto.commit", "false")
-                .set("group.id", consumer_group_id.as_str());
+                .set_bootstrap_server(bootstrap_server.as_str())
+                .set_consumer_group_id(consumer_group_id.as_str())
+                .set_optional_properties(optional_client_properties)
+                .disable_auto_commit();
 
             let mut mapped_intermediary_result: HashMap<ConsumerGroup, Vec<ApplicationRecord>> =
                 HashMap::new();
