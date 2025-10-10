@@ -36,7 +36,7 @@ pub async fn execute(
         }
     }?;
 
-    let result_filtered : Vec<OffsetRecord> = result
+    let result_filtered: Vec<OffsetRecord> = result
         .into_iter()
         .filter(|o| topics.as_ref().is_none_or(|t| t.contains(&o.topic)))
         .collect();
