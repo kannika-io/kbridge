@@ -1,22 +1,23 @@
 use args::{Args, Commands};
 use clap::Parser;
 use errors::GeneralError;
+use log::trace;
+use sub_commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets};
 
-mod apply_target_offsets;
 mod args;
-mod calculate_target_offsets;
 mod errors;
 mod fetch_offsets;
-mod fetch_source_offsets;
 mod helpers;
+mod sub_commands;
 
 #[tokio::main]
 async fn main() -> Result<(), GeneralError> {
     let args = Args::parse();
 
     env_logger::init();
+    trace!("Executing with following arguments: {:?}", args);
 
-    match args.command {
+    let result = match args.command {
         Commands::FetchSource {
             bootstrap_server,
             optional_client_properties,
@@ -60,5 +61,7 @@ async fn main() -> Result<(), GeneralError> {
             )
             .await
         }
-    }
+    };
+    trace!("Execution finished.");
+    result
 }

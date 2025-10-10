@@ -2,15 +2,16 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, arg, command};
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum Commands {
+    /// Fetches the source offsets from a kafka cluster
     FetchSource {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
@@ -25,6 +26,7 @@ pub enum Commands {
         #[arg(short, long)]
         topics: Option<Vec<String>>,
     },
+    /// Calculates target offsets based on message header in target cluster
     CalculateTarget {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker
@@ -55,6 +57,7 @@ pub enum Commands {
         #[arg(short, long)]
         topics: Option<Vec<String>>,
     },
+    /// Restores consumer group(s) in target cluster based on calculated target offsets
     ApplyTarget {
         #[arg(short, long)]
         /// The bootstrap server URL for the Kafka Broker

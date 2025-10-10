@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bridge_core::{OffsetRecord, OffsetSnapshot};
+use log::{trace, warn};
 use rdkafka::{
     TopicPartitionList,
     consumer::{BaseConsumer, Consumer},
@@ -16,6 +17,7 @@ pub struct Metadata {
     pub topics_and_partitions: HashMap<String, Vec<i32>>,
 }
 
+/// Fetches metadata from kafka cluster: All consumer groups and topic-partition combos
 pub fn fetch_metadata(consumer: BaseConsumer) -> Result<Metadata, FetchMetadataError> {
     let group_list = consumer.fetch_group_list(None, Timeout::Never)?;
 
@@ -42,12 +44,14 @@ pub fn fetch_metadata(consumer: BaseConsumer) -> Result<Metadata, FetchMetadataE
     })
 }
 
-pub fn fetch_all_consumer_group_offsets(
+/// Fetches all committed consumer group offsets from metadata provided, using consumers provided
+pub fn fetch_all_committed_consumer_group_offsets(
     metadata: Metadata,
     consumers: HashMap<String, BaseConsumer>,
 ) -> Result<OffsetSnapshot, ImportOffsetsError> {
     let mut all_offsets: OffsetSnapshot = Vec::new();
     for group in &metadata.consumer_groups {
+        trace!("Fetching committed offsets for group {}", group);
         let group_consumer = consumers
             .get(group)
             .ok_or(ImportOffsetsError::ConsumerNotFound(group.to_string()))?;
@@ -64,6 +68,7 @@ pub fn fetch_all_consumer_group_offsets(
             group_consumer.committed_offsets(topic_partition_list, Timeout::Never)?;
 
         for committed_offset in committed_offsets.elements() {
+            trace!("Committed offset: {:?}", committed_offset);
             match committed_offset.offset().to_raw() {
                 Some(value) => {
                     if value != NO_OFFSET {
@@ -77,7 +82,7 @@ pub fn fetch_all_consumer_group_offsets(
                     }
                 }
                 None => {
-                    eprintln!("Error fetching offset");
+                    warn!("Error fetching offset. Ignoring.");
                 }
             }
         }

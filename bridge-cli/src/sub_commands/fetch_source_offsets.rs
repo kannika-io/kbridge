@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::{
     GeneralError,
     fetch_offsets::client::{
-        FetchMetadataError, ImportOffsetsError, fetch_all_consumer_group_offsets, fetch_metadata,
+        FetchMetadataError, ImportOffsetsError, fetch_all_committed_consumer_group_offsets, fetch_metadata,
     },
 };
 
@@ -41,7 +41,7 @@ pub fn execute_internal(
         consumers.insert(consumer_group.to_string(), consumer_for_group);
     }
 
-    let result = fetch_all_consumer_group_offsets(metadata, consumers)?;
+    let result = fetch_all_committed_consumer_group_offsets(metadata, consumers)?;
     result
         .iter()
         .filter(|r| topics.as_ref().is_none_or(|t| t.contains(&r.topic)))
