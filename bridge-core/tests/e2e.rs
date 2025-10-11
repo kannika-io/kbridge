@@ -54,7 +54,7 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
             consumer_group: "console-consumer".to_string(),
         },
     ];
-    
+
     let result_filtered = fetch_source_offsets::execute(
         "localhost:9092".to_string(),
         None,
