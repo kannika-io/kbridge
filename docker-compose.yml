@@ -1,7 +1,7 @@
 services:
   broker-init:
     image: confluentinc/cp-kafka:8.0.0
-    command: [ "/bin/bash", "-c", "/create_topics.sh"] 
+    command: [ "/bin/bash", "-c", "${BROKER_INIT_COMMAND:-/create_topics.sh}"] 
     depends_on:
       broker-target:
         condition: service_healthy
