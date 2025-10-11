@@ -1,14 +1,16 @@
-use std::collections::HashMap;
-use rdkafka::ClientConfig;
-use rdkafka::consumer::BaseConsumer;
+use super::errors::FetchSourceOffsetsError;
+use crate::OffsetSnapshot;
 use crate::client_config::ConfigBuilder;
 use crate::commands::fetch_source_offsets::errors::ImportError;
-use crate::commands::fetch_source_offsets::sources::client::{fetch_all_committed_consumer_group_offsets, fetch_metadata};
-use crate::OffsetSnapshot;
-use super::errors::FetchSourceOffsetsError;
+use crate::commands::fetch_source_offsets::sources::client::{
+    fetch_all_committed_consumer_group_offsets, fetch_metadata,
+};
+use rdkafka::ClientConfig;
+use rdkafka::consumer::BaseConsumer;
+use std::collections::HashMap;
 
-mod sources;
 pub mod errors;
+mod sources;
 
 pub fn execute(
     bootstrap_server: String,
@@ -31,7 +33,9 @@ pub fn execute(
         consumers.insert(consumer_group.to_string(), consumer_for_group);
     }
 
-    Ok(fetch_all_committed_consumer_group_offsets(metadata, consumers)?)
+    Ok(fetch_all_committed_consumer_group_offsets(
+        metadata, consumers,
+    )?)
 }
 pub trait OffsetSnapshotImporter {
     fn import(&self) -> Result<OffsetSnapshot, ImportError>;

@@ -1,12 +1,15 @@
-use rdkafka::ClientConfig;
 use crate::client_config::ConfigBuilder;
-use crate::{get_unique_topics_from_offset_snapshot, OffsetRecord, OffsetSnapshot, TransformationRecord};
 use crate::commands::calculate_target_offsets::errors::TransformationError;
 use crate::commands::calculate_target_offsets::transform::consumer::setup_consumer_and_metadata;
 use crate::commands::calculate_target_offsets::transform::get_target_offsets;
+use crate::{
+    OffsetRecord, OffsetSnapshot, TransformationRecord, get_unique_topics_from_offset_snapshot,
+};
+use log::trace;
+use rdkafka::ClientConfig;
 
-mod transform;
 pub mod errors;
+mod transform;
 
 pub async fn execute(
     bootstrap_server: String,
@@ -14,12 +17,14 @@ pub async fn execute(
     legacy_offset_header: String,
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
-    result: OffsetSnapshot
+    result: OffsetSnapshot,
 ) -> Result<OffsetSnapshot, TransformationError> {
     let result_filtered: Vec<OffsetRecord> = result
         .into_iter()
         .filter(|o| topics.as_ref().is_none_or(|t| t.contains(&o.topic)))
         .collect();
+
+    trace!("Initializing consumer and fetching metadata..");
 
     let mut transformer_consumer_config = ClientConfig::new();
     transformer_consumer_config
@@ -34,15 +39,20 @@ pub async fn execute(
     let (consumer, metadata) =
         setup_consumer_and_metadata(&topics, &mut transformer_consumer_config).await?;
 
+    trace!("Initialization completed.");
+
     let transformed_result =
         get_target_offsets(&legacy_offset_header, &result_filtered, consumer, metadata).await?;
 
-    Ok(transformed_result.iter().flat_map(|o| o.1.iter().map(|t : &TransformationRecord| {
-        OffsetRecord {
-            topic: t.0.to_string(),
-            partition: t.1,
-            offset: 2,
-            consumer_group: o.0.to_string(),
-        }
-    })).collect())
+    Ok(transformed_result
+        .iter()
+        .flat_map(|o| {
+            o.1.iter().map(|t: &TransformationRecord| OffsetRecord {
+                topic: t.0.to_string(),
+                partition: t.1,
+                offset: 2,
+                consumer_group: o.0.to_string(),
+            })
+        })
+        .collect())
 }

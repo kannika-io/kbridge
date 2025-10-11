@@ -1,18 +1,19 @@
-use std::collections::HashMap;
-
+use log::trace;
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::metadata::Metadata;
+use std::collections::HashMap;
 
-use crate::get_unique_topics_from_offset_snapshot;
-use crate::{
-    ConsumerGroup, ConsumerGroupRecord, OffsetSnapshot, Partition, Topic,
-    TransformationRecord,
-};
 use crate::commands::calculate_target_offsets::errors::TransformationError;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset::try_find_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset_mapping::handle_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::message_header::extract_source_offset_from_message;
-use crate::commands::calculate_target_offsets::transform::watermarks::{get_high_watermark, update_partitions_to_check};
+use crate::commands::calculate_target_offsets::transform::watermarks::{
+    get_high_watermark, update_partitions_to_check,
+};
+use crate::get_unique_topics_from_offset_snapshot;
+use crate::{
+    ConsumerGroup, ConsumerGroupRecord, OffsetSnapshot, Partition, Topic, TransformationRecord,
+};
 
 pub mod consumer;
 mod consumer_group_offset;
@@ -60,6 +61,7 @@ pub async fn get_target_offsets(
 
     let mut nearest_offsets = HashMap::new();
 
+    trace!("Starting consumer loop");
     // Consume all messages from the topics we are subscribed to
     while !partitions_to_search.is_empty() {
         let consume_result =
@@ -89,6 +91,7 @@ pub async fn get_target_offsets(
         )?;
     }
 
+    trace!("Ending consumer loop");
     handle_missing_offsets(transformations, missing_offsets, nearest_offsets)
 }
 

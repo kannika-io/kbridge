@@ -1,5 +1,5 @@
-use std::io;
 use rdkafka::error::KafkaError;
+use std::io;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -10,5 +10,5 @@ pub enum ApplyOffsetsError {
     IoError(#[from] io::Error),
 
     #[error("The operation was cancelled")]
-    Cancelled
+    Cancelled,
 }

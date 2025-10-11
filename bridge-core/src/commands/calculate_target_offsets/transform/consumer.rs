@@ -1,12 +1,12 @@
 use std::time::Duration;
 
+use crate::commands::calculate_target_offsets::errors::TransformationError;
 use log::info;
 use rdkafka::{
     ClientConfig,
     consumer::{Consumer, StreamConsumer},
     metadata::Metadata,
 };
-use crate::commands::calculate_target_offsets::errors::TransformationError;
 
 pub async fn setup_consumer_and_metadata(
     topics: &[&str],

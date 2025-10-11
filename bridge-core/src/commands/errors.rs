@@ -1,6 +1,6 @@
+use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
 use rdkafka::error::KafkaError;
 use thiserror::Error;
-use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
 
 #[derive(Error, Debug)]
 pub enum FetchSourceOffsetsError {
@@ -13,4 +13,3 @@ pub enum FetchSourceOffsetsError {
     #[error("Error while importing offsets. Reason: {0}")]
     ImportOffsetsError(#[from] ImportOffsetsError),
 }
-

@@ -1,11 +1,8 @@
-use std::{
-    error::Error,
-    path::PathBuf,
-};
+use std::{error::Error, path::PathBuf};
 
 use crate::commands::fetch_source_offsets::OffsetSnapshotImporter;
-use crate::{OffsetRecord, OffsetSnapshot};
 use crate::commands::fetch_source_offsets::errors::ImportError;
+use crate::{OffsetRecord, OffsetSnapshot};
 
 pub struct CsvOffsetSnapshotImporter {
     pub file_path: PathBuf,
@@ -63,8 +60,8 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::*;
-    use std::fs;
     use crate::commands::fetch_source_offsets::errors::ImportError;
+    use std::fs;
 
     #[test]
     fn test_convert_success() {

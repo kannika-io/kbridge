@@ -1,9 +1,9 @@
-use std::io::{stdin, BufRead};
-use std::path::PathBuf;
 use crate::commands::fetch_source_offsets::OffsetSnapshotImporter;
-use crate::{OffsetRecord, OffsetSnapshot};
 use crate::commands::fetch_source_offsets::errors::ImportError;
-use crate::read_offsets::csv::{convert, CsvOffsetSnapshotImporter};
+use crate::read_offsets::csv::{CsvOffsetSnapshotImporter, convert};
+use crate::{OffsetRecord, OffsetSnapshot};
+use std::io::{BufRead, stdin};
+use std::path::PathBuf;
 
 pub fn get_from_stdin() -> Vec<OffsetRecord> {
     stdin()

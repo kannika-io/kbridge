@@ -14,4 +14,5 @@ serde = { version = "1.0.228", features = ["derive"] }
 
 [dev-dependencies]
 anyhow = "1.0.100"
+assert_matches = "1.5.0"
 tempfile = "3.23.0"

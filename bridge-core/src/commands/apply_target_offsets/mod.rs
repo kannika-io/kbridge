@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use rdkafka::ClientConfig;
 use crate::client_config::ConfigBuilder;
-use crate::{ApplicationRecord, ConsumerGroup, OffsetSnapshot};
 use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 use crate::commands::apply_target_offsets::export::apply_target_offsets;
+use crate::{ApplicationRecord, ConsumerGroup, OffsetSnapshot};
+use rdkafka::ClientConfig;
+use std::collections::HashMap;
 
-mod export;
 pub mod errors;
+mod export;
 
 pub async fn execute(
     bootstrap_server: String,
@@ -14,7 +14,7 @@ pub async fn execute(
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
     offset_snapshot: OffsetSnapshot,
-    confirmation: &dyn Fn(&OffsetSnapshot) -> bool
+    confirmation: &dyn Fn(&OffsetSnapshot) -> bool,
 ) -> Result<(), ApplyOffsetsError> {
     let mut exporter_base_config = ClientConfig::new();
     exporter_base_config
@@ -37,15 +37,10 @@ pub async fn execute(
                 .or_insert(vec![value.clone()]);
         });
 
-    if confirmation(&offset_snapshot)
-    {
-        apply_target_offsets(
-            &mut exporter_base_config,
-            &mapped_intermediary_result,
-        ).await?;
+    if confirmation(&offset_snapshot) {
+        apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result).await?;
         Ok(())
-    }
-    else {
+    } else {
         Err(ApplyOffsetsError::Cancelled)
     }
 }

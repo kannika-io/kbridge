@@ -1,5 +1,5 @@
-use std::{collections::HashSet, fmt::Display};
 use serde::Deserialize;
+use std::{collections::HashSet, fmt::Display};
 
 pub mod client_config;
 
@@ -8,7 +8,6 @@ pub mod commands;
 mod read_offsets;
 
 pub mod helpers;
-
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub struct OffsetRecord {

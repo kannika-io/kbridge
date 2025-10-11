@@ -1,11 +1,11 @@
-use std::collections::HashMap;
 use rdkafka::{
     ClientConfig, Offset, TopicPartitionList,
     consumer::{BaseConsumer, CommitMode, Consumer},
 };
+use std::collections::HashMap;
 
-use crate::{ApplicationRecord, ConsumerGroup};
 use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
+use crate::{ApplicationRecord, ConsumerGroup};
 
 pub async fn apply_target_offsets(
     consumer_config: &mut ClientConfig,

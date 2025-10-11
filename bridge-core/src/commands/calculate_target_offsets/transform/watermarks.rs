@@ -1,12 +1,12 @@
 use std::{collections::HashMap, time::Duration};
 
+use crate::commands::calculate_target_offsets::errors::TransformationError;
 use log::info;
 use rdkafka::{
     Message,
     consumer::{Consumer, StreamConsumer},
     metadata::Metadata,
 };
-use crate::commands::calculate_target_offsets::errors::TransformationError;
 
 pub fn update_partitions_to_check(
     message: &rdkafka::message::BorrowedMessage,
