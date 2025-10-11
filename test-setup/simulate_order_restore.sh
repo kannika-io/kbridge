@@ -15,7 +15,7 @@ echo "Starting to consume $NUM_MESSAGES messages from topic '$TOPIC' for restora
 PIPE_FILE=$(mktemp -u) 
 mkfifo "$PIPE_FILE"
 
-kafka-console-producer.sh \
+kafka-console-producer \
      --bootstrap-server $TARGET_BOOTSTRAP_SERVERS \
      --property "parse.headers=true"\
      --property "headers.delimiter=|"\
@@ -26,7 +26,7 @@ kafka-console-producer.sh \
 
 PRODUCER_PID=$!
 
-kafka-console-consumer.sh \
+kafka-console-consumer \
     --bootstrap-server $SOURCE_BOOTSTRAP_SERVERS \
     --property print.offset=true \
     --property print.key=true \

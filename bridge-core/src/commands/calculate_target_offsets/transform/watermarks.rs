@@ -6,8 +6,7 @@ use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     metadata::Metadata,
 };
-
-use crate::transform::errors::TransformationError;
+use crate::commands::calculate_target_offsets::errors::TransformationError;
 
 pub fn update_partitions_to_check(
     message: &rdkafka::message::BorrowedMessage,
@@ -91,7 +90,6 @@ pub fn get_high_watermark(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transform::watermarks::get_topic_partition_watermarks;
 
     #[test]
     fn test_get_topic_partition_watermarks_success() {

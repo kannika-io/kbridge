@@ -6,8 +6,12 @@ description.workspace = true
 edition.workspace = true
 
 [dependencies]
-kafka = { workspace = true }
 rdkafka = { workspace = true }
-tokio = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+csv = { workspace = true }
+serde = { version = "1.0.228", features = ["derive"] }
+
+[dev-dependencies]
+anyhow = "1.0.100"
+tempfile = "3.23.0"

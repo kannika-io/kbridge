@@ -1,7 +1,6 @@
 use rdkafka::Message;
 use rdkafka::message::Headers;
-
-use crate::transform::errors::{FetchOffsetError, TransformationError};
+use crate::commands::calculate_target_offsets::errors::{FetchOffsetError, TransformationError};
 
 pub fn extract_source_offset_from_message(
     message: &rdkafka::message::BorrowedMessage,

@@ -11,7 +11,7 @@ BOOTSTRAP_SERVERS=$3
 
 echo "Starting to produce $NUM_MESSAGES messages to topic '$TOPIC'..."
 
-kafka-verifiable-producer.sh \
+kafka-verifiable-producer \
     --bootstrap-server $BOOTSTRAP_SERVERS \
     --topic $TOPIC \
     --max-messages $NUM_MESSAGES \

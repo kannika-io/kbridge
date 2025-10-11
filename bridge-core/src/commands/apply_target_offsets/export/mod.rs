@@ -1,15 +1,11 @@
 use std::collections::HashMap;
-use std::io;
-
-use log::error;
 use rdkafka::{
     ClientConfig, Offset, TopicPartitionList,
     consumer::{BaseConsumer, CommitMode, Consumer},
-    error::KafkaError,
 };
-use thiserror::Error;
 
 use crate::{ApplicationRecord, ConsumerGroup};
+use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 
 pub async fn apply_target_offsets(
     consumer_config: &mut ClientConfig,
@@ -31,12 +27,4 @@ pub async fn apply_target_offsets(
         consumer.commit(&topic_partition_list, CommitMode::Sync)?;
     }
     Ok(())
-}
-
-#[derive(Error, Debug)]
-pub enum ApplyOffsetsError {
-    #[error("Kafka error occurred. Reason: {0}")]
-    KafkaError(#[from] KafkaError),
-    #[error("IO error occurred. Reason: {0}")]
-    IoError(#[from] io::Error),
 }

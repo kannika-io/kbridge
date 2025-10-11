@@ -1,11 +1,16 @@
 use std::{collections::HashSet, fmt::Display};
+use serde::Deserialize;
 
 pub mod client_config;
-pub mod export;
-pub mod import;
-pub mod transform;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+pub mod commands;
+
+mod read_offsets;
+
+pub mod helpers;
+
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub struct OffsetRecord {
     pub topic: String,
     pub partition: i32,

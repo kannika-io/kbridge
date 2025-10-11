@@ -8,12 +8,9 @@ edition.workspace = true
 [dependencies]
 bridge-core = { path = "../bridge-core" }
 
-csv = { workspace = true }
 log = { workspace = true }
-serde = { workspace = true }
 tokio =  { workspace = true }
 thiserror = { workspace = true }
-rdkafka = { workspace = true }
 env_logger = "0.11.8"
 clap = { version = "4.5.48", features = ["derive"] }
 inquire = "0.9.1"

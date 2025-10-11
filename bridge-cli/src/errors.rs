@@ -1,9 +1,8 @@
-use bridge_core::{
-    export::ApplyOffsetsError, import::ImportError, transform::errors::TransformationError,
-};
 use thiserror::Error;
-
-use crate::{fetch_offsets::client::ImportOffsetsError, sub_commands::errors::FetchSourceOffsetsError};
+use bridge_core::commands::apply_target_offsets::errors::ApplyOffsetsError;
+use bridge_core::commands::calculate_target_offsets::errors::TransformationError;
+use bridge_core::commands::errors::FetchSourceOffsetsError;
+use bridge_core::commands::fetch_source_offsets::errors::{ImportError, ImportOffsetsError};
 
 #[derive(Error, Debug)]
 pub enum GeneralError {

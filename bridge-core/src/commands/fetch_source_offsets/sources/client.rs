@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
-use bridge_core::{OffsetRecord, OffsetSnapshot};
 use log::{trace, warn};
 use rdkafka::{
     TopicPartitionList,
     consumer::{BaseConsumer, Consumer},
-    error::KafkaError,
     util::Timeout,
 };
-use thiserror::Error;
+use crate::{OffsetRecord, OffsetSnapshot};
+use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
 
 const NO_OFFSET: i64 = -1001;
 
@@ -18,19 +17,22 @@ pub struct Metadata {
 }
 
 /// Fetches metadata from kafka cluster: All consumer groups and topic-partition combos
-pub fn fetch_metadata(consumer: BaseConsumer) -> Result<Metadata, FetchMetadataError> {
+pub fn fetch_metadata(consumer: BaseConsumer, topics: Option<Vec<String>>) -> Result<Metadata, FetchMetadataError> {
     let group_list = consumer.fetch_group_list(None, Timeout::Never)?;
 
     let metadata = consumer.fetch_metadata(None, Timeout::Never)?;
 
     let mut topics_and_partitions: HashMap<String, Vec<i32>> = HashMap::new();
 
-    metadata.topics().iter().for_each(|topic| {
+    metadata.topics().iter()
+        // Optimization: filter topics when fetching metadata
+        .filter(|mt| topics.as_ref().is_none_or(|t| t.contains(&mt.name().to_string())))
+        .for_each(|topic| {
         topic.partitions().iter().for_each(|part| {
-            topics_and_partitions
-                .entry(topic.name().to_string())
-                .and_modify(|t| t.push(part.id()))
-                .or_insert(vec![part.id()]);
+                topics_and_partitions
+                    .entry(topic.name().to_string())
+                    .and_modify(|t| t.push(part.id()))
+                    .or_insert(vec![part.id()]);
         })
     });
 
@@ -89,19 +91,4 @@ pub fn fetch_all_committed_consumer_group_offsets(
     }
 
     Ok(all_offsets)
-}
-
-#[derive(Debug, Error)]
-pub enum ImportOffsetsError {
-    #[error("Kafka Error. Reason: {0}")]
-    KafkaError(#[from] KafkaError),
-
-    #[error("Consumer {0} not found.")]
-    ConsumerNotFound(String),
-}
-
-#[derive(Debug, Error)]
-pub enum FetchMetadataError {
-    #[error("Kafka Error. Reason: {0}")]
-    KafkaError(#[from] KafkaError),
 }

@@ -6,8 +6,7 @@ use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     metadata::Metadata,
 };
-
-use crate::transform::errors::TransformationError;
+use crate::commands::calculate_target_offsets::errors::TransformationError;
 
 pub async fn setup_consumer_and_metadata(
     topics: &[&str],

@@ -11,18 +11,8 @@ pub trait ConfigBuilder {
 }
 
 impl ConfigBuilder for ClientConfig {
-    fn set_optional_properties(
-        &mut self,
-        optional_properties: Option<Vec<String>>,
-    ) -> &mut ClientConfig {
-        if let Some(properties) = optional_properties {
-            for property in properties {
-                let property_elements: Vec<&str> = property.split('=').collect();
-                if property_elements.len() == 2 {
-                    self.set(property_elements[0], property_elements[1]);
-                }
-            }
-        }
+    fn set_bootstrap_server(&mut self, bootstrap_server: &str) -> &mut ClientConfig {
+        self.set("bootstrap.servers", bootstrap_server);
         self
     }
 
@@ -36,8 +26,18 @@ impl ConfigBuilder for ClientConfig {
         self
     }
 
-    fn set_bootstrap_server(&mut self, bootstrap_server: &str) -> &mut ClientConfig {
-        self.set("bootstrap.server", bootstrap_server);
+    fn set_optional_properties(
+        &mut self,
+        optional_properties: Option<Vec<String>>,
+    ) -> &mut ClientConfig {
+        if let Some(properties) = optional_properties {
+            for property in properties {
+                let property_elements: Vec<&str> = property.split('=').collect();
+                if property_elements.len() == 2 {
+                    self.set(property_elements[0], property_elements[1]);
+                }
+            }
+        }
         self
     }
 }

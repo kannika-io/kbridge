@@ -1,12 +1,18 @@
+use std::io::{stdin, BufRead};
 use std::path::PathBuf;
+use crate::commands::fetch_source_offsets::OffsetSnapshotImporter;
+use crate::{OffsetRecord, OffsetSnapshot};
+use crate::commands::fetch_source_offsets::errors::ImportError;
+use crate::read_offsets::csv::{convert, CsvOffsetSnapshotImporter};
 
-use bridge_core::{
-    OffsetSnapshot,
-    import::{ImportError, OffsetSnapshotImporter},
-};
-
-use crate::fetch_offsets::csv::{CsvOffsetSnapshotImporter, get_from_stdin};
-
+pub fn get_from_stdin() -> Vec<OffsetRecord> {
+    stdin()
+        .lock()
+        .lines()
+        .map_while(Result::ok)
+        .filter_map(|line| convert(line).ok())
+        .collect()
+}
 /// Fetches offset records, either from stdin or from a CSV file on the specified path
 pub fn fetch_offset_records(
     from_stdin: bool,
