@@ -3,21 +3,9 @@ use assert_matches::assert_matches;
 use bridge_core::OffsetRecord;
 use bridge_core::commands::errors::FetchSourceOffsetsError::FetchMetadataError;
 use bridge_core::commands::fetch_source_offsets;
-use std::process::Command;
-use std::sync::Once;
+use init::{setup_test_environment, teardown_test_environment};
 
-static INIT: Once = Once::new();
-
-fn setup_test_environment() -> Result<()> {
-    INIT.call_once(|| {
-        teardown_test_environment().expect("Failed to teardown test environment");
-        Command::new("just")
-            .args(["setup"])
-            .status()
-            .expect("Failed to setup test environment");
-    });
-    Ok(())
-}
+mod init;
 
 #[test]
 pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
@@ -30,8 +18,6 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     )?;
 
     let expected_offsets = get_expected_offsets();
-    
-    teardown_test_environment()?;
 
     // Verify all returned offsets are from the expected topics
     assert!(result.iter().all(|item| item.topic == "orders-1" || item.topic == "orders-2"));
@@ -42,11 +28,8 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     // Verify we don't have any orders-3 offsets
     assert!(!result.iter().any(|item| item.topic == "orders-3"));
 
-    Ok(())
-}
+    teardown_test_environment()?;
 
-fn teardown_test_environment() -> Result<()> {
-    // Note: teardown is now handled by the global INIT setup
     Ok(())
 }
 
@@ -118,6 +101,8 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
             .iter()
             .all(|item| item.topic != "orders-1" || result_filtered.contains(item))
     );
+
+    teardown_test_environment()?;
 
     Ok(())
 }

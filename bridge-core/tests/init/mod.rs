@@ -23,3 +23,18 @@ pub fn teardown_test_environment() -> Result<()> {
     Ok(())
 }
 
+pub struct TestEnvironment;
+
+impl TestEnvironment {
+    pub fn new() -> Result<Self> {
+        setup_test_environment()?;
+        Ok(TestEnvironment)
+    }
+}
+
+impl Drop for TestEnvironment {
+    fn drop(&mut self) {
+        let _ = teardown_test_environment();
+    }
+}
+
