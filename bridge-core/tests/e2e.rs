@@ -6,8 +6,34 @@ use bridge_core::commands::fetch_source_offsets;
 use std::process::Command;
 
 fn setup_test_environment() -> Result<()> {
-    Command::new("just").args(["teardown"]).status()?;
+    teardown_test_environment()?;
     Command::new("just").args(["setup"]).status()?;
+    Ok(())
+}
+
+#[test]
+pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
+    setup_test_environment()?;
+
+    let result = fetch_source_offsets::execute(
+        "localhost:9092".to_string(),
+        None,
+        Some(vec!["orders-1".to_string(), "orders-2".to_string()]),
+    )?;
+
+    let expected_offsets = get_expected_offsets();
+    
+    teardown_test_environment()?;
+
+    // Verify all returned offsets are from the expected topics
+    assert!(result.iter().all(|item| item.topic == "orders-1" || item.topic == "orders-2"));
+    
+    // Verify we got the expected offsets for these topics
+    assert!(result.iter().all(|item| expected_offsets.contains(item)));
+    
+    // Verify we don't have any orders-3 offsets
+    assert!(!result.iter().any(|item| item.topic == "orders-3"));
+
     Ok(())
 }
 
@@ -67,44 +93,7 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
     let result = fetch_source_offsets::execute("localhost:9092".to_string(), None, None)?;
     println!("{:#?}", result);
 
-    let correct_result = [
-        OffsetRecord {
-            topic: "orders-1".to_string(),
-            partition: 0,
-            offset: 563,
-            consumer_group: "console-consumer-2".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-2".to_string(),
-            partition: 0,
-            offset: 772,
-            consumer_group: "console-consumer-2".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-3".to_string(),
-            partition: 0,
-            offset: 802,
-            consumer_group: "console-consumer-2".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-1".to_string(),
-            partition: 0,
-            offset: 1000,
-            consumer_group: "console-consumer".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-2".to_string(),
-            partition: 0,
-            offset: 1300,
-            consumer_group: "console-consumer".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-3".to_string(),
-            partition: 0,
-            offset: 500,
-            consumer_group: "console-consumer".to_string(),
-        },
-    ];
+    let correct_result = get_expected_offsets();
 
     let result_filtered = fetch_source_offsets::execute(
         "localhost:9092".to_string(),
