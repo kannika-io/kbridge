@@ -2,6 +2,8 @@ use anyhow::Result;
 use log::warn;
 use std::process::Command;
 use std::sync::Once;
+use std::thread::sleep;
+use std::time::Duration;
 
 static INIT_TEST_ENV: Once = Once::new();
 static INIT_LOGGING: Once = Once::new();
@@ -19,6 +21,11 @@ pub fn setup_test_environment() -> Result<()> {
                 .args(["setup-ci"])
                 .status()
                 .expect("Failed to setup test environment");
+            Command::new("just")
+                .args(["restart-target-cluster"])
+                .status()
+                .expect("Failed to restart cluster");
+            sleep(Duration::from_secs(5));
         } else {
             warn!("INIT_TEST_ENV is disabled. Only for local development")
         }

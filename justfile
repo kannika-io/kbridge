@@ -16,6 +16,9 @@ setup-ci:
 		BROKER_INIT_COMMAND="/test-setup/consume_orders.sh $topic_count console-consumer-2 broker-source:29092" docker compose up broker-init; \
 	done
 
+restart-target-cluster:
+	docker compose stop broker-target && docker compose up broker-target -d
+
 setup-local-dev:
 	just setup-ci && docker compose -f docker-compose.yml -f docker-compose-local-dev.yml up -d
 
