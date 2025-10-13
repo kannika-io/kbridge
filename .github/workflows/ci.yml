@@ -26,7 +26,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libsasl2-dev
-        cargo install just
+        sudo apt-get install just
     
     - name: Cache cargo registry
       uses: actions/cache@v3
