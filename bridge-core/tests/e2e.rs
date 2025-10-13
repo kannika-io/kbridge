@@ -4,10 +4,18 @@ use bridge_core::OffsetRecord;
 use bridge_core::commands::errors::FetchSourceOffsetsError::FetchMetadataError;
 use bridge_core::commands::fetch_source_offsets;
 use std::process::Command;
+use std::sync::Once;
+
+static INIT: Once = Once::new();
 
 fn setup_test_environment() -> Result<()> {
-    teardown_test_environment()?;
-    Command::new("just").args(["setup"]).status()?;
+    INIT.call_once(|| {
+        teardown_test_environment().expect("Failed to teardown test environment");
+        Command::new("just")
+            .args(["setup"])
+            .status()
+            .expect("Failed to setup test environment");
+    });
     Ok(())
 }
 
@@ -38,7 +46,7 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
 }
 
 fn teardown_test_environment() -> Result<()> {
-    Command::new("just").args(["teardown"]).status()?;
+    // Note: teardown is now handled by the global INIT setup
     Ok(())
 }
 
@@ -101,7 +109,7 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
         Some(vec!["orders-1".to_string()]),
     )?;
 
-    Command::new("just").args(["teardown"]).status()?;
+    // Note: teardown is now handled by the global INIT setup
 
     assert!(result.iter().all(|item| correct_result.contains(item)));
 
