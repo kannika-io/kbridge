@@ -22,11 +22,6 @@ jobs:
       with:
         components: rustfmt
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libsasl2-dev
-        sudo apt-get install just
     
     - name: Cache cargo registry
       uses: actions/cache@v3
@@ -39,6 +34,11 @@ jobs:
     
     - name: Check formatting
       run: cargo fmt --all -- --check
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsasl2-dev just
     
     - name: Run tests
       run: cargo test --verbose
