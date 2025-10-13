@@ -37,14 +37,12 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
     info!("{:#?}", expected_offsets);
 
     assert!(target_offsets.iter().all(|t| {
-        expected_offsets
-            .iter()
-            .any(|e| {
-                e.topic == t.topic
-                    && e.offset == t.offset
-                    && e.consumer_group == t.consumer_group
-                    && e.partition == t.partition
-            })
+        expected_offsets.iter().any(|e| {
+            e.topic == t.topic
+                && e.offset == t.offset
+                && e.consumer_group == t.consumer_group
+                && e.partition == t.partition
+        })
     }));
 
     Ok(())
@@ -79,14 +77,12 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
     info!("{:#?}", expected_offsets);
 
     assert!(target_offsets.iter().all(|t| {
-        expected_offsets
-            .iter()
-            .any(|e| {
-                e.topic == t.topic
-                    && e.offset == t.offset
-                    && e.consumer_group == t.consumer_group
-                    && e.partition == t.partition
-            })
+        expected_offsets.iter().any(|e| {
+            e.topic == t.topic
+                && e.offset == t.offset
+                && e.consumer_group == t.consumer_group
+                && e.partition == t.partition
+        })
     }));
 
     Ok(())

@@ -1,6 +1,6 @@
 use rdkafka::{
-    ClientConfig, admin::AdminClient, client::DefaultClientContext,
-    config::FromClientConfig, error::KafkaError,
+    ClientConfig, admin::AdminClient, client::DefaultClientContext, config::FromClientConfig,
+    error::KafkaError,
 };
 
 pub fn initialize_admin(
