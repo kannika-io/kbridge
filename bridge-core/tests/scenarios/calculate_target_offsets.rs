@@ -7,8 +7,7 @@ use stubs::{
     TARGET_BOOTSTRAP_SERVER, get_expected_offsets_filtered_by_topics, get_expected_target_offsets,
 };
 
-mod init;
-mod stubs;
+use crate::{init, stubs};
 
 #[tokio::test]
 pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result<()> {

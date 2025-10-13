@@ -5,8 +5,7 @@ use bridge_core::commands::fetch_source_offsets;
 use init::{init_logging, setup_test_environment};
 use stubs::get_expected_source_offsets;
 
-mod init;
-mod stubs;
+use crate::{init, stubs};
 
 #[test]
 pub fn fetch_source_offsets_when_invalid_broker_url_should_return_error() -> Result<()> {
