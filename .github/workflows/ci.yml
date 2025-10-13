@@ -80,7 +80,7 @@ jobs:
     - name: Install system dependencies (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        echo "No actions necessary here"
+        brew install cyrus-sasl
     
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
