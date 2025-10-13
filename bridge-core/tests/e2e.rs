@@ -3,13 +3,13 @@ use assert_matches::assert_matches;
 use bridge_core::OffsetRecord;
 use bridge_core::commands::errors::FetchSourceOffsetsError::FetchMetadataError;
 use bridge_core::commands::fetch_source_offsets;
-use init::{setup_test_environment, teardown_test_environment};
+use init::TestEnvironment;
 
 mod init;
 
 #[test]
 pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
-    setup_test_environment()?;
+    let _env = TestEnvironment::new()?;
 
     let result = fetch_source_offsets::execute(
         "localhost:9092".to_string(),
@@ -27,8 +27,6 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     
     // Verify we don't have any orders-3 offsets
     assert!(!result.iter().any(|item| item.topic == "orders-3"));
-
-    teardown_test_environment()?;
 
     Ok(())
 }
@@ -76,7 +74,7 @@ fn get_expected_offsets() -> [OffsetRecord; 6] {
 
 #[test]
 pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
-    setup_test_environment()?;
+    let _env = TestEnvironment::new()?;
 
     let invalid_broker_address = fetch_source_offsets::execute("".to_string(), None, None);
     assert_matches!(invalid_broker_address, Err(FetchMetadataError(_)));
@@ -101,8 +99,6 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
             .iter()
             .all(|item| item.topic != "orders-1" || result_filtered.contains(item))
     );
-
-    teardown_test_environment()?;
 
     Ok(())
 }
