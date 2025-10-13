@@ -10,6 +10,7 @@ use rdkafka::ClientConfig;
 
 pub mod errors;
 mod transform;
+mod tests;
 
 pub async fn execute(
     bootstrap_server: String,
@@ -30,6 +31,7 @@ pub async fn execute(
     transformer_consumer_config
         .set_bootstrap_server(bootstrap_server.as_str())
         .set_consumer_group_id(consumer_group_id.as_str())
+        .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
 
@@ -50,7 +52,7 @@ pub async fn execute(
             o.1.iter().map(|t: &TransformationRecord| OffsetRecord {
                 topic: t.0.to_string(),
                 partition: t.1,
-                offset: 2,
+                offset: t.3,
                 consumer_group: o.0.to_string(),
             })
         })

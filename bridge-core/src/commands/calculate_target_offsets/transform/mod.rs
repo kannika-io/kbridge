@@ -63,6 +63,9 @@ pub async fn get_target_offsets(
 
     trace!("Starting consumer loop");
     // Consume all messages from the topics we are subscribed to
+
+    // TODO add timeout to consumer loop
+    // If target topic without messages, will otherwise be stuck in an endless loop
     while !partitions_to_search.is_empty() {
         let consume_result =
             consumer

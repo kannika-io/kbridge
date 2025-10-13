@@ -136,11 +136,13 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "csv",
+ "env_logger",
  "log",
  "rdkafka",
  "serde",
  "tempfile",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

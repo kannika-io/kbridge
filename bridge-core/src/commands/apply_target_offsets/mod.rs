@@ -20,6 +20,7 @@ pub async fn execute(
     exporter_base_config
         .set_bootstrap_server(bootstrap_server.as_str())
         .set_consumer_group_id(consumer_group_id.as_str())
+        .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
 

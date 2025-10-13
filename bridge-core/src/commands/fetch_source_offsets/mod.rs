@@ -20,6 +20,7 @@ pub fn execute(
     let mut config = ClientConfig::new();
     config
         .set_bootstrap_server(bootstrap_server.as_str())
+        .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties);
 
     let consumer: BaseConsumer = config.clone().create()?;

@@ -5,6 +5,8 @@ pub trait ConfigBuilder {
 
     fn set_consumer_group_id(&mut self, consumer_group_id: &str) -> &mut ClientConfig;
 
+    fn set_reset_from_beginning(&mut self) -> &mut ClientConfig;
+
     fn disable_auto_commit(&mut self) -> &mut ClientConfig;
 
     fn set_optional_properties(&mut self, properties: Option<Vec<String>>) -> &mut ClientConfig;
@@ -18,6 +20,11 @@ impl ConfigBuilder for ClientConfig {
 
     fn set_consumer_group_id(&mut self, consumer_group_id: &str) -> &mut ClientConfig {
         self.set("group.id", consumer_group_id);
+        self
+    }
+
+    fn set_reset_from_beginning(&mut self) -> &mut ClientConfig {
+        self.set("auto.offset.reset", "earliest");
         self
     }
 

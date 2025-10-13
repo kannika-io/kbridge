@@ -1,12 +1,15 @@
+use anyhow::Result;
 use std::process::Command;
 use std::sync::Once;
-use anyhow::Result;
 
 static INIT: Once = Once::new();
 
 pub fn setup_test_environment() -> Result<()> {
     INIT.call_once(|| {
-        teardown_test_environment().expect("Failed to teardown test environment");
+        Command::new("just")
+            .args(["teardown"])
+            .status()
+            .expect("Failed to tear down test environment");
         Command::new("just")
             .args(["setup"])
             .status()
@@ -15,26 +18,8 @@ pub fn setup_test_environment() -> Result<()> {
     Ok(())
 }
 
-pub fn teardown_test_environment() -> Result<()> {
-    Command::new("just")
-        .args(["teardown"])
-        .status()
-        .expect("Failed to teardown test environment");
-    Ok(())
+pub fn init_logging() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
 }
-
-pub struct TestEnvironment;
-
-impl TestEnvironment {
-    pub fn new() -> Result<Self> {
-        setup_test_environment()?;
-        Ok(TestEnvironment)
-    }
-}
-
-impl Drop for TestEnvironment {
-    fn drop(&mut self) {
-        let _ = teardown_test_environment();
-    }
-}
-

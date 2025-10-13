@@ -7,6 +7,7 @@ edition.workspace = true
 
 [dependencies]
 rdkafka = { workspace = true }
+tokio = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 csv = { workspace = true }
@@ -16,3 +17,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 anyhow = "1.0.100"
 assert_matches = "1.5.0"
 tempfile = "3.23.0"
+env_logger = { workspace = true }
