@@ -81,6 +81,7 @@ jobs:
       if: matrix.os == 'macos-latest'
       run: |
         brew install cyrus-sasl openssl
+        echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
     
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
