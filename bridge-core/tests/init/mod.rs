@@ -16,7 +16,7 @@ pub fn setup_test_environment() -> Result<()> {
                 .status()
                 .expect("Failed to tear down test environment");
             Command::new("just")
-                .args(["setup"])
+                .args(["setup-ci"])
                 .status()
                 .expect("Failed to setup test environment");
         } else {

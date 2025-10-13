@@ -1,7 +1,7 @@
 teardown:
 	docker compose down -v
 
-setup:
+setup-ci:
 	docker compose up -d
 	for topic_count in "orders-1 2000" "orders-2 3000" "orders-3 1000"; do \
 		BROKER_INIT_COMMAND="/test-setup/produce_orders.sh $topic_count broker-source:29092" docker compose up broker-init; \
@@ -16,12 +16,15 @@ setup:
 		BROKER_INIT_COMMAND="/test-setup/consume_orders.sh $topic_count console-consumer-2 broker-source:29092" docker compose up broker-init; \
 	done
 
+setup-local-dev:
+	just setup-ci && docker compose -f docker-compose.yml -f docker-compose-local-dev.yml up -d
+
 apply-offsets:
 	cargo run -- fetch-source -b localhost:9092 \
 	| cargo run -- calculate-intermediary --bootstrap-server localhost:9093 --from-stdin --legacy-offset-header Offset \
 	| cargo run -- apply-intermediary -b localhost:9093 --from-stdin
 
 run-example:
-	just setup && \
+	just setup-ci && \
 	just apply-offsets
 
