@@ -1,10 +1,10 @@
 use super::errors::FetchSourceOffsetsError;
 use crate::OffsetSnapshot;
-use crate::client_config::ConfigBuilder;
 use crate::commands::fetch_source_offsets::errors::ImportError;
 use crate::commands::fetch_source_offsets::sources::client::{
     fetch_all_committed_consumer_group_offsets, fetch_metadata,
 };
+use crate::kafka::client_config::ConfigBuilder;
 use rdkafka::ClientConfig;
 use rdkafka::consumer::BaseConsumer;
 use std::collections::HashMap;

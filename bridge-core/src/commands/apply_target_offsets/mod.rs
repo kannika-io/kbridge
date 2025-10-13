@@ -1,6 +1,6 @@
-use crate::client_config::ConfigBuilder;
 use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 use crate::commands::apply_target_offsets::export::apply_target_offsets;
+use crate::kafka::client_config::ConfigBuilder;
 use crate::{ApplicationRecord, ConsumerGroup, OffsetSnapshot};
 use rdkafka::ClientConfig;
 use std::collections::HashMap;

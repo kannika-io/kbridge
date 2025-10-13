@@ -1,16 +1,15 @@
-use crate::client_config::ConfigBuilder;
 use crate::commands::calculate_target_offsets::errors::TransformationError;
-use crate::commands::calculate_target_offsets::transform::consumer::setup_consumer_and_metadata;
-use crate::commands::calculate_target_offsets::transform::get_target_offsets;
+use crate::kafka::client_config::ConfigBuilder;
+use crate::kafka::consumer::setup_consumer_and_metadata;
 use crate::{
     OffsetRecord, OffsetSnapshot, TransformationRecord, get_unique_topics_from_offset_snapshot,
 };
 use log::trace;
 use rdkafka::ClientConfig;
+use transform::get_target_offsets;
 
 pub mod errors;
 mod transform;
-mod tests;
 
 pub async fn execute(
     bootstrap_server: String,

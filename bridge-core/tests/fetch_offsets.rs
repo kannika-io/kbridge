@@ -1,11 +1,12 @@
 use anyhow::Result;
 use assert_matches::assert_matches;
-use bridge_core::OffsetRecord;
 use bridge_core::commands::errors::FetchSourceOffsetsError::FetchMetadataError;
 use bridge_core::commands::fetch_source_offsets;
-use init::setup_test_environment;
+use init::{init_logging, setup_test_environment};
+use stubs::get_expected_source_offsets;
 
 mod init;
+mod stubs;
 
 #[test]
 pub fn fetch_source_offsets_when_invalid_broker_url_should_return_error() -> Result<()> {
@@ -17,6 +18,7 @@ pub fn fetch_source_offsets_when_invalid_broker_url_should_return_error() -> Res
 
 #[test]
 pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
+    init_logging()?;
     setup_test_environment()?;
 
     let result = fetch_source_offsets::execute(
@@ -25,7 +27,7 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
         Some(vec!["orders-1".to_string(), "orders-2".to_string()]),
     )?;
 
-    let expected_offsets = get_expected_offsets();
+    let expected_offsets = get_expected_source_offsets();
 
     // Verify all returned offsets are from the expected topics
     assert!(
@@ -45,12 +47,13 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
 
 #[test]
 pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
+    init_logging()?;
     setup_test_environment()?;
 
     let result = fetch_source_offsets::execute("localhost:9092".to_string(), None, None)?;
     println!("{:#?}", result);
 
-    let correct_result = get_expected_offsets();
+    let correct_result = get_expected_source_offsets();
 
     let result_filtered = fetch_source_offsets::execute(
         "localhost:9092".to_string(),
@@ -67,45 +70,4 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
     );
 
     Ok(())
-}
-
-fn get_expected_offsets() -> [OffsetRecord; 6] {
-    [
-        OffsetRecord {
-            topic: "orders-1".to_string(),
-            partition: 0,
-            offset: 563,
-            consumer_group: "console-consumer-2".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-2".to_string(),
-            partition: 0,
-            offset: 772,
-            consumer_group: "console-consumer-2".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-3".to_string(),
-            partition: 0,
-            offset: 802,
-            consumer_group: "console-consumer-2".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-1".to_string(),
-            partition: 0,
-            offset: 1000,
-            consumer_group: "console-consumer".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-2".to_string(),
-            partition: 0,
-            offset: 1300,
-            consumer_group: "console-consumer".to_string(),
-        },
-        OffsetRecord {
-            topic: "orders-3".to_string(),
-            partition: 0,
-            offset: 500,
-            consumer_group: "console-consumer".to_string(),
-        },
-    ]
 }

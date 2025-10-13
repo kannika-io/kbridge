@@ -15,7 +15,6 @@ use crate::{
     ConsumerGroup, ConsumerGroupRecord, OffsetSnapshot, Partition, Topic, TransformationRecord,
 };
 
-pub mod consumer;
 mod consumer_group_offset;
 mod consumer_group_offset_mapping;
 mod message_header;

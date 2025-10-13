@@ -1,13 +1,10 @@
 use serde::Deserialize;
 use std::{collections::HashSet, fmt::Display};
 
-pub mod client_config;
-
 pub mod commands;
-
-mod read_offsets;
-
 pub mod helpers;
+pub mod kafka;
+mod read_offsets;
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub struct OffsetRecord {
