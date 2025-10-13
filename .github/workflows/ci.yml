@@ -56,10 +56,10 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary_name: bridge-cli.exe
             artifact_name: bridge-cli-windows-x86_64.exe
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            binary_name: bridge-cli
-            artifact_name: bridge-cli-macos-x86_64
+#          - os: macos-latest
+#            target: x86_64-apple-darwin
+#            binary_name: bridge-cli
+#            artifact_name: bridge-cli-macos-x86_64
     
     runs-on: ${{ matrix.os }}
     
