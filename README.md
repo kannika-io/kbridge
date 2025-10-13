@@ -52,5 +52,6 @@ bridge-cli apply-target -b localhost:9093 --from-stdin
 Usage with sasl authentication:
 
 ```bash
+# Fetch offsets
 bridge-cli fetch-source -b <bootstrap-url> -o security.protocol=sasl_ssl -o sasl.mechanism=PLAIN -o sasl.username=<username> -o sasl.password=<password> -o ssl.ca.location=probe
 ```
