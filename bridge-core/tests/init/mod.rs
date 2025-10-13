@@ -6,7 +6,7 @@ use std::sync::Once;
 static INIT_TEST_ENV: Once = Once::new();
 static INIT_LOGGING: Once = Once::new();
 
-static INIT_TEST_ENV_ENABLED: bool = false;
+static INIT_TEST_ENV_ENABLED: bool = true;
 
 pub fn setup_test_environment() -> Result<()> {
     INIT_TEST_ENV.call_once(|| {

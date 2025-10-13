@@ -1,15 +1,9 @@
-use std::process::exit;
-
 use anyhow::Result;
 use bridge_core::{
-    commands::{
-        apply_target_offsets::{self, execute},
-        calculate_target_offsets, fetch_source_offsets,
-    },
+    commands::{apply_target_offsets::execute, calculate_target_offsets, fetch_source_offsets},
     kafka::{
-        admin::initialize_admin,
-        client_config::ConfigBuilder,
-        consumer::{initialize_consumer, setup_consumer_and_metadata},
+        admin::initialize_admin, client_config::ConfigBuilder,
+        consumer::setup_consumer_and_metadata,
     },
 };
 use init::{init_logging, setup_test_environment};
@@ -18,9 +12,8 @@ use rdkafka::{
     ClientConfig, TopicPartitionList, admin::AdminOptions, consumer::Consumer, util::Timeout,
 };
 use stubs::{
-    CONSUMER_GROUP_1, CONSUMER_GROUP_2, OFFSET_HEADER, ORDERS_1_TOPIC, ORDERS_2_TOPIC,
-    SOURCE_BOOTSTRAP_SERVER, TARGET_BOOTSTRAP_SERVER, get_expected_offsets_filtered_by_topic,
-    get_expected_offsets_filtered_by_topics, get_expected_target_offsets,
+    CONSUMER_GROUP_1, CONSUMER_GROUP_2, OFFSET_HEADER, ORDERS_1_TOPIC, SOURCE_BOOTSTRAP_SERVER,
+    TARGET_BOOTSTRAP_SERVER, get_expected_offsets_filtered_by_topics, get_expected_target_offsets,
 };
 
 mod init;
