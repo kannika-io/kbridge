@@ -81,7 +81,6 @@ jobs:
       if: matrix.os == 'macos-latest'
       run: |
         brew install cyrus-sasl openssl pkg-config
-        echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
         echo "PKG_CONFIG_PATH=$(brew --prefix openssl)/lib/pkgconfig:$(brew --prefix cyrus-sasl)/lib/pkgconfig" >> $GITHUB_ENV
         echo "LIBRARY_PATH=$(brew --prefix)/lib:$(brew --prefix cyrus-sasl)/lib:$(brew --prefix openssl)/lib" >> $GITHUB_ENV
         echo "CPATH=$(brew --prefix)/include:$(brew --prefix cyrus-sasl)/include:$(brew --prefix openssl)/include" >> $GITHUB_ENV
@@ -91,13 +90,7 @@ jobs:
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Install vcpkg and required libraries
-        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-        C:\vcpkg\bootstrap-vcpkg.bat
-        C:\vcpkg\vcpkg.exe install openssl:x64-windows-static cyrus-sasl:x64-windows-static
-        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-        echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV
-        echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+        echo "Doing nothing"
     
     - name: Cache cargo registry
       uses: actions/cache@v3
