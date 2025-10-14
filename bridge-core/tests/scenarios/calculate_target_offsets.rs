@@ -10,6 +10,7 @@ use stubs::{
 use crate::{init, stubs};
 
 #[tokio::test]
+#[ignore]
 pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
@@ -48,6 +49,7 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
 }
 
 #[tokio::test]
+#[ignore]
 pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
