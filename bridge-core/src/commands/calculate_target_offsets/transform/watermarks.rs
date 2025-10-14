@@ -122,7 +122,7 @@ fn get_topic_partition_watermark<'a>(
 /// ```rust
 /// let topics = vec!["orders", "payments"];
 /// let watermarks = get_high_watermark_for_topics(&consumer, &metadata, &topics)?;
-/// 
+///
 /// // Access watermark for topic "orders", partition 0
 /// if let Some(partition_map) = watermarks.get("orders") {
 ///     if let Some(high_watermark) = partition_map.get(&0) {
@@ -140,7 +140,7 @@ pub fn get_high_watermark_for_topics(
     consumer: &StreamConsumer,
     metadata: &Metadata,
     topics: &[&str],
-) -> Result<HashMap<String, HashMap<i32, i64>>, TransformationError> {
+) -> Result<HashMap<String, HashMap<Partition, Offset>>, TransformationError> {
     let mut topic_partition_watermarks: HashMap<Topic, HashMap<Partition, Offset>> = HashMap::new();
 
     for topic in metadata
@@ -193,6 +193,36 @@ fn get_high_water_mark(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rdkafka::error::KafkaError;
+
+    // Mock message struct for testing
+    struct MockMessage {
+        topic: String,
+        partition: i32,
+        offset: i64,
+    }
+
+    impl MockMessage {
+        fn new(topic: &str, partition: i32, offset: i64) -> Self {
+            Self {
+                topic: topic.to_string(),
+                partition,
+                offset,
+            }
+        }
+
+        fn topic(&self) -> &str {
+            &self.topic
+        }
+
+        fn partition(&self) -> i32 {
+            self.partition
+        }
+
+        fn offset(&self) -> i64 {
+            self.offset
+        }
+    }
 
     #[test]
     fn test_get_topic_partition_watermarks_success() {
@@ -237,6 +267,186 @@ mod tests {
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
                 assert!(msg.contains("No watermark found for topic test-topic partition 1"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_update_partitions_to_check_removes_partition_at_watermark() {
+        let mut topic_partition_watermarks = HashMap::new();
+        let mut partitions = HashMap::new();
+        partitions.insert(0, 100i64); // High watermark is 100
+        topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+
+        let mut partitions_to_check = vec![
+            ("test-topic".to_string(), 0),
+            ("test-topic".to_string(), 1),
+            ("other-topic".to_string(), 0),
+        ];
+
+        // Message at offset 99, so offset + 1 = 100 = high watermark
+        let message = MockMessage::new("test-topic", 0, 99);
+
+        // This would normally use BorrowedMessage, but we can't easily mock that
+        // So we'll test the logic by calling get_topic_partition_watermark directly
+        let watermark = get_topic_partition_watermark(
+            &topic_partition_watermarks,
+            message.topic(),
+            message.partition(),
+        ).unwrap();
+
+        // Simulate the watermark check logic
+        if *watermark == message.offset() + 1 {
+            partitions_to_check.retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
+        }
+
+        assert_eq!(partitions_to_check.len(), 2);
+        assert!(!partitions_to_check.contains(&("test-topic".to_string(), 0)));
+        assert!(partitions_to_check.contains(&("test-topic".to_string(), 1)));
+        assert!(partitions_to_check.contains(&("other-topic".to_string(), 0)));
+    }
+
+    #[test]
+    fn test_update_partitions_to_check_keeps_partition_below_watermark() {
+        let mut topic_partition_watermarks = HashMap::new();
+        let mut partitions = HashMap::new();
+        partitions.insert(0, 100i64); // High watermark is 100
+        topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+
+        let mut partitions_to_check = vec![
+            ("test-topic".to_string(), 0),
+            ("test-topic".to_string(), 1),
+        ];
+
+        // Message at offset 98, so offset + 1 = 99 < 100 (high watermark)
+        let message = MockMessage::new("test-topic", 0, 98);
+
+        let watermark = get_topic_partition_watermark(
+            &topic_partition_watermarks,
+            message.topic(),
+            message.partition(),
+        ).unwrap();
+
+        // Simulate the watermark check logic
+        if *watermark == message.offset() + 1 {
+            partitions_to_check.retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
+        }
+
+        // Partition should still be in the list since we haven't reached the watermark
+        assert_eq!(partitions_to_check.len(), 2);
+        assert!(partitions_to_check.contains(&("test-topic".to_string(), 0)));
+        assert!(partitions_to_check.contains(&("test-topic".to_string(), 1)));
+    }
+
+    #[test]
+    fn test_update_partitions_to_check_removes_only_matching_partition() {
+        let mut topic_partition_watermarks = HashMap::new();
+        let mut partitions = HashMap::new();
+        partitions.insert(0, 100i64);
+        partitions.insert(1, 200i64);
+        topic_partition_watermarks.insert("test-topic".to_string(), partitions);
+
+        let mut partitions_to_check = vec![
+            ("test-topic".to_string(), 0),
+            ("test-topic".to_string(), 1),
+            ("test-topic".to_string(), 2),
+        ];
+
+        // Message at offset 99 for partition 0, watermark is 100
+        let message = MockMessage::new("test-topic", 0, 99);
+
+        let watermark = get_topic_partition_watermark(
+            &topic_partition_watermarks,
+            message.topic(),
+            message.partition(),
+        ).unwrap();
+
+        if *watermark == message.offset() + 1 {
+            partitions_to_check.retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
+        }
+
+        // Only partition 0 should be removed
+        assert_eq!(partitions_to_check.len(), 2);
+        assert!(!partitions_to_check.contains(&("test-topic".to_string(), 0)));
+        assert!(partitions_to_check.contains(&("test-topic".to_string(), 1)));
+        assert!(partitions_to_check.contains(&("test-topic".to_string(), 2)));
+    }
+
+    #[test]
+    fn test_get_high_water_mark_success() {
+        let watermarks = Ok((10i64, 100i64)); // (low, high)
+        let result = get_high_water_mark(0, watermarks, "test-topic".to_string());
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 100i64);
+    }
+
+    #[test]
+    fn test_get_high_water_mark_kafka_error() {
+        let kafka_error = KafkaError::BrokerTransportFailure;
+        let watermarks = Err(kafka_error);
+        let result = get_high_water_mark(0, watermarks, "test-topic".to_string());
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::WatermarkFetchFailed { topic, partition, reason } => {
+                assert_eq!(topic, "test-topic");
+                assert_eq!(partition, 0);
+                assert!(reason.contains("BrokerTransportFailure"));
+            }
+            _ => panic!("Expected WatermarkFetchFailed error"),
+        }
+    }
+
+    #[test]
+    fn test_get_high_water_mark_zero_watermark() {
+        let watermarks = Ok((0i64, 0i64)); // Empty partition
+        let result = get_high_water_mark(0, watermarks, "test-topic".to_string());
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0i64);
+    }
+
+    #[test]
+    fn test_get_topic_partition_watermarks_multiple_topics() {
+        let mut topic_partition_watermarks = HashMap::new();
+        
+        let mut topic1_partitions = HashMap::new();
+        topic1_partitions.insert(0, 100i64);
+        topic1_partitions.insert(1, 200i64);
+        topic_partition_watermarks.insert("topic1".to_string(), topic1_partitions);
+
+        let mut topic2_partitions = HashMap::new();
+        topic2_partitions.insert(0, 300i64);
+        topic_partition_watermarks.insert("topic2".to_string(), topic2_partitions);
+
+        // Test topic1, partition 0
+        let result = get_topic_partition_watermark(&topic_partition_watermarks, "topic1", 0);
+        assert!(result.is_ok());
+        assert_eq!(*result.unwrap(), 100i64);
+
+        // Test topic1, partition 1
+        let result = get_topic_partition_watermark(&topic_partition_watermarks, "topic1", 1);
+        assert!(result.is_ok());
+        assert_eq!(*result.unwrap(), 200i64);
+
+        // Test topic2, partition 0
+        let result = get_topic_partition_watermark(&topic_partition_watermarks, "topic2", 0);
+        assert!(result.is_ok());
+        assert_eq!(*result.unwrap(), 300i64);
+    }
+
+    #[test]
+    fn test_get_topic_partition_watermarks_empty_map() {
+        let topic_partition_watermarks = HashMap::new();
+
+        let result = get_topic_partition_watermark(&topic_partition_watermarks, "any-topic", 0);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert!(msg.contains("No watermark found for topic any-topic partition 0"));
             }
             _ => panic!("Expected InvalidInput error"),
         }
