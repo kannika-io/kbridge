@@ -8,6 +8,47 @@ use rdkafka::{
     metadata::Metadata,
 };
 
+/// Updates the list of partitions that still need to be checked for messages.
+///
+/// This function compares the current message's offset against the high watermark for its
+/// topic-partition combination. When a message's offset reaches the high watermark (meaning
+/// we've processed all available messages for that partition), the partition is removed
+/// from the list of partitions that still need to be checked.
+///
+/// # Arguments
+///
+/// * `message` - The current Kafka message being processed
+/// * `topic_partition_watermarks` - A nested HashMap containing high watermarks for each
+///   topic-partition combination. Structure: `{topic: {partition: high_watermark}}`
+/// * `partitions_to_check` - A mutable vector of (topic, partition) tuples representing
+///   partitions that still have messages to process
+///
+/// # Returns
+///
+/// * `Ok(())` - If the watermark check and partition list update succeeded
+/// * `Err(TransformationError)` - If no watermark was found for the message's topic-partition
+///
+/// # Behavior
+///
+/// The function removes a partition from `partitions_to_check` when:
+/// `message.offset() + 1 == high_watermark`
+///
+/// This condition indicates that the current message is the last available message in the
+/// partition (since Kafka offsets are 0-based and the high watermark points to the next
+/// offset that would be assigned to a new message).
+///
+/// # Example
+///
+/// ```rust
+/// let mut partitions_to_check = vec![
+///     ("topic1".to_string(), 0),
+///     ("topic1".to_string(), 1),
+/// ];
+/// 
+/// // If message is at offset 99 and high watermark is 100,
+/// // the partition will be removed from partitions_to_check
+/// update_partitions_to_check(&message, &watermarks, &mut partitions_to_check)?;
+/// ```
 pub fn update_partitions_to_check(
     message: &rdkafka::message::BorrowedMessage,
     topic_partition_watermarks: &HashMap<String, HashMap<i32, i64>>,
@@ -25,6 +66,8 @@ pub fn update_partitions_to_check(
 
     Ok(())
 }
+
+
 fn get_topic_partition_watermarks<'a>(
     topic_partition_watermarks: &'a HashMap<String, HashMap<i32, i64>>,
     topic: &'a str,
