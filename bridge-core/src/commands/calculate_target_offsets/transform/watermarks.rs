@@ -39,18 +39,6 @@ use rdkafka::{
 /// This condition indicates that the current message is the last available message in the
 /// partition (since Kafka offsets are 0-based and the high watermark points to the next
 /// offset that would be assigned to a new message).
-///
-/// # Example
-///
-/// ```rust
-/// let mut partitions_to_check = vec![
-///     ("topic1".to_string(), 0),
-///     ("topic1".to_string(), 1),
-/// ];
-///
-/// // If message is at offset 99 and high watermark is 100,
-/// // the partition will be removed from partitions_to_check
-/// update_partitions_to_check(&message, &watermarks, &mut partitions_to_check)?;
 /// ```
 pub fn update_partitions_to_check(
     message: &rdkafka::message::BorrowedMessage,
@@ -116,20 +104,6 @@ fn get_topic_partition_watermark<'a>(
 /// - Filters out partitions with high watermark <= 0 (empty partitions)
 /// - Logs watermark information for each partition with messages
 /// - Only includes topics that have at least one partition with messages
-///
-/// # Example
-///
-/// ```rust
-/// let topics = vec!["orders", "payments"];
-/// let watermarks = get_high_watermark_for_topics(&consumer, &metadata, &topics)?;
-///
-/// // Access watermark for topic "orders", partition 0
-/// if let Some(partition_map) = watermarks.get("orders") {
-///     if let Some(high_watermark) = partition_map.get(&0) {
-///         println!("Orders partition 0 high watermark: {}", high_watermark);
-///     }
-/// }
-/// ```
 ///
 /// # Errors
 ///
