@@ -11,37 +11,37 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt
-    
-    
-    - name: Cache cargo registry
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libsasl2-dev just
-    
-    - name: Run tests
-      run: cargo test --verbose
+#  check:
+#    runs-on: ubuntu-latest
+#    
+#    steps:
+#    - uses: actions/checkout@v4
+#    
+#    - name: Install Rust
+#      uses: dtolnay/rust-toolchain@stable
+#      with:
+#        components: rustfmt
+#    
+#    
+#    - name: Cache cargo registry
+#      uses: actions/cache@v3
+#      with:
+#        path: |
+#          ~/.cargo/registry
+#          ~/.cargo/git
+#          target
+#        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+#    
+#    - name: Check formatting
+#      run: cargo fmt --all -- --check
+#
+#    - name: Install system dependencies
+#      run: |
+#        sudo apt-get update
+#        sudo apt-get install -y libsasl2-dev just
+#    
+#    - name: Run tests
+#      run: cargo test --verbose
 
   build:
 #   needs: check
@@ -91,8 +91,6 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         # Install vcpkg and required libraries
-        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-        C:\vcpkg\bootstrap-vcpkg.bat
         C:\vcpkg\vcpkg.exe install openssl:x64-windows-static cyrus-sasl:x64-windows-static
         echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
         echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV

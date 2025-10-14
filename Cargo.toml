@@ -10,7 +10,7 @@ edition = "2024"
 
 [workspace.dependencies]
 kafka = "0.10.0"
-rdkafka = { version ="0.38.0"  features = ["cmake-build", "ssl", "gssapi", "sasl"] }
+rdkafka = { version ="0.38.0",  features = ["cmake-build", "ssl", "gssapi", "sasl"] }
 tokio = { version = "1.47.1", features = ["full"] }
 log = "0.4.27"
 thiserror = "2.0.17"
