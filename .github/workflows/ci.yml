@@ -148,6 +148,7 @@ jobs:
         copy target\${{ matrix.target }}\release\${{ matrix.binary_name }} release-package\
         copy C:\vcpkg\installed\x64-windows\bin\libssl-3-x64.dll release-package\
         copy C:\vcpkg\installed\x64-windows\bin\libcrypto-3-x64.dll release-package\
+        copy C:\Windows\System32\vcruntime140.dll release-package\
         powershell Compress-Archive -Path release-package\* -DestinationPath ${{ matrix.artifact_name }}.zip
     
     - name: Upload binary artifact (non-Windows)
