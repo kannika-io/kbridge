@@ -8,7 +8,7 @@ use crate::commands::calculate_target_offsets::transform::consumer_group_offset:
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset_mapping::handle_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::message_header::extract_source_offset_from_message;
 use crate::commands::calculate_target_offsets::transform::watermarks::{
-    get_high_watermark, update_partitions_to_check,
+    get_high_watermark_for_topics, update_partitions_to_check,
 };
 use crate::get_unique_topics_from_offset_snapshot;
 use crate::{
@@ -33,7 +33,7 @@ pub async fn get_target_offsets(
 
     // Fetch watermarks for topics and partitions
     // We need this to be able to exit the consumer loop
-    let topic_partition_watermarks = get_high_watermark(&consumer, &metadata, &topics)?;
+    let topic_partition_watermarks = get_high_watermark_for_topics(&consumer, &metadata, &topics)?;
 
     let mut partitions_to_search: Vec<(Topic, Partition)> = topic_partition_watermarks
         .iter()

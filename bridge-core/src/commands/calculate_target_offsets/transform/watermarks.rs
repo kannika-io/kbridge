@@ -294,7 +294,8 @@ mod tests {
             &topic_partition_watermarks,
             message.topic(),
             message.partition(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Simulate the watermark check logic
         if *watermark == message.offset() + 1 {
@@ -314,10 +315,8 @@ mod tests {
         partitions.insert(0, 100i64); // High watermark is 100
         topic_partition_watermarks.insert("test-topic".to_string(), partitions);
 
-        let mut partitions_to_check = vec![
-            ("test-topic".to_string(), 0),
-            ("test-topic".to_string(), 1),
-        ];
+        let mut partitions_to_check =
+            vec![("test-topic".to_string(), 0), ("test-topic".to_string(), 1)];
 
         // Message at offset 98, so offset + 1 = 99 < 100 (high watermark)
         let message = MockMessage::new("test-topic", 0, 98);
@@ -326,7 +325,8 @@ mod tests {
             &topic_partition_watermarks,
             message.topic(),
             message.partition(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Simulate the watermark check logic
         if *watermark == message.offset() + 1 {
@@ -360,7 +360,8 @@ mod tests {
             &topic_partition_watermarks,
             message.topic(),
             message.partition(),
-        ).unwrap();
+        )
+        .unwrap();
 
         if *watermark == message.offset() + 1 {
             partitions_to_check.retain(|t| !(t.0 == message.topic() && t.1 == message.partition()));
@@ -384,13 +385,18 @@ mod tests {
 
     #[test]
     fn test_get_high_water_mark_kafka_error() {
-        let kafka_error = KafkaError::BrokerTransportFailure;
+        let kafka_error =
+            KafkaError::MetadataFetch(rdkafka::types::RDKafkaErrorCode::BrokerTransportFailure);
         let watermarks = Err(kafka_error);
         let result = get_high_water_mark(0, watermarks, "test-topic".to_string());
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            TransformationError::WatermarkFetchFailed { topic, partition, reason } => {
+            TransformationError::WatermarkFetchFailed {
+                topic,
+                partition,
+                reason,
+            } => {
                 assert_eq!(topic, "test-topic");
                 assert_eq!(partition, 0);
                 assert!(reason.contains("BrokerTransportFailure"));
@@ -411,7 +417,7 @@ mod tests {
     #[test]
     fn test_get_topic_partition_watermarks_multiple_topics() {
         let mut topic_partition_watermarks = HashMap::new();
-        
+
         let mut topic1_partitions = HashMap::new();
         topic1_partitions.insert(0, 100i64);
         topic1_partitions.insert(1, 200i64);
