@@ -75,24 +75,29 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsasl2-dev
+        sudo apt-get install -y libsasl2-dev libssl-dev pkg-config build-essential
     
     - name: Install system dependencies (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install cyrus-sasl openssl
+        brew install cyrus-sasl openssl pkg-config
         echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
-        echo 'export PATH="/opt/homebrew/opt/cyrus-sasl/sbin:$PATH"' >> $GITHUB_ENV
-        echo 'export LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"' >> $GITHUB_ENV
-        echo 'export CPATH="/opt/homebrew/include:$CPATH"' >> $GITHUB_ENV
-        echo 'export krb5_cv_attr_constructor_destructor="no"' >> $GITHUB_ENV
+        echo "PKG_CONFIG_PATH=$(brew --prefix openssl)/lib/pkgconfig:$(brew --prefix cyrus-sasl)/lib/pkgconfig" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=$(brew --prefix)/lib:$(brew --prefix cyrus-sasl)/lib:$(brew --prefix openssl)/lib" >> $GITHUB_ENV
+        echo "CPATH=$(brew --prefix)/include:$(brew --prefix cyrus-sasl)/include:$(brew --prefix openssl)/include" >> $GITHUB_ENV
+        echo "LDFLAGS=-L$(brew --prefix)/lib -L$(brew --prefix cyrus-sasl)/lib -L$(brew --prefix openssl)/lib" >> $GITHUB_ENV
+        echo "CPPFLAGS=-I$(brew --prefix)/include -I$(brew --prefix cyrus-sasl)/include -I$(brew --prefix openssl)/include" >> $GITHUB_ENV
 
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Windows typically uses static linking or bundled libraries
-        # Most Rust crates handle this automatically on Windows
-        echo "Windows dependencies handled by crate build scripts"
+        # Install vcpkg and required libraries
+        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat
+        C:\vcpkg\vcpkg.exe install openssl:x64-windows-static cyrus-sasl:x64-windows-static
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV
+        echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
     
     - name: Cache cargo registry
       uses: actions/cache@v3
