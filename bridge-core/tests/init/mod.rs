@@ -21,11 +21,6 @@ pub fn setup_test_environment() -> Result<()> {
                 .args(["setup-ci"])
                 .status()
                 .expect("Failed to setup test environment");
-            Command::new("just")
-                .args(["restart-target-cluster"])
-                .status()
-                .expect("Failed to restart cluster");
-            sleep(Duration::from_secs(5));
         } else {
             warn!("INIT_TEST_ENV is disabled. Only for local development")
         }

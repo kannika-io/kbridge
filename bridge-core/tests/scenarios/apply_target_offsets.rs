@@ -19,7 +19,7 @@ use stubs::{
 use crate::{init, stubs};
 
 #[tokio::test]
-pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets() -> Result<()> {
+pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
 
