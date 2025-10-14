@@ -71,11 +71,33 @@ jobs:
       with:
         targets: ${{ matrix.target }}
     
+    - name: Cache system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/cache@v3
+      with:
+        path: |
+          /var/cache/apt
+          /var/lib/apt
+        key: ${{ runner.os }}-apt-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-
+    
     - name: Install system dependencies (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt-get install -y libsasl2-dev libssl-dev pkg-config build-essential
+    
+    - name: Cache Homebrew (macOS)
+      if: matrix.os == 'macos-latest'
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/Library/Caches/Homebrew
+          /usr/local/Homebrew
+        key: ${{ runner.os }}-brew-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-brew-
     
     - name: Install system dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -87,6 +109,17 @@ jobs:
         echo "LDFLAGS=-L$(brew --prefix)/lib -L$(brew --prefix cyrus-sasl)/lib -L$(brew --prefix openssl)/lib" >> $GITHUB_ENV
         echo "CPPFLAGS=-I$(brew --prefix)/include -I$(brew --prefix cyrus-sasl)/include -I$(brew --prefix openssl)/include" >> $GITHUB_ENV
 
+    - name: Cache vcpkg (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/cache@v3
+      with:
+        path: |
+          C:\vcpkg\installed
+          C:\vcpkg\packages
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-
+    
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
