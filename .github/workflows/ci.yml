@@ -91,10 +91,10 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         # Install vcpkg and required libraries
-        C:\vcpkg\vcpkg.exe install openssl:x64-windows-static cyrus-sasl:x64-windows-static
+        C:\vcpkg\vcpkg.exe install openssl:x64-windows cyrus-sasl:x64-windows
         echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-        echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV
-        echo "SASL2_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV
+        echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
+        echo "SASL2_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
     
     - name: Cache cargo registry
       uses: actions/cache@v3
