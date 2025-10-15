@@ -58,31 +58,6 @@ mod watermarks;
 /// 4. For each message, extracts the source offset from headers and maps it to the current message offset
 /// 5. Handles missing offsets by finding the nearest available offsets
 /// 6. Returns the complete transformation mapping
-///
-/// # Example
-///
-/// ```rust,no_run
-/// use bridge_core::commands::calculate_target_offsets::transform::get_target_offsets;
-/// use rdkafka::consumer::{Consumer, StreamConsumer};
-/// use rdkafka::ClientConfig;
-///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let consumer: StreamConsumer = ClientConfig::new()
-///     .set("bootstrap.servers", "localhost:9092")
-///     .set("group.id", "offset-transformer")
-///     .create()?;
-///
-/// let metadata = consumer.fetch_metadata(None, std::time::Duration::from_secs(10))?;
-/// let source_offsets = vec![/* your source offsets */];
-///
-/// let transformations = get_target_offsets(
-///     "source-offset",
-///     &source_offsets,
-///     consumer,
-///     metadata,
-/// ).await?;
-/// # Ok(())
-/// # }
 /// ```
 pub async fn get_target_offsets(
     offset_header_key: &str,
