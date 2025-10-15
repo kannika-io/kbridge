@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::commands::calculate_target_offsets::errors::TransformationError;
 use log::info;
 use rdkafka::{
     ClientConfig,
@@ -7,11 +8,9 @@ use rdkafka::{
     metadata::Metadata,
 };
 
-use crate::transform::errors::TransformationError;
-
 pub async fn setup_consumer_and_metadata(
     topics: &[&str],
-    transformer_consumer_config: ClientConfig,
+    transformer_consumer_config: &mut ClientConfig,
 ) -> Result<(StreamConsumer, Metadata), TransformationError> {
     let consumer = initialize_consumer(transformer_consumer_config)?;
     manage_topic_subscriptions(&consumer, topics)?;
@@ -24,7 +23,7 @@ pub async fn setup_consumer_and_metadata(
 }
 
 pub fn initialize_consumer(
-    transformer_consumer_config: ClientConfig,
+    transformer_consumer_config: &mut ClientConfig,
 ) -> Result<StreamConsumer, TransformationError> {
     transformer_consumer_config.create().map_err(|kafka_error| {
         TransformationError::ConsumerInitializationFailed(format!(

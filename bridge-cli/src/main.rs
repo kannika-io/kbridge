@@ -1,88 +1,113 @@
-use std::path::PathBuf;
+use crate::errors::GeneralError;
+use args::{Args, Commands, CsvInput};
+use bridge_core::OffsetSnapshot;
+use bridge_core::commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets};
+use bridge_core::helpers::fetch_offset_records;
+use clap::Parser;
+use comfy_table::Table;
+use inquire::Text;
+use log::trace;
 
-use bridge_core::{
-    export::{ApplyOffsetsError, apply_target_offsets},
-    import::{ImportError, OffsetSnapshotImporter},
-    transform::{errors::TransformationError, get_target_offsets},
-};
-use clap::{Parser, command};
-use rdkafka::ClientConfig;
-use thiserror::Error;
-
-use crate::fetch_offsets::csv::CsvOffsetSnapshotImporter;
-
-mod fetch_offsets;
-
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    #[arg(short, long)]
-    /// The bootstrap server URL for the Kafka Broker where we want to restore the offsets
-    bootstrap_server: String,
-
-    #[arg(short, long)]
-    /// Path to CSV file containing the offsets
-    offsets_csv_file_location: PathBuf,
-
-    #[arg(short, long, default_value_t = String::from("bridge-consumer-group"))]
-    /// Consumer group ID that will be used to fetch the records
-    consumer_group_id: String,
-
-    #[arg(short, long)]
-    /// Header in target messages that contains the offsets of the source topic
-    legacy_offset_header: String,
-}
+mod args;
+mod errors;
 
 #[tokio::main]
 async fn main() -> Result<(), GeneralError> {
     let args = Args::parse();
 
-    simple_logger::SimpleLogger::new()
-        .env()
-        .init()
-        .map_err(|e| GeneralError::InitializeLoggingFailed(format!("{e}")))?;
+    env_logger::init();
+    trace!("Executing with following arguments: {:?}", args);
 
-    let offset_snapshot_importer = CsvOffsetSnapshotImporter {
-        file_path: args.offsets_csv_file_location,
-        consumer_group: "console-consumer".to_string(),
+    let result: Result<(), GeneralError> = match args.command {
+        Commands::FetchSource { kafka_connection } => {
+            let result = fetch_source_offsets::execute(
+                kafka_connection.bootstrap_server,
+                kafka_connection.optional_client_properties,
+                kafka_connection.topics,
+            )
+            .map_err(GeneralError::from)?;
+            print_offset_snapshot(&result);
+            Ok(())
+        }
+        Commands::CalculateTarget {
+            legacy_offset_header,
+            kafka_connection,
+            input,
+        } => {
+            let file_location = match input {
+                Some(CsvInput::Stdin) => None,
+                Some(CsvInput::File(path_buf)) => Some(path_buf),
+                None => None,
+            };
+
+            let offset_snapshot = fetch_offset_records(file_location.is_none(), file_location)
+                .map_err(GeneralError::from)?;
+            let result = calculate_target_offsets::execute(
+                kafka_connection.bootstrap_server,
+                legacy_offset_header,
+                kafka_connection.optional_client_properties,
+                kafka_connection.topics,
+                offset_snapshot,
+            )
+            .await
+            .map_err(GeneralError::from)?;
+            print_offset_snapshot(&result);
+            Ok(())
+        }
+        Commands::ApplyTarget {
+            kafka_connection,
+            input,
+        } => {
+            let file_location = match input {
+                Some(CsvInput::Stdin) => None,
+                Some(CsvInput::File(path_buf)) => Some(path_buf),
+                None => None,
+            };
+            let offset_snapshot = fetch_offset_records(file_location.is_none(), file_location)
+                .map_err(GeneralError::from)?;
+            apply_target_offsets::execute(
+                kafka_connection.bootstrap_server,
+                kafka_connection.optional_client_properties,
+                kafka_connection.topics,
+                offset_snapshot,
+                &|offset_snapshot| ask_for_confirmation(offset_snapshot),
+            )
+            .await
+            .map_err(|e| e.into())
+        }
     };
-
-    let mut exporter_base_config = ClientConfig::new();
-    exporter_base_config
-        .set("bootstrap.servers", args.bootstrap_server.as_str())
-        .set("enable.auto.commit", "false")
-        .set("group.id", &args.consumer_group_id);
-
-    let mut transformer_consumer_config = ClientConfig::new();
-    transformer_consumer_config
-        .set("bootstrap.servers", args.bootstrap_server.as_str())
-        .set("group.id", &args.consumer_group_id)
-        .set("auto.offset.reset", "earliest")
-        .set("enable.auto.commit", "false");
-
-    let result = offset_snapshot_importer.import()?;
-
-    let transformed_result = get_target_offsets(
-        transformer_consumer_config,
-        &args.legacy_offset_header,
-        &result,
-    )
-    .await?;
-
-    println!("{transformed_result:?}");
-    apply_target_offsets(&mut exporter_base_config, &transformed_result).await?;
-
-    Ok(())
+    trace!("Execution finished.");
+    result
 }
 
-#[derive(Error, Debug)]
-enum GeneralError {
-    #[error("Failed during importing of source offsets. Reason: {0}")]
-    ImportError(#[from] ImportError),
-    #[error("Failed during offset transformation. Reason: {0}")]
-    TransformationError(#[from] TransformationError),
-    #[error("Failed during offset transformation. Reason: {0}")]
-    ApplyOffsetsError(#[from] ApplyOffsetsError),
-    #[error("Failed to initialize logging. Reason: {0}")]
-    InitializeLoggingFailed(String),
+fn ask_for_confirmation(offset_snapshot: &OffsetSnapshot) -> bool {
+    let mut table = Table::new();
+
+    table.set_header(vec![
+        "Consumer Group",
+        "Topic",
+        "Partition",
+        "Target Offset",
+    ]);
+
+    for intermediate_result_item in offset_snapshot {
+        table.add_row(vec![
+            intermediate_result_item.consumer_group.clone(),
+            intermediate_result_item.topic.clone(),
+            intermediate_result_item.partition.to_string(),
+            intermediate_result_item.offset.to_string(),
+        ]);
+    }
+    println!("{table}");
+    let prompt = Text::new("The offsets above will be applied. Are you sure? (Y/n)").prompt();
+    matches!(prompt, Ok(value) if value == "Y")
+}
+
+fn print_offset_snapshot(offset_snapshot: &OffsetSnapshot) {
+    for element in offset_snapshot {
+        println!(
+            "{},{},{},{}",
+            element.consumer_group, element.topic, element.partition, element.offset
+        );
+    }
 }

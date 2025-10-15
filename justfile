@@ -1,25 +1,30 @@
 teardown:
 	docker compose down -v
 
-setup:
-	docker compose up -d && \
-	./test-setup/produce_orders.sh orders-1 2000 localhost:9092 && \
-	./test-setup/produce_orders.sh orders-2 3000 localhost:9092 && \
-	./test-setup/produce_orders.sh orders-3 1000 localhost:9092 && \
-	./test-setup/simulate_order_restore.sh orders-1 2000 localhost:9092 localhost:9093 && \
-	./test-setup/simulate_order_restore.sh orders-2 3000 localhost:9092 localhost:9093 && \
-	./test-setup/simulate_order_restore.sh orders-3 1000 localhost:9092 localhost:9093 && \
-	./test-setup/consume_orders.sh orders-1 1000 console-consumer localhost:9092 && \
-	./test-setup/consume_orders.sh orders-2 1300 console-consumer localhost:9092 && \
-	./test-setup/consume_orders.sh orders-3 500 console-consumer localhost:9092
+setup-ci:
+	docker compose up -d
+	for topic_count in "orders-1 2000" "orders-2 3000" "orders-3 1000"; do \
+		BROKER_INIT_COMMAND="/test-setup/produce_orders.sh $topic_count broker-source:29092" docker compose up broker-init; \
+	done
+	for topic_count in "orders-1 2000" "orders-2 3000" "orders-3 1000"; do \
+		BROKER_INIT_COMMAND="/test-setup/simulate_order_restore.sh $topic_count broker-source:29092 broker-target:29092" docker compose up broker-init; \
+	done
+	for topic_count in "orders-1 1000" "orders-2 1300" "orders-3 500"; do \
+		BROKER_INIT_COMMAND="/test-setup/consume_orders.sh $topic_count console-consumer broker-source:29092" docker compose up broker-init; \
+	done
+	for topic_count in "orders-1 563" "orders-2 772" "orders-3 802"; do \
+		BROKER_INIT_COMMAND="/test-setup/consume_orders.sh $topic_count console-consumer-2 broker-source:29092" docker compose up broker-init; \
+	done
 
-export-offsets:
-	/usr/local/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --export --group console-consumer --topic orders-1 --to-current --dry-run --reset-offsets > offsets.csv && \
-	/usr/local/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --export --group console-consumer --topic orders-2 --to-current --dry-run --reset-offsets >> offsets.csv && \
-	/usr/local/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --export --group console-consumer --topic orders-3 --to-current --dry-run --reset-offsets >> offsets.csv
+setup-local-dev:
+	just setup-ci && docker compose -f docker-compose.yml -f docker-compose-local-dev.yml up -d
+
+apply-offsets:
+	cargo run -- fetch-source -b localhost:9092 \
+	| cargo run -- calculate-intermediary --bootstrap-server localhost:9093 --from-stdin --legacy-offset-header Offset \
+	| cargo run -- apply-intermediary -b localhost:9093 --from-stdin
 
 run-example:
-	just setup && \
-	just export-offsets && \
-	sleep 10 && \
-	RUST_LOG=WARN cargo run --  --bootstrap-server localhost:9093 --legacy-offset-header Offset --offsets-csv-file-location ./offsets.csv
+	just setup-ci && \
+	just apply-offsets
+

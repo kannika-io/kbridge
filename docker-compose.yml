@@ -1,7 +1,7 @@
 services:
   broker-init:
     image: confluentinc/cp-kafka:8.0.0
-    command: [ "/bin/bash", "-c", "/create_topics.sh"] 
+    command: [ "/bin/bash", "-c", "${BROKER_INIT_COMMAND:-/create_topics.sh}"] 
     depends_on:
       broker-target:
         condition: service_healthy
@@ -9,6 +9,9 @@ services:
       - type: bind
         source: ./create_topics.sh
         target: /create_topics.sh
+      - type: bind
+        source: ./test-setup
+        target: /test-setup
   broker-source:
     image: confluentinc/cp-kafka:8.0.0
     environment:
@@ -63,31 +66,3 @@ services:
       retries: 60
     ports:
       - 9093:9093
-  redpanda-console-source:
-    image: redpandadata/console:latest
-    entrypoint: /bin/sh
-    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
-    environment:
-      CONFIG_FILEPATH: /tmp/config.yml
-      CONSOLE_CONFIG_FILE: |
-        kafka:
-          brokers: ["broker-source:29092"]
-    ports:
-      - "8080:8080"
-    depends_on:
-      broker-source:
-        condition: service_healthy
-  redpanda-console-target:
-    image: redpandadata/console:latest
-    entrypoint: /bin/sh
-    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
-    environment:
-      CONFIG_FILEPATH: /tmp/config.yml
-      CONSOLE_CONFIG_FILE: |
-        kafka:
-          brokers: ["broker-target:29092"]
-    ports:
-      - "8081:8080"
-    depends_on:
-      broker-target:
-        condition: service_healthy

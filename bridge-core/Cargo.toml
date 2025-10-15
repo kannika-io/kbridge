@@ -6,8 +6,18 @@ description.workspace = true
 edition.workspace = true
 
 [dependencies]
-kafka = { workspace = true }
-rdkafka = { workspace = true }
-tokio = { workspace = true }
+rdkafka = { version = "0.38.0" ,features = ["ssl", "gssapi", "sasl"] }
 log = { workspace = true }
 thiserror = { workspace = true }
+csv = { workspace = true }
+serde = { version = "1.0.228", features = ["derive"] }
+
+[target.'cfg(windows)'.dependencies]
+rdkafka = { version = "0.38.0", features = ["ssl", "gssapi", "sasl", "cmake-build"] }
+
+[dev-dependencies]
+anyhow = "1.0.100"
+assert_matches = "1.5.0"
+tempfile = "3.23.0"
+env_logger = { workspace = true }
+tokio = { workspace = true }

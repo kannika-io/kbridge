@@ -1,0 +1,99 @@
+use std::{fmt::Display, path::PathBuf};
+
+use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
+
+#[derive(Debug, Parser)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Debug, Clone)]
+pub enum CsvInput {
+    File(PathBuf),
+    Stdin,
+}
+
+impl Display for CsvInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("{self:?}").as_str())
+    }
+}
+
+#[derive(Clone)]
+struct CsvInputParser;
+
+impl TypedValueParser for CsvInputParser {
+    type Value = CsvInput;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        if value == "-" {
+            Ok(CsvInput::Stdin)
+        } else {
+            Ok(CsvInput::File(PathBuf::from(value)))
+        }
+    }
+}
+
+#[derive(Debug, Parser)]
+pub struct KafkaConnection {
+    /// The bootstrap server URL for the Kafka Broker
+    #[arg(short, long)]
+    pub bootstrap_server: String,
+
+    /// Additional properties for the kafka client, separated by a '='. e.g.:
+    /// ssl.key.password=test
+    #[arg(short, long)]
+    pub optional_client_properties: Option<Vec<String>>,
+
+    /// Specify topics. If no topics specified, all topics will be used.
+    #[arg(short, long)]
+    pub topics: Option<Vec<String>>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    /// Fetches the source offsets from a kafka cluster
+    FetchSource {
+        #[command(flatten)]
+        kafka_connection: KafkaConnection,
+    },
+    /// Calculates target offsets based on message header in target cluster
+    CalculateTarget {
+        /// Header in target messages that contains the offsets of the source topic
+        #[arg(short, long)]
+        legacy_offset_header: String,
+
+        #[arg(
+            short = 'i',
+            long,
+            value_name = "FILE",
+            value_parser = CsvInputParser,
+            help = "Path to CSV file containing the offsets (use '-' for stdin)",
+        )]
+        input: Option<CsvInput>,
+
+        #[command(flatten)]
+        kafka_connection: KafkaConnection,
+    },
+    /// Restores consumer group(s) in target cluster based on calculated target offsets
+    ApplyTarget {
+        #[arg(
+            short = 'i',
+            long,
+            value_name = "FILE",
+            value_parser = CsvInputParser,
+            help = "Path to CSV file containing the offsets (use '-' for stdin)",
+        )]
+        input: Option<CsvInput>,
+
+        #[command(flatten)]
+        kafka_connection: KafkaConnection,
+    },
+}

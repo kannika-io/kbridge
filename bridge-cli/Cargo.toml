@@ -8,10 +8,10 @@ edition.workspace = true
 [dependencies]
 bridge-core = { path = "../bridge-core" }
 
-csv = { workspace = true }
-serde = { workspace = true }
-tokio =  { workspace = true }
-simple_logger =  { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true }
 thiserror = { workspace = true }
-rdkafka = { workspace = true }
+env_logger = { workspace = true }
 clap = { version = "4.5.48", features = ["derive"] }
+inquire = "0.9.1"
+comfy-table = "7.2.1"

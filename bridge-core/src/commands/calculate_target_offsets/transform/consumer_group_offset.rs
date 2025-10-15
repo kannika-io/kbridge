@@ -1,5 +1,5 @@
-use crate::transform::consumer_group_offset_mapping::insert_offset_transformations;
-use crate::transform::errors::TransformationError;
+use crate::commands::calculate_target_offsets::errors::TransformationError;
+use crate::commands::calculate_target_offsets::transform::consumer_group_offset_mapping::insert_offset_transformations;
 use crate::{
     ConsumerGroup, ConsumerGroupRecord, Offset, OffsetRecord, OffsetSnapshot, TransformationRecord,
 };
