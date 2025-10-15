@@ -1,32 +1,158 @@
-#name: CI
-#
-#on:
-#  push:
-#    branches: [ main ]
-#    tags: [ 'v*' ]
-#  pull_request:
-#    branches: [ main ]
-#
-#env:
-#  CARGO_TERM_COLOR: always
-#
-#jobs:
-#   docker:
-#     runs-on: ubuntu-24.04-arm
-#     
-#     steps:
-#     - uses: actions/checkout@v4
-#     
-#     - name: Set up Docker Buildx
-#       uses: docker/setup-buildx-action@v3
-#     
-#     - name: Build Docker image for arm64       
-#       run: docker buildx build --platform linux/arm64 -t bridge-cli:arm64 -f ./dockerfiles/bridge-cli.dockerfile .                                                                                   
-#     - name: Save Docker image
-#       run: docker save -o bridge-cli-docker-image.tar bridge-cli:arm64
-#     
-#     - name: Upload Docker image artifact
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: bridge-cli-docker-image
-#         path: bridge-cli-docker-image.tar
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsasl2-dev just
+    
+    - name: Run tests
+      run: cargo test --verbose
+
+  build:
+   needs: check
+   strategy:
+     matrix:
+       include:
+         - os: ubuntu-latest
+           target: x86_64-unknown-linux-gnu
+           binary_name: bridge-cli
+           artifact_name: bridge-cli-linux-x86_64
+         - os: windows-latest
+           target: x86_64-pc-windows-msvc
+           binary_name: bridge-cli.exe
+           artifact_name: bridge-cli-windows-x86_64.exe
+   
+   runs-on: ${{ matrix.os }}
+   
+   steps:
+   - uses: actions/checkout@v4
+   
+   - name: Install Rust
+     uses: dtolnay/rust-toolchain@stable
+     with:
+       targets: ${{ matrix.target }}
+   
+   - name: Cache system dependencies (Linux)
+     if: matrix.os == 'ubuntu-latest'
+     uses: actions/cache@v3
+     with:
+       path: |
+         /var/cache/apt
+         /var/lib/apt
+       key: ${{ runner.os }}-apt-${{ hashFiles('**/Cargo.lock') }}
+       restore-keys: |
+         ${{ runner.os }}-apt-
+   
+   - name: Install system dependencies (Linux)
+     if: matrix.os == 'ubuntu-latest'
+     run: |
+       sudo apt-get update
+       sudo apt-get install -y libsasl2-dev libssl-dev pkg-config build-essential
+
+   - name: Cache vcpkg (Windows)
+     if: matrix.os == 'windows-latest'
+     uses: actions/cache@v3
+     with:
+       path: |
+         C:\vcpkg\installed
+         C:\vcpkg\packages
+       key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/Cargo.lock') }}
+       restore-keys: |
+         ${{ runner.os }}-vcpkg-
+   
+   - name: Install system dependencies (Windows)
+     if: matrix.os == 'windows-latest'
+     run: |
+       # Install vcpkg and required libraries
+       C:\vcpkg\vcpkg.exe install openssl:x64-windows cyrus-sasl:x64-windows
+       echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+       echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
+       echo "SASL2_DIR=C:\vcpkg\installed\x64-windows" >> $env:GITHUB_ENV
+   
+   - name: Cache cargo registry
+     uses: actions/cache@v3
+     with:
+       path: |
+         ~/.cargo/registry
+         ~/.cargo/git
+         target
+       key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+   
+   - name: Build binary
+     run: cargo build --release --target ${{ matrix.target }} --verbose
+   
+   - name: Prepare Windows release package
+     if: matrix.os == 'windows-latest'
+     run: |
+       mkdir release-package
+       copy target\${{ matrix.target }}\release\${{ matrix.binary_name }} release-package\
+       copy C:\vcpkg\installed\x64-windows\bin\libssl-3-x64.dll release-package\
+       copy C:\vcpkg\installed\x64-windows\bin\libcrypto-3-x64.dll release-package\
+       copy C:\Windows\System32\vcruntime140.dll release-package\
+       powershell Compress-Archive -Path release-package\* -DestinationPath ${{ matrix.artifact_name }}.zip
+   
+   - name: Upload binary artifact (non-Windows)
+     if: matrix.os != 'windows-latest'
+     uses: actions/upload-artifact@v4
+     with:
+       name: ${{ matrix.artifact_name }}
+       path: target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+   
+   - name: Upload Windows release package
+     if: matrix.os == 'windows-latest'
+     uses: actions/upload-artifact@v4
+     with:
+       name: ${{ matrix.artifact_name }}
+       path: ${{ matrix.artifact_name }}.zip
+   
+   - name: Create Release (non-Windows)
+     if: startsWith(github.ref, 'refs/tags/') && matrix.os != 'windows-latest'
+     uses: softprops/action-gh-release@v1
+     with:
+       files: target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+       generate_release_notes: true
+     env:
+       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+   
+   - name: Create Release (Windows)
+     if: startsWith(github.ref, 'refs/tags/') && matrix.os == 'windows-latest'
+     uses: softprops/action-gh-release@v1
+     with:
+       files: ${{ matrix.artifact_name }}.zip
+       generate_release_notes: true
+     env:
+       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
