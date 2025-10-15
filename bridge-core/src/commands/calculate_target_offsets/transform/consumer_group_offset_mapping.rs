@@ -10,45 +10,6 @@ use std::collections::HashMap;
 /// This function tracks the mapping between source offsets (from the original Kafka cluster)
 /// and target offsets (from the destination Kafka cluster) for a specific consumer group,
 /// topic, and partition combination.
-///
-/// # Arguments
-///
-/// * `transformations` - A mutable reference to the transformations map that stores
-///   transformation records grouped by consumer group
-/// * `source_offset_from_message` - The original offset from the source Kafka cluster
-/// * `current_offset_from_message` - The corresponding offset in the target Kafka cluster
-/// * `topic` - The Kafka topic name
-/// * `partition` - The partition number within the topic
-/// * `consumer_group` - The consumer group identifier
-///
-/// # Returns
-///
-/// * `Ok(())` - If the transformation was successfully inserted
-/// * `Err(OffsetMappingTransformationError)` - If there was an error during insertion
-///
-/// # Behavior
-///
-/// If the consumer group already exists in the transformations map, the new transformation
-/// record is appended to the existing vector. If the consumer group doesn't exist, a new
-/// entry is created with the transformation record as the first element.
-///
-/// # Example
-///
-/// ```rust
-/// use std::collections::HashMap;
-/// use bridge_core::{ConsumerGroup, TransformationRecord};
-///
-/// let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
-/// let result = insert_offset_transformations(
-///     &mut transformations,
-///     &100,  // source offset
-///     &200,  // target offset
-///     "my-topic".to_string(),
-///     0,     // partition
-///     "my-consumer-group".to_string(),
-/// );
-/// assert!(result.is_ok());
-/// ```
 pub fn insert_offset_transformations(
     transformations: &mut HashMap<ConsumerGroup, Vec<TransformationRecord>>,
     source_offset_from_message: &Offset,
@@ -91,23 +52,6 @@ pub fn insert_offset_transformations(
 /// This is useful in scenarios where not all offsets from the source cluster have exact matches
 /// in the target cluster, often due to data differences or partial replication.
 ///
-/// # Arguments
-///
-/// * `transformations` - A map of existing offset transformations grouped by consumer group.
-///   Each transformation record contains (Topic, Partition, SourceOffset, TargetOffset)
-/// * `missing_offsets` - A vector of offsets that couldn't be found during the initial
-///   transformation process. Each entry contains (ConsumerGroup, Topic, Partition, SourceOffset)
-/// * `nearest_offsets` - A map that provides the nearest available target offset for each
-///   missing source offset. The key is (ConsumerGroup, Topic, Partition, SourceOffset) and
-///   the value is the nearest target offset
-///
-/// # Returns
-///
-/// * `Ok(HashMap<ConsumerGroup, Vec<TransformationRecord>>)` - The updated transformations map
-///   with missing offsets resolved using nearest available offsets
-/// * `Err(TransformationError::MissingOffsets)` - If some offsets still cannot be resolved
-///   even after attempting to use nearest offsets
-///
 /// # Behavior
 ///
 /// 1. If there are no missing offsets, returns the original transformations unchanged
@@ -119,26 +63,6 @@ pub fn insert_offset_transformations(
 /// # Logging
 ///
 /// The function logs the missing offsets at info level for debugging purposes.
-///
-/// # Example
-///
-/// ```rust
-/// use std::collections::HashMap;
-/// use bridge_core::{ConsumerGroup, TransformationRecord};
-///
-/// let transformations = HashMap::new();
-/// let missing_offsets = vec![
-///     ("group1".to_string(), "topic1".to_string(), 0, 100),
-/// ];
-/// let mut nearest_offsets = HashMap::new();
-/// nearest_offsets.insert(
-///     ("group1".to_string(), "topic1".to_string(), 0, 100),
-///     200, // nearest target offset
-/// );
-///
-/// let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
-/// assert!(result.is_ok());
-/// ```
 pub fn handle_missing_offsets(
     mut transformations: HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
     missing_offsets: Vec<(ConsumerGroup, Topic, Partition, Offset)>,
@@ -188,5 +112,245 @@ pub fn handle_missing_offsets(
         Ok(transformations)
     } else {
         Err(TransformationError::MissingOffsets(still_missing_offsets))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_insert_offset_transformations_new_consumer_group() {
+        let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        let consumer_group = "test-group".to_string();
+        let topic = "test-topic".to_string();
+        let partition = 0;
+        let source_offset = 100;
+        let target_offset = 200;
+
+        let result = insert_offset_transformations(
+            &mut transformations,
+            &source_offset,
+            &target_offset,
+            topic.clone(),
+            partition,
+            consumer_group.clone(),
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(transformations.len(), 1);
+        assert!(transformations.contains_key(&consumer_group));
+        
+        let records = transformations.get(&consumer_group).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0], (topic, partition, source_offset, target_offset));
+    }
+
+    #[test]
+    fn test_insert_offset_transformations_existing_consumer_group() {
+        let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        let consumer_group = "test-group".to_string();
+        
+        // Insert initial transformation
+        transformations.insert(
+            consumer_group.clone(),
+            vec![("topic1".to_string(), 0, 50, 100)],
+        );
+
+        let topic = "topic2".to_string();
+        let partition = 1;
+        let source_offset = 150;
+        let target_offset = 250;
+
+        let result = insert_offset_transformations(
+            &mut transformations,
+            &source_offset,
+            &target_offset,
+            topic.clone(),
+            partition,
+            consumer_group.clone(),
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(transformations.len(), 1);
+        
+        let records = transformations.get(&consumer_group).unwrap();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0], ("topic1".to_string(), 0, 50, 100));
+        assert_eq!(records[1], (topic, partition, source_offset, target_offset));
+    }
+
+    #[test]
+    fn test_insert_offset_transformations_multiple_consumer_groups() {
+        let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        
+        // Insert for first consumer group
+        let result1 = insert_offset_transformations(
+            &mut transformations,
+            &100,
+            &200,
+            "topic1".to_string(),
+            0,
+            "group1".to_string(),
+        );
+
+        // Insert for second consumer group
+        let result2 = insert_offset_transformations(
+            &mut transformations,
+            &300,
+            &400,
+            "topic2".to_string(),
+            1,
+            "group2".to_string(),
+        );
+
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+        assert_eq!(transformations.len(), 2);
+        assert!(transformations.contains_key("group1"));
+        assert!(transformations.contains_key("group2"));
+        
+        let group1_records = transformations.get("group1").unwrap();
+        let group2_records = transformations.get("group2").unwrap();
+        assert_eq!(group1_records.len(), 1);
+        assert_eq!(group2_records.len(), 1);
+    }
+
+    #[test]
+    fn test_handle_missing_offsets_empty_missing_offsets() {
+        let transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        let missing_offsets = vec![];
+        let nearest_offsets = HashMap::new();
+
+        let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_handle_missing_offsets_with_nearest_offsets_available() {
+        let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        transformations.insert(
+            "existing-group".to_string(),
+            vec![("topic1".to_string(), 0, 100, 200)],
+        );
+
+        let missing_offsets = vec![
+            ("group1".to_string(), "topic1".to_string(), 0, 150),
+            ("group2".to_string(), "topic2".to_string(), 1, 250),
+        ];
+
+        let mut nearest_offsets = HashMap::new();
+        nearest_offsets.insert(
+            ("group1".to_string(), "topic1".to_string(), 0, 150),
+            175,
+        );
+        nearest_offsets.insert(
+            ("group2".to_string(), "topic2".to_string(), 1, 250),
+            275,
+        );
+
+        let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
+
+        assert!(result.is_ok());
+        let final_transformations = result.unwrap();
+        assert_eq!(final_transformations.len(), 3);
+        
+        // Check existing group is preserved
+        assert!(final_transformations.contains_key("existing-group"));
+        
+        // Check new groups were added
+        assert!(final_transformations.contains_key("group1"));
+        assert!(final_transformations.contains_key("group2"));
+        
+        let group1_records = final_transformations.get("group1").unwrap();
+        let group2_records = final_transformations.get("group2").unwrap();
+        
+        assert_eq!(group1_records.len(), 1);
+        assert_eq!(group1_records[0], ("topic1".to_string(), 0, 150, 175));
+        
+        assert_eq!(group2_records.len(), 1);
+        assert_eq!(group2_records[0], ("topic2".to_string(), 1, 250, 275));
+    }
+
+    #[test]
+    fn test_handle_missing_offsets_add_to_existing_consumer_group() {
+        let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        transformations.insert(
+            "test-group".to_string(),
+            vec![("topic1".to_string(), 0, 100, 200)],
+        );
+
+        let missing_offsets = vec![
+            ("test-group".to_string(), "topic2".to_string(), 1, 300),
+        ];
+
+        let mut nearest_offsets = HashMap::new();
+        nearest_offsets.insert(
+            ("test-group".to_string(), "topic2".to_string(), 1, 300),
+            350,
+        );
+
+        let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
+
+        assert!(result.is_ok());
+        let final_transformations = result.unwrap();
+        assert_eq!(final_transformations.len(), 1);
+        
+        let test_group_records = final_transformations.get("test-group").unwrap();
+        assert_eq!(test_group_records.len(), 2);
+        assert_eq!(test_group_records[0], ("topic1".to_string(), 0, 100, 200));
+        assert_eq!(test_group_records[1], ("topic2".to_string(), 1, 300, 350));
+    }
+
+    #[test]
+    fn test_handle_missing_offsets_no_nearest_offsets_available() {
+        let transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        let missing_offsets = vec![
+            ("group1".to_string(), "topic1".to_string(), 0, 150),
+            ("group2".to_string(), "topic2".to_string(), 1, 250),
+        ];
+        let nearest_offsets = HashMap::new(); // No nearest offsets available
+
+        let result = handle_missing_offsets(transformations, missing_offsets.clone(), nearest_offsets);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::MissingOffsets(still_missing) => {
+                assert_eq!(still_missing.len(), 2);
+                assert!(still_missing.contains(&("group1".to_string(), "topic1".to_string(), 0, 150)));
+                assert!(still_missing.contains(&("group2".to_string(), "topic2".to_string(), 1, 250)));
+            }
+            _ => panic!("Expected MissingOffsets error"),
+        }
+    }
+
+    #[test]
+    fn test_handle_missing_offsets_partial_nearest_offsets() {
+        let transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
+        let missing_offsets = vec![
+            ("group1".to_string(), "topic1".to_string(), 0, 150),
+            ("group2".to_string(), "topic2".to_string(), 1, 250),
+        ];
+
+        let mut nearest_offsets = HashMap::new();
+        // Only provide nearest offset for group1, not group2
+        nearest_offsets.insert(
+            ("group1".to_string(), "topic1".to_string(), 0, 150),
+            175,
+        );
+
+        let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TransformationError::MissingOffsets(still_missing) => {
+                assert_eq!(still_missing.len(), 1);
+                assert_eq!(still_missing[0], ("group2".to_string(), "topic2".to_string(), 1, 250));
+            }
+            _ => panic!("Expected MissingOffsets error"),
+        }
     }
 }
