@@ -21,6 +21,69 @@ mod consumer_group_offset_mapping;
 mod message_header;
 mod watermarks;
 
+/// Transforms source offsets to target offsets by consuming Kafka messages and matching offset headers.
+///
+/// This function consumes messages from Kafka topics and builds a mapping between source offsets
+/// (stored in message headers) and target offsets (the actual message offsets in the target cluster).
+/// It's designed to help with offset translation when migrating data between Kafka clusters.
+///
+/// # Arguments
+///
+/// * `offset_header_key` - The header key used to store source offsets in Kafka messages
+/// * `source_offsets` - A snapshot of offsets from the source cluster that need to be transformed
+/// * `consumer` - A Kafka StreamConsumer configured to read from the target cluster
+/// * `metadata` - Kafka cluster metadata containing topic and partition information
+///
+/// # Returns
+///
+/// Returns a `HashMap` where:
+/// - Key: Consumer group name
+/// - Value: Vector of transformation records, each containing (topic, partition, source_offset, target_offset)
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - `source_offsets` is empty
+/// - `offset_header_key` is empty or invalid
+/// - Consumer fails to receive messages from Kafka
+/// - Message headers cannot be parsed
+/// - No partitions are found to search
+/// - Watermark fetching fails
+///
+/// # Behavior
+///
+/// 1. Validates input parameters
+/// 2. Fetches high watermarks for all relevant topic partitions
+/// 3. Consumes messages from all partitions until watermarks are reached
+/// 4. For each message, extracts the source offset from headers and maps it to the current message offset
+/// 5. Handles missing offsets by finding the nearest available offsets
+/// 6. Returns the complete transformation mapping
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use bridge_core::commands::calculate_target_offsets::transform::get_target_offsets;
+/// use rdkafka::consumer::{Consumer, StreamConsumer};
+/// use rdkafka::ClientConfig;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let consumer: StreamConsumer = ClientConfig::new()
+///     .set("bootstrap.servers", "localhost:9092")
+///     .set("group.id", "offset-transformer")
+///     .create()?;
+///
+/// let metadata = consumer.fetch_metadata(None, std::time::Duration::from_secs(10))?;
+/// let source_offsets = vec![/* your source offsets */];
+///
+/// let transformations = get_target_offsets(
+///     "source-offset",
+///     &source_offsets,
+///     consumer,
+///     metadata,
+/// ).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn get_target_offsets(
     offset_header_key: &str,
     source_offsets: &OffsetSnapshot,
