@@ -18,5 +18,3 @@ serde = { version = "1.0.228", features = ["serde_derive"] }
 env_logger = "0.11.8"
 tokio = { version = "1.47.1", features = ["full"] }
 
-[target.'cfg(windows)'.workspace.dependencies]
-rdkafka = { version ="0.38.0",  features = ["ssl", "gssapi", "sasl", "cmake-build"] }
