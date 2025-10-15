@@ -1,12 +1,13 @@
 use log::trace;
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::metadata::Metadata;
+use rdkafka::Message;
 use std::collections::HashMap;
 
 use crate::commands::calculate_target_offsets::errors::TransformationError;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset::try_find_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset_mapping::handle_missing_offsets;
-use crate::commands::calculate_target_offsets::transform::message_header::extract_source_offset_from_message;
+use crate::commands::calculate_target_offsets::transform::message_header::extract_source_offset_from_message_headers;
 use crate::commands::calculate_target_offsets::transform::watermarks::{
     get_high_watermark_for_topics, update_partitions_to_check,
 };
@@ -75,7 +76,7 @@ pub async fn get_target_offsets(
                     topic_selector: topics.join(","),
                 })?;
 
-        let source_offset = extract_source_offset_from_message(&consume_result, offset_header_key)?;
+        let source_offset = extract_source_offset_from_message_headers(consume_result.headers(), offset_header_key)?;
 
         try_find_missing_offsets(
             &consume_result,
