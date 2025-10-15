@@ -4,3 +4,5 @@ services:
     build:
       context: .
       dockerfile: ./dockerfiles/bridge-cli.dockerfile
+      platforms:
+        - linux/arm64
