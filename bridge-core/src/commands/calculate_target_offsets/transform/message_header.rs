@@ -12,6 +12,7 @@ pub fn extract_source_offset_from_message_headers(
     }
 }
 
+/// Fetch offset from message header and try to parse it to i64
 fn get_offset_from_header(
     headers: &rdkafka::message::BorrowedHeaders,
     offset_header_key: &str,

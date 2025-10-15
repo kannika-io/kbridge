@@ -274,8 +274,4 @@ mod tests {
         let result = validate_input_parameters(&source_offsets, offset_header_key);
         assert!(result.is_ok());
     }
-
-    // Note: Integration tests for get_target_offsets would require a running Kafka cluster
-    // and are better suited for the integration test suite in bridge-core/tests/
-    // These unit tests focus on the validation logic that can be tested in isolation.
 }

@@ -12,34 +12,6 @@ use rdkafka::{
 };
 
 /// Updates the list of partitions that still need to be checked for messages.
-///
-/// This function compares the current message's offset against the high watermark for its
-/// topic-partition combination. When a message's offset reaches the high watermark (meaning
-/// we've processed all available messages for that partition), the partition is removed
-/// from the list of partitions that still need to be checked.
-///
-/// # Arguments
-///
-/// * `message` - The current Kafka message being processed
-/// * `topic_partition_watermarks` - A nested HashMap containing high watermarks for each
-///   topic-partition combination. Structure: `{topic: {partition: high_watermark}}`
-/// * `partitions_to_check` - A mutable vector of (topic, partition) tuples representing
-///   partitions that still have messages to process
-///
-/// # Returns
-///
-/// * `Ok(())` - If the watermark check and partition list update succeeded
-/// * `Err(TransformationError)` - If no watermark was found for the message's topic-partition
-///
-/// # Behavior
-///
-/// The function removes a partition from `partitions_to_check` when:
-/// `message.offset() + 1 == high_watermark`
-///
-/// This condition indicates that the current message is the last available message in the
-/// partition (since Kafka offsets are 0-based and the high watermark points to the next
-/// offset that would be assigned to a new message).
-/// ```
 pub fn update_partitions_to_check(
     message: &rdkafka::message::BorrowedMessage,
     topic_partition_watermarks: &HashMap<String, HashMap<i32, i64>>,
@@ -75,41 +47,6 @@ fn get_topic_partition_watermark<'a>(
 }
 
 /// Retrieves high watermarks for all partitions of specified topics from a Kafka cluster.
-///
-/// This function fetches the high watermark (the offset of the next message that would be
-/// written) for each partition of the specified topics. High watermarks are used to determine
-/// when all available messages in a partition have been consumed.
-///
-/// # Arguments
-///
-/// * `consumer` - A reference to a Kafka StreamConsumer used to fetch watermark information
-/// * `metadata` - Kafka cluster metadata containing topic and partition information
-/// * `topics` - A slice of topic names for which to fetch watermarks
-///
-/// # Returns
-///
-/// * `Ok(HashMap<String, HashMap<i32, i64>>)` - A nested HashMap where:
-///   - Outer key: Topic name (String)
-///   - Inner key: Partition ID (i32)
-///   - Inner value: High watermark offset (i64)
-///   
-///   Only partitions with high watermarks > 0 are included in the result.
-///
-/// * `Err(TransformationError)` - If watermark fetching fails for any partition
-///
-/// # Behavior
-///
-/// - Iterates through all topics in the metadata that match the specified topic names
-/// - For each topic, fetches watermarks for all its partitions
-/// - Filters out partitions with high watermark <= 0 (empty partitions)
-/// - Logs watermark information for each partition with messages
-/// - Only includes topics that have at least one partition with messages
-///
-/// # Errors
-///
-/// Returns `TransformationError::WatermarkFetchFailed` if the Kafka consumer fails to
-/// fetch watermarks for any partition, including the topic name, partition ID, and
-/// underlying Kafka error reason.
 pub fn get_high_watermark_for_topics(
     consumer: &StreamConsumer,
     metadata: &Metadata,
@@ -167,6 +104,7 @@ fn get_high_water_mark(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use rdkafka::error::KafkaError;
 
     // Mock message struct for testing
@@ -208,8 +146,7 @@ mod tests {
 
         let result = get_topic_partition_watermark(&topic_partition_watermarks, "test-topic", 0);
 
-        assert!(result.is_ok());
-        assert_eq!(*result.unwrap(), 100i64);
+        assert_matches!(result, Ok(100i64));
     }
 
     #[test]
