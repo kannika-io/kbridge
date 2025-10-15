@@ -99,9 +99,11 @@ pub fn fetch_all_committed_consumer_group_offsets(
         }
     }
 
-    if all_offsets.is_empty()
-    {
-        warn!("No offsets were found on topics-partition combos {:?}", &metadata.topics_and_partitions);
+    if all_offsets.is_empty() {
+        warn!(
+            "No offsets were found on topics-partition combos {:?}",
+            &metadata.topics_and_partitions
+        );
     }
 
     Ok(all_offsets)
