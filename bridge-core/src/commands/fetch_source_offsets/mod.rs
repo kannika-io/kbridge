@@ -14,6 +14,8 @@ mod sources;
 
 pub fn execute(
     bootstrap_server: String,
+    // TODO: to prevent API from breaking & too many arguments, use an `Options` struct for all
+    // optional parameters, with a default implementation for those
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {

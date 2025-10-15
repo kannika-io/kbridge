@@ -7,7 +7,6 @@ edition.workspace = true
 
 [dependencies]
 rdkafka = { workspace = true }
-tokio = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 csv = { workspace = true }
