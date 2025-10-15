@@ -12,6 +12,9 @@ thiserror = { workspace = true }
 csv = { workspace = true }
 serde = { version = "1.0.228", features = ["derive"] }
 
+[target.'cfg(windows)'.dependencies]
+rdkafka = { version = "0.38.0", features = ["ssl", "gssapi", "sasl", "cmake-build"] }
+
 [dev-dependencies]
 anyhow = "1.0.100"
 assert_matches = "1.5.0"
