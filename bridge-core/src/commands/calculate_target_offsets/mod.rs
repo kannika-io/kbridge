@@ -13,7 +13,6 @@ mod transform;
 
 pub async fn execute(
     bootstrap_server: String,
-    consumer_group_id: String,
     legacy_offset_header: String,
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
@@ -29,7 +28,6 @@ pub async fn execute(
     let mut transformer_consumer_config = ClientConfig::new();
     transformer_consumer_config
         .set_bootstrap_server(bootstrap_server.as_str())
-        .set_consumer_group_id(consumer_group_id.as_str())
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();

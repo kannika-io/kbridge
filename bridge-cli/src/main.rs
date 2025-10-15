@@ -1,5 +1,5 @@
 use crate::errors::GeneralError;
-use args::{Args, Commands};
+use args::{Args, Commands, CsvInput};
 use bridge_core::OffsetSnapshot;
 use bridge_core::commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets};
 use bridge_core::helpers::fetch_offset_records;
@@ -19,35 +19,34 @@ async fn main() -> Result<(), GeneralError> {
     trace!("Executing with following arguments: {:?}", args);
 
     let result: Result<(), GeneralError> = match args.command {
-        Commands::FetchSource {
-            bootstrap_server,
-            optional_client_properties,
-            topics,
-        } => {
-            let result =
-                fetch_source_offsets::execute(bootstrap_server, optional_client_properties, topics)
-                    .map_err(GeneralError::from)?;
+        Commands::FetchSource { kafka_connection } => {
+            let result = fetch_source_offsets::execute(
+                kafka_connection.bootstrap_server,
+                kafka_connection.optional_client_properties,
+                kafka_connection.topics,
+            )
+            .map_err(GeneralError::from)?;
             print_offset_snapshot(&result);
             Ok(())
         }
         Commands::CalculateTarget {
-            source_offsets_csv_file_location,
-            bootstrap_server,
-            consumer_group_id,
             legacy_offset_header,
-            from_stdin,
-            optional_client_properties,
-            topics,
+            kafka_connection,
+            input,
         } => {
-            let offset_snapshot =
-                fetch_offset_records(from_stdin, source_offsets_csv_file_location)
-                    .map_err(GeneralError::from)?;
+            let file_location = match input {
+                Some(CsvInput::Stdin) => None,
+                Some(CsvInput::File(path_buf)) => Some(path_buf),
+                None => None,
+            };
+
+            let offset_snapshot = fetch_offset_records(file_location.is_none(), file_location)
+                .map_err(GeneralError::from)?;
             let result = calculate_target_offsets::execute(
-                bootstrap_server,
-                consumer_group_id,
+                kafka_connection.bootstrap_server,
                 legacy_offset_header,
-                optional_client_properties,
-                topics,
+                kafka_connection.optional_client_properties,
+                kafka_connection.topics,
                 offset_snapshot,
             )
             .await
@@ -56,21 +55,20 @@ async fn main() -> Result<(), GeneralError> {
             Ok(())
         }
         Commands::ApplyTarget {
-            bootstrap_server,
-            consumer_group_id,
-            intermediary_offsets_csv_file_location,
-            from_stdin,
-            optional_client_properties,
-            topics,
+            kafka_connection,
+            input,
         } => {
-            let offset_snapshot =
-                fetch_offset_records(from_stdin, intermediary_offsets_csv_file_location)
-                    .map_err(GeneralError::from)?;
+            let file_location = match input {
+                Some(CsvInput::Stdin) => None,
+                Some(CsvInput::File(path_buf)) => Some(path_buf),
+                None => None,
+            };
+            let offset_snapshot = fetch_offset_records(file_location.is_none(), file_location)
+                .map_err(GeneralError::from)?;
             apply_target_offsets::execute(
-                bootstrap_server,
-                consumer_group_id,
-                optional_client_properties,
-                topics,
+                kafka_connection.bootstrap_server,
+                kafka_connection.optional_client_properties,
+                kafka_connection.topics,
                 offset_snapshot,
                 &|offset_snapshot| ask_for_confirmation(offset_snapshot),
             )

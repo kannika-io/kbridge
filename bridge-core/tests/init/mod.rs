@@ -2,8 +2,6 @@ use anyhow::Result;
 use log::warn;
 use std::process::Command;
 use std::sync::Once;
-use std::thread::sleep;
-use std::time::Duration;
 
 static INIT_TEST_ENV: Once = Once::new();
 static INIT_LOGGING: Once = Once::new();

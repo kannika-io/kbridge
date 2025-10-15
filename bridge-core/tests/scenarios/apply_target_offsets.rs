@@ -2,7 +2,8 @@ use anyhow::Result;
 use bridge_core::{
     commands::{apply_target_offsets::execute, calculate_target_offsets, fetch_source_offsets},
     kafka::{
-        admin::initialize_admin, client_config::ConfigBuilder,
+        admin::initialize_admin,
+        client_config::{ConfigBuilder, GROUP_ID_KEY},
         consumer::setup_consumer_and_metadata,
     },
 };
@@ -43,7 +44,6 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
     info!("Fetching target offsets");
     let target_offsets = calculate_target_offsets::execute(
         String::from(TARGET_BOOTSTRAP_SERVER),
-        consumer_group_id.clone(),
         String::from(OFFSET_HEADER),
         None,
         Some(topics.clone()),
@@ -55,11 +55,10 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
 
     execute(
         String::from(TARGET_BOOTSTRAP_SERVER),
-        consumer_group_id.clone(),
         None,
         Some(topics.clone()),
         target_offsets,
-        &|_| return true,
+        &|_| true,
     )
     .await?;
 
@@ -74,7 +73,8 @@ async fn verify_consumer(topics: Vec<String>, consumer_group: &str) -> Result<()
     let topic_references: Vec<&str> = topics.iter().map(|t| t.as_str()).collect();
 
     consumer_client_config.set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
-    consumer_client_config.set_consumer_group_id(consumer_group);
+    consumer_client_config
+        .set_optional_properties(Some(vec![format!("{GROUP_ID_KEY}={consumer_group}")]));
 
     let (consumer, metadata) =
         setup_consumer_and_metadata(&topic_references, &mut consumer_client_config).await?;
@@ -84,7 +84,7 @@ async fn verify_consumer(topics: Vec<String>, consumer_group: &str) -> Result<()
     for item in metadata
         .topics()
         .iter()
-        .flat_map(|t| (t.partitions().into_iter().map(|p| (p.id(), t.name()))))
+        .flat_map(|t| (t.partitions().iter().map(|p| (p.id(), t.name()))))
     {
         tpl.add_partition(item.1, item.0);
     }

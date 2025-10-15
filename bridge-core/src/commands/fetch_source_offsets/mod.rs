@@ -4,7 +4,7 @@ use crate::commands::fetch_source_offsets::errors::ImportError;
 use crate::commands::fetch_source_offsets::sources::client::{
     fetch_all_committed_consumer_group_offsets, fetch_metadata,
 };
-use crate::kafka::client_config::ConfigBuilder;
+use crate::kafka::client_config::{ConfigBuilder, GROUP_ID_KEY};
 use rdkafka::ClientConfig;
 use rdkafka::consumer::BaseConsumer;
 use std::collections::HashMap;
@@ -31,7 +31,8 @@ pub fn execute(
     let mut consumers: HashMap<String, BaseConsumer> = HashMap::new();
 
     for consumer_group in &metadata.consumer_groups {
-        let consumer_config = config.set_consumer_group_id(consumer_group);
+        let consumer_config = config
+            .set_optional_properties(Some(vec![format!("{}={}", GROUP_ID_KEY, consumer_group)]));
         let consumer_for_group = consumer_config.create()?;
         consumers.insert(consumer_group.to_string(), consumer_for_group);
     }

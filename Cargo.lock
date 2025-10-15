@@ -142,6 +142,7 @@ dependencies = [
  "serde",
  "tempfile",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

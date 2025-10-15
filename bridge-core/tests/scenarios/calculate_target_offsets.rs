@@ -14,16 +14,12 @@ use crate::{init, stubs};
 pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
-
-    let consumer_group_id = String::from("testing");
-
     info!("Fetching source offsets");
     let result = fetch_source_offsets::execute(String::from(SOURCE_BOOTSTRAP_SERVER), None, None)?;
 
     info!("Fetching target offsets");
     let target_offsets = calculate_target_offsets::execute(
         String::from(TARGET_BOOTSTRAP_SERVER),
-        consumer_group_id,
         String::from(OFFSET_HEADER),
         None,
         None,
@@ -54,7 +50,6 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
     init_logging()?;
     setup_test_environment()?;
 
-    let consumer_group_id = String::from("testing");
     let topics = vec![String::from(ORDERS_1_TOPIC), String::from(ORDERS_2_TOPIC)];
 
     info!("Fetching source offsets");
@@ -63,7 +58,6 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
     info!("Fetching target offsets");
     let target_offsets = calculate_target_offsets::execute(
         String::from(TARGET_BOOTSTRAP_SERVER),
-        consumer_group_id,
         String::from(OFFSET_HEADER),
         None,
         Some(topics.clone()),

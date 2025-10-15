@@ -10,7 +10,6 @@ mod export;
 
 pub async fn execute(
     bootstrap_server: String,
-    consumer_group_id: String,
     optional_client_properties: Option<Vec<String>>,
     topics: Option<Vec<String>>,
     offset_snapshot: OffsetSnapshot,
@@ -19,7 +18,6 @@ pub async fn execute(
     let mut exporter_base_config = ClientConfig::new();
     exporter_base_config
         .set_bootstrap_server(bootstrap_server.as_str())
-        .set_consumer_group_id(consumer_group_id.as_str())
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
