@@ -1,0 +1,5 @@
+services:
+  bridge-cli:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/bridge-cli.dockerfile
