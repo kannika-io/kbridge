@@ -101,7 +101,7 @@ jobs:
    - name: Install system dependencies (macOS)
      if: matrix.os == 'macos-latest'
      run: |
-       brew install cyrus-sasl openssl-dev openssl@3 pkg-config
+       brew install cyrus-sasl openssl@3 pkg-config
 
    - name: Cache vcpkg (Windows)
      if: matrix.os == 'windows-latest'
