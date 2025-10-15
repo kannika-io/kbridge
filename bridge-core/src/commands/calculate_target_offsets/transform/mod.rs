@@ -181,3 +181,101 @@ fn validate_input_parameters(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::OffsetRecord;
+
+    #[test]
+    fn test_validate_input_parameters_success() {
+        let source_offsets = vec![OffsetRecord {
+            topic: "test-topic".to_string(),
+            partition: 0,
+            offset: 100,
+            consumer_group: "test-group".to_string(),
+        }];
+        let offset_header_key = "source-offset";
+
+        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_input_parameters_empty_source_offsets() {
+        let source_offsets = vec![];
+        let offset_header_key = "source-offset";
+
+        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert_eq!(msg, "Source offsets cannot be empty");
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_input_parameters_empty_offset_header_key() {
+        let source_offsets = vec![OffsetRecord {
+            topic: "test-topic".to_string(),
+            partition: 0,
+            offset: 100,
+            consumer_group: "test-group".to_string(),
+        }];
+        let offset_header_key = "";
+
+        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TransformationError::InvalidInput(msg) => {
+                assert_eq!(msg, "Offset header key cannot be empty");
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_input_parameters_whitespace_only_offset_header_key() {
+        let source_offsets = vec![OffsetRecord {
+            topic: "test-topic".to_string(),
+            partition: 0,
+            offset: 100,
+            consumer_group: "test-group".to_string(),
+        }];
+        let offset_header_key = "   ";
+
+        // This should pass validation since we only check for empty string, not whitespace
+        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_input_parameters_multiple_source_offsets() {
+        let source_offsets = vec![
+            OffsetRecord {
+                topic: "test-topic-1".to_string(),
+                partition: 0,
+                offset: 100,
+                consumer_group: "test-group-1".to_string(),
+            },
+            OffsetRecord {
+                topic: "test-topic-2".to_string(),
+                partition: 1,
+                offset: 200,
+                consumer_group: "test-group-2".to_string(),
+            },
+        ];
+        let offset_header_key = "source-offset";
+
+        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        assert!(result.is_ok());
+    }
+
+    // Note: Integration tests for get_target_offsets would require a running Kafka cluster
+    // and are better suited for the integration test suite in bridge-core/tests/
+    // These unit tests focus on the validation logic that can be tested in isolation.
+}
