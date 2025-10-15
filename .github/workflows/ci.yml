@@ -101,12 +101,7 @@ jobs:
    - name: Install system dependencies (macOS)
      if: matrix.os == 'macos-latest'
      run: |
-       brew install cyrus-sasl openssl pkg-config
-       echo "PKG_CONFIG_PATH=$(brew --prefix openssl)/lib/pkgconfig:$(brew --prefix cyrus-sasl)/lib/pkgconfig" >> $GITHUB_ENV
-       echo "LIBRARY_PATH=$(brew --prefix)/lib:$(brew --prefix cyrus-sasl)/lib:$(brew --prefix openssl)/lib" >> $GITHUB_ENV
-       echo "CPATH=$(brew --prefix)/include:$(brew --prefix cyrus-sasl)/include:$(brew --prefix openssl)/include" >> $GITHUB_ENV
-       echo "LDFLAGS=-L$(brew --prefix)/lib -L$(brew --prefix cyrus-sasl)/lib -L$(brew --prefix openssl)/lib" >> $GITHUB_ENV
-       echo "CPPFLAGS=-I$(brew --prefix)/include -I$(brew --prefix cyrus-sasl)/include -I$(brew --prefix openssl)/include" >> $GITHUB_ENV
+       brew install cyrus-sasl openssl-dev openssl@3 pkg-config
 
    - name: Cache vcpkg (Windows)
      if: matrix.os == 'windows-latest'
