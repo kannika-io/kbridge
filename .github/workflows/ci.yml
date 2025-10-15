@@ -11,6 +11,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+   docker:
+     runs-on: ubuntu-latest
+     
+     steps:
+     - uses: actions/checkout@v4
+     
+     - name: Set up Docker Buildx
+       uses: docker/setup-buildx-action@v3
+     
+     - name: Build Docker image
+       run: docker compose -f docker-compose-release.yml build
+
    check:
      runs-on: ubuntu-latest
      
@@ -43,7 +55,7 @@ jobs:
        run: cargo test --verbose
 
    build:
-    needs: check
+    needs: [check, docker]
     strategy:
       matrix:
         include:
@@ -55,10 +67,6 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary_name: bridge-cli.exe
             artifact_name: bridge-cli-windows-x86_64.exe
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            binary_name: bridge-cli
-            artifact_name: bridge-cli-macos-x86_64
     
     runs-on: ${{ matrix.os }}
     
@@ -86,24 +94,6 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libsasl2-dev libssl-dev pkg-config build-essential
-    
-    - name: Cache Homebrew (macOS)
-      if: matrix.os == 'macos-latest'
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/Library/Caches/Homebrew
-          /usr/local/Homebrew
-        key: ${{ runner.os }}-brew-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-brew-
-    
-    - name: Install system dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        brew install cyrus-sasl openssl@3 pkg-config
-        echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
-        echo "SASL2_DIR=$(brew --prefix cyrus-sasl)" >> $GITHUB_ENV
 
     - name: Cache vcpkg (Windows)
       if: matrix.os == 'windows-latest'
