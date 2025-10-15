@@ -24,7 +24,7 @@ jobs:
        uses: docker/setup-qemu-action@v3
      
      - name: Build Docker image for arm64       
-       run: docker buildx build --platform linux/arm64 -t bridge-cli:arm64 -f ./dockerfiles/bridge-cli.Dockerfile .                                                                                   
+       run: docker buildx build --platform linux/arm64 -t bridge-cli:arm64 -f ./dockerfiles/bridge-cli.dockerfile .                                                                                   
      - name: Save Docker image
        run: docker save -o bridge-cli-docker-image.tar bridge-cli:arm64
      
