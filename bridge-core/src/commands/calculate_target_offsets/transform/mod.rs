@@ -183,7 +183,7 @@ mod tests {
 
         let result = validate_input_parameters(&source_offsets, offset_header_key);
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
                 assert_eq!(msg, "Source offsets cannot be empty");
@@ -204,7 +204,7 @@ mod tests {
 
         let result = validate_input_parameters(&source_offsets, offset_header_key);
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
             TransformationError::InvalidInput(msg) => {
                 assert_eq!(msg, "Offset header key cannot be empty");

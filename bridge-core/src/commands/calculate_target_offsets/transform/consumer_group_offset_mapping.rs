@@ -141,7 +141,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(transformations.len(), 1);
         assert!(transformations.contains_key(&consumer_group));
-        
+
         let records = transformations.get(&consumer_group).unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0], (topic, partition, source_offset, target_offset));
@@ -151,7 +151,7 @@ mod tests {
     fn test_insert_offset_transformations_existing_consumer_group() {
         let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
         let consumer_group = "test-group".to_string();
-        
+
         // Insert initial transformation
         transformations.insert(
             consumer_group.clone(),
@@ -174,7 +174,7 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(transformations.len(), 1);
-        
+
         let records = transformations.get(&consumer_group).unwrap();
         assert_eq!(records.len(), 2);
         assert_eq!(records[0], ("topic1".to_string(), 0, 50, 100));
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_insert_offset_transformations_multiple_consumer_groups() {
         let mut transformations: HashMap<ConsumerGroup, Vec<TransformationRecord>> = HashMap::new();
-        
+
         // Insert for first consumer group
         let result1 = insert_offset_transformations(
             &mut transformations,
@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(transformations.len(), 2);
         assert!(transformations.contains_key("group1"));
         assert!(transformations.contains_key("group2"));
-        
+
         let group1_records = transformations.get("group1").unwrap();
         let group2_records = transformations.get("group2").unwrap();
         assert_eq!(group1_records.len(), 1);
@@ -243,34 +243,28 @@ mod tests {
         ];
 
         let mut nearest_offsets = HashMap::new();
-        nearest_offsets.insert(
-            ("group1".to_string(), "topic1".to_string(), 0, 150),
-            175,
-        );
-        nearest_offsets.insert(
-            ("group2".to_string(), "topic2".to_string(), 1, 250),
-            275,
-        );
+        nearest_offsets.insert(("group1".to_string(), "topic1".to_string(), 0, 150), 175);
+        nearest_offsets.insert(("group2".to_string(), "topic2".to_string(), 1, 250), 275);
 
         let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
 
         assert!(result.is_ok());
         let final_transformations = result.unwrap();
         assert_eq!(final_transformations.len(), 3);
-        
+
         // Check existing group is preserved
         assert!(final_transformations.contains_key("existing-group"));
-        
+
         // Check new groups were added
         assert!(final_transformations.contains_key("group1"));
         assert!(final_transformations.contains_key("group2"));
-        
+
         let group1_records = final_transformations.get("group1").unwrap();
         let group2_records = final_transformations.get("group2").unwrap();
-        
+
         assert_eq!(group1_records.len(), 1);
         assert_eq!(group1_records[0], ("topic1".to_string(), 0, 150, 175));
-        
+
         assert_eq!(group2_records.len(), 1);
         assert_eq!(group2_records[0], ("topic2".to_string(), 1, 250, 275));
     }
@@ -283,9 +277,7 @@ mod tests {
             vec![("topic1".to_string(), 0, 100, 200)],
         );
 
-        let missing_offsets = vec![
-            ("test-group".to_string(), "topic2".to_string(), 1, 300),
-        ];
+        let missing_offsets = vec![("test-group".to_string(), "topic2".to_string(), 1, 300)];
 
         let mut nearest_offsets = HashMap::new();
         nearest_offsets.insert(
@@ -298,7 +290,7 @@ mod tests {
         assert!(result.is_ok());
         let final_transformations = result.unwrap();
         assert_eq!(final_transformations.len(), 1);
-        
+
         let test_group_records = final_transformations.get("test-group").unwrap();
         assert_eq!(test_group_records.len(), 2);
         assert_eq!(test_group_records[0], ("topic1".to_string(), 0, 100, 200));
@@ -314,14 +306,25 @@ mod tests {
         ];
         let nearest_offsets = HashMap::new(); // No nearest offsets available
 
-        let result = handle_missing_offsets(transformations, missing_offsets.clone(), nearest_offsets);
+        let result =
+            handle_missing_offsets(transformations, missing_offsets.clone(), nearest_offsets);
 
         assert!(result.is_err());
         match result.unwrap_err() {
             TransformationError::MissingOffsets(still_missing) => {
                 assert_eq!(still_missing.len(), 2);
-                assert!(still_missing.contains(&("group1".to_string(), "topic1".to_string(), 0, 150)));
-                assert!(still_missing.contains(&("group2".to_string(), "topic2".to_string(), 1, 250)));
+                assert!(still_missing.contains(&(
+                    "group1".to_string(),
+                    "topic1".to_string(),
+                    0,
+                    150
+                )));
+                assert!(still_missing.contains(&(
+                    "group2".to_string(),
+                    "topic2".to_string(),
+                    1,
+                    250
+                )));
             }
             _ => panic!("Expected MissingOffsets error"),
         }
@@ -337,10 +340,7 @@ mod tests {
 
         let mut nearest_offsets = HashMap::new();
         // Only provide nearest offset for group1, not group2
-        nearest_offsets.insert(
-            ("group1".to_string(), "topic1".to_string(), 0, 150),
-            175,
-        );
+        nearest_offsets.insert(("group1".to_string(), "topic1".to_string(), 0, 150), 175);
 
         let result = handle_missing_offsets(transformations, missing_offsets, nearest_offsets);
 
@@ -348,7 +348,10 @@ mod tests {
         match result.unwrap_err() {
             TransformationError::MissingOffsets(still_missing) => {
                 assert_eq!(still_missing.len(), 1);
-                assert_eq!(still_missing[0], ("group2".to_string(), "topic2".to_string(), 1, 250));
+                assert_eq!(
+                    still_missing[0],
+                    ("group2".to_string(), "topic2".to_string(), 1, 250)
+                );
             }
             _ => panic!("Expected MissingOffsets error"),
         }
