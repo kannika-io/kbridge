@@ -125,6 +125,53 @@ bridge-cli fetch-source -b <bootstrap-url> \
     -o ssl.ca.location=probe
 ```
 
+#### SASL/PLAINTEXT
+
+```bash
+bridge-cli fetch-source -b <bootstrap-url> \
+    -o security.protocol=sasl_plaintext \
+    -o sasl.mechanism=SCRAM-SHA-256 \
+    -o sasl.username=<username> \
+    -o sasl.password=<password>
+```
+
+#### SSL with Client Certificates
+
+```bash
+bridge-cli fetch-source -b <bootstrap-url> \
+    -o security.protocol=ssl \
+    -o ssl.ca.location=/path/to/ca-cert \
+    -o ssl.certificate.location=/path/to/client-cert \
+    -o ssl.key.location=/path/to/client-key
+```
+
+### Advanced Options
+
+#### Filter by Topics
+
+```bash
+# Only process specific topics
+bridge-cli fetch-source -b localhost:9092 -t topic1,topic2,topic3
+```
+
+#### Custom Header Key
+
+```bash
+# Use custom header key for offset mapping
+bridge-cli calculate-target -b localhost:9093 -l CustomOffsetHeader -i offsets.csv
+```
+
+### CSV Format
+
+The tool uses CSV format for offset data with the following columns:
+
+```csv
+consumer_group,topic,partition,offset
+my-consumer-group,orders,0,12345
+my-consumer-group,orders,1,12346
+my-consumer-group,payments,0,5678
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -199,7 +246,7 @@ cargo run -- fetch-source -b localhost:9092
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+TODO
 
 ## Support
 
@@ -207,56 +254,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🐛 [Issue Tracker](https://github.com/cymo-eu/kannika-bridge/issues)
 - 💬 [Discussions](https://github.com/cymo-eu/kannika-bridge/discussions)
 
-#### SASL/PLAINTEXT
-
-```bash
-bridge-cli fetch-source -b <bootstrap-url> \
-    -o security.protocol=sasl_plaintext \
-    -o sasl.mechanism=SCRAM-SHA-256 \
-    -o sasl.username=<username> \
-    -o sasl.password=<password>
-```
-
-#### SSL with Client Certificates
-
-```bash
-bridge-cli fetch-source -b <bootstrap-url> \
-    -o security.protocol=ssl \
-    -o ssl.ca.location=/path/to/ca-cert \
-    -o ssl.certificate.location=/path/to/client-cert \
-    -o ssl.key.location=/path/to/client-key
-```
-
-### Advanced Options
-
-#### Filter by Topics
-
-```bash
-# Only process specific topics
-bridge-cli fetch-source -b localhost:9092 -t topic1,topic2,topic3
-```
-
-#### Custom Header Key
-
-```bash
-# Use custom header key for offset mapping
-bridge-cli calculate-target -b localhost:9093 -l CustomOffsetHeader -i offsets.csv
-```
-
-#### Skip Confirmation
-
-```bash
-# Apply without confirmation prompt (use with caution!)
-bridge-cli apply-target -b localhost:9093 -i target_offsets.csv --force
-```
-
-### CSV Format
-
-The tool uses CSV format for offset data with the following columns:
-
-```csv
-consumer_group,topic,partition,offset
-my-consumer-group,orders,0,12345
-my-consumer-group,orders,1,12346
-my-consumer-group,payments,0,5678
-```
