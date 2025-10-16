@@ -40,7 +40,7 @@ graph LR
 
 1. Download the latest binary for your platform from the [releases page](https://github.com/cymo-eu/kannika-bridge/releases)
 2. Extract the archive
-3. Move the `bridge-cli` binary to a directory in your `$PATH`
+3. Move the `kbridge` binary to a directory in your `$PATH`
 
 ### Linux
 
@@ -105,9 +105,9 @@ bridge-cli apply-target -b localhost:9093 -i target_offsets.csv
 All steps can be chained together for streamlined execution:
 
 ```bash
-bridge-cli fetch-source -b localhost:9092 | \
-bridge-cli calculate-target -b localhost:9093 -l Offset | \
-bridge-cli apply-target -b localhost:9093
+kbridge fetch -b localhost:9092 | \
+kbridge calculate -b localhost:9093 -l Offset | \
+kbridge apply -b localhost:9093
 ```
 
 > ⚠️ **Safety First**: Before applying offsets, a confirmation prompt is shown to prevent accidental modifications.
@@ -117,7 +117,7 @@ bridge-cli apply-target -b localhost:9093
 #### SASL/SSL (Confluent Cloud)
 
 ```bash
-bridge-cli fetch-source -b <bootstrap-url> \
+kbridge fetch-source -b <bootstrap-url> \
     -o security.protocol=sasl_ssl \
     -o sasl.mechanism=PLAIN \
     -o sasl.username=<api-key> \
@@ -151,7 +151,7 @@ bridge-cli fetch-source -b <bootstrap-url> \
 
 ```bash
 # Only process specific topics
-bridge-cli fetch-source -b localhost:9092 -t topic1,topic2,topic3
+bridge-cli fetch-source -b localhost:9092 -t topic1 -t topic2 -t topic3
 ```
 
 #### Custom Header Key

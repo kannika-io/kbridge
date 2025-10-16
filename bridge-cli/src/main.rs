@@ -15,14 +15,14 @@ async fn main() -> Result<(), BridgeError> {
     trace!("Executing with following arguments: {:?}", args);
 
     let result: Result<(), BridgeError> = match args.command {
-        Commands::FetchSource { kafka_connection } => {
+        Commands::Fetch { kafka_connection } => {
             let client: KafkaBridgeClient = kafka_connection.into();
 
             let result = client.fetch_source_offsets_from_cluster()?;
             print_offset_snapshot(&result);
             Ok(())
         }
-        Commands::CalculateTarget {
+        Commands::Calculate {
             legacy_offset_header,
             kafka_connection,
             input,
@@ -35,7 +35,7 @@ async fn main() -> Result<(), BridgeError> {
             print_offset_snapshot(&result);
             Ok(())
         }
-        Commands::ApplyTarget {
+        Commands::Apply {
             kafka_connection,
             input,
         } => {

@@ -64,12 +64,12 @@ pub struct KafkaConnection {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Fetches the source offsets from a kafka cluster
-    FetchSource {
+    Fetch {
         #[command(flatten)]
         kafka_connection: KafkaConnection,
     },
     /// Calculates target offsets based on message header in target cluster
-    CalculateTarget {
+    Calculate {
         /// Header in target messages that contains the offsets of the source topic
         #[arg(short, long)]
         legacy_offset_header: String,
@@ -87,7 +87,7 @@ pub enum Commands {
         kafka_connection: KafkaConnection,
     },
     /// Restores consumer group(s) in target cluster based on calculated target offsets
-    ApplyTarget {
+    Apply {
         #[arg(
             short = 'i',
             long,

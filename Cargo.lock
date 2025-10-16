@@ -116,20 +116,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
 
 [[package]]
-name = "bridge-cli"
-version = "0.1.0"
-dependencies = [
- "bridge-core",
- "clap",
- "comfy-table",
- "env_logger",
- "inquire",
- "log",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "bridge-core"
 version = "0.1.0"
 dependencies = [
@@ -530,6 +516,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "kbridge"
+version = "0.1.0"
+dependencies = [
+ "bridge-core",
+ "clap",
+ "comfy-table",
+ "env_logger",
+ "inquire",
+ "log",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
