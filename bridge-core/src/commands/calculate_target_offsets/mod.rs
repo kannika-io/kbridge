@@ -24,8 +24,7 @@ pub async fn execute(
 
     trace!("Initializing consumer and fetching metadata..");
 
-    let mut transformer_consumer_config = ClientConfig::new();
-    transformer_consumer_config
+    let mut transformer_consumer_config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)

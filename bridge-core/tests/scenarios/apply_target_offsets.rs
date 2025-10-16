@@ -40,8 +40,7 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
 
     let topics: Vec<String> = vec![String::from(ORDERS_1_TOPIC)];
 
-    let mut client_config = ClientConfig::new();
-    client_config.set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
+    let mut client_config = ClientConfig::new().set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
 
     let admin_client = initialize_admin(&mut client_config)?;
 
@@ -50,15 +49,13 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
         .delete_groups(&[consumer_group_id.as_str()], &AdminOptions::new())
         .await?;
 
-    let source_config: BridgeConfig =
-        BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string(), None, None);
+    let source_config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let source_client: KafkaBridgeClient = source_config.into();
 
     info!("Fetching source offsets");
     let result = source_client.fetch_source_offsets_from_cluster()?;
 
-    let target_config: BridgeConfig =
-        BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string(), None, None);
+    let target_config: BridgeConfig = BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
     let target_client: KafkaBridgeClient = target_config.into();
     info!("Fetching target offsets");
     let target_offsets = target_client
@@ -78,11 +75,10 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
 }
 
 async fn verify_consumer(topics: Vec<String>, consumer_group: &str) -> Result<()> {
-    let mut consumer_client_config = ClientConfig::new();
     let topic_references: Vec<&str> = topics.iter().map(|t| t.as_str()).collect();
 
-    consumer_client_config.set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
-    consumer_client_config
+    let mut consumer_client_config = ClientConfig::new()
+        .set_bootstrap_server(TARGET_BOOTSTRAP_SERVER)
         .set_optional_properties(&Some(vec![format!("{}={consumer_group}", GROUP_ID_KEY)]));
 
     let (consumer, metadata) =

@@ -5,11 +5,9 @@ use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
 
 impl From<KafkaConnection> for BridgeConfig {
     fn from(value: KafkaConnection) -> Self {
-        BridgeConfig::new(
-            value.bootstrap_server,
-            value.optional_client_properties,
-            value.topics,
-        )
+        BridgeConfig::new(value.bootstrap_server)
+            .set_optional_client_properties(value.optional_client_properties)
+            .set_topics(value.topics)
     }
 }
 

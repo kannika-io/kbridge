@@ -18,7 +18,7 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
     setup_test_environment()?;
     info!("Fetching source offsets");
 
-    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string(), None, None);
+    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let client: KafkaBridgeClient = config.into();
 
     let result = client.fetch_source_offsets_from_cluster()?;
@@ -53,21 +53,15 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
 
     let topics = vec![String::from(ORDERS_1_TOPIC), String::from(ORDERS_2_TOPIC)];
 
-    let config: BridgeConfig = BridgeConfig::new(
-        SOURCE_BOOTSTRAP_SERVER.to_string(),
-        None,
-        Some(topics.clone()),
-    );
+    let config: BridgeConfig =
+        BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string()).set_topics(Some(topics.clone()));
     let source_client: KafkaBridgeClient = config.into();
 
     info!("Fetching source offsets");
     let result = source_client.fetch_source_offsets_from_cluster()?;
 
-    let config: BridgeConfig = BridgeConfig::new(
-        TARGET_BOOTSTRAP_SERVER.to_string(),
-        None,
-        Some(topics.clone()),
-    );
+    let config: BridgeConfig =
+        BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string()).set_topics(Some(topics.clone()));
     let target_client: KafkaBridgeClient = config.into();
     info!("Fetching target offsets");
     let target_offsets = target_client

@@ -63,17 +63,27 @@ pub struct BridgeConfig {
 }
 
 impl BridgeConfig {
-    pub fn new(
-        bootstrap_server: String,
-        optional_client_properties: Option<Vec<String>>,
-        topics: Option<Vec<String>>,
-    ) -> Self {
+    pub fn new(bootstrap_server: String) -> Self {
         BridgeConfig {
             bootstrap_server,
-            optional_client_properties,
-            topics,
+            optional_client_properties: None,
+            topics: None,
         }
     }
+
+    pub fn set_optional_client_properties(
+        mut self,
+        optional_client_properties: Option<Vec<String>>,
+    ) -> Self {
+        self.optional_client_properties = optional_client_properties;
+        self
+    }
+
+    pub fn set_topics(mut self, topics: Option<Vec<String>>) -> Self {
+        self.topics = topics;
+        self
+    }
+
     pub fn bootstrap_server(&self) -> &str {
         self.bootstrap_server.as_str()
     }

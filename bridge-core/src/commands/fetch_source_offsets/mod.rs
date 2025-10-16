@@ -19,8 +19,7 @@ pub fn execute(
     optional_client_properties: &Option<Vec<String>>,
     topics: &Option<Vec<String>>,
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {
-    let mut config = ClientConfig::new();
-    config
+    let config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties);
@@ -32,6 +31,7 @@ pub fn execute(
 
     for consumer_group in &metadata.consumer_groups {
         let consumer_config = config
+            .clone()
             .set_optional_properties(&Some(vec![format!("{}={}", GROUP_ID_KEY, consumer_group)]));
         let consumer_for_group = consumer_config.create()?;
         consumers.insert(consumer_group.to_string(), consumer_for_group);

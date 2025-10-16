@@ -15,8 +15,7 @@ pub async fn execute(
     offset_snapshot: OffsetSnapshot,
     confirmation: &dyn Fn(&OffsetSnapshot) -> bool,
 ) -> Result<(), ApplyOffsetsError> {
-    let mut exporter_base_config = ClientConfig::new();
-    exporter_base_config
+    let mut exporter_base_config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
