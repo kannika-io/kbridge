@@ -46,16 +46,16 @@ graph LR
 
 ```bash
 # Download and install (replace VERSION with actual version)
-curl -L https://github.com/cymo-eu/kannika-bridge/releases/download/vVERSION/bridge-cli-linux.tar.gz | tar xz
-sudo mv bridge-cli /usr/local/bin/
+curl -L https://github.com/cymo-eu/kannika-bridge/releases/download/vVERSION/kbridge-linux.tar.gz | tar xz
+sudo mv kbridge /usr/local/bin/
 ```
 
 ### macOS
 
 ```bash
 # Download and install (replace VERSION with actual version)
-curl -L https://github.com/cymo-eu/kannika-bridge/releases/download/vVERSION/bridge-cli-macos.tar.gz | tar xz
-sudo mv bridge-cli /usr/local/bin/
+curl -L https://github.com/cymo-eu/kannika-bridge/releases/download/vVERSION/kbridge-macos.tar.gz | tar xz
+sudo mv kbridge /usr/local/bin/
 ```
 
 ### Windows
@@ -68,7 +68,7 @@ Download the Windows executable from the releases page and add it to your PATH.
 git clone https://github.com/cymo-eu/kannika-bridge.git
 cd kannika-bridge
 cargo build --release
-# Binary will be in target/release/bridge-cli
+# Binary will be in target/release/kbridge
 ```
 
 ## Usage
@@ -77,12 +77,12 @@ cargo build --release
 
 ```bash
 # Show help
-bridge-cli --help
+kbridge --help
 
 # Show help for specific command
-bridge-cli fetch-source --help
-bridge-cli calculate-target --help
-bridge-cli apply-target --help
+kbridge fetch --help
+kbridge calculate --help
+kbridge apply --help
 ```
 
 ### Simple Local Example
@@ -91,13 +91,13 @@ Against local source (localhost:9092) and target (localhost:9093) clusters:
 
 ```bash
 # Step 1: Fetch offsets from source cluster
-bridge-cli fetch-source -b localhost:9092 > source_offsets.csv
+kbridge fetch -b localhost:9092 > source_offsets.csv
 
 # Step 2: Calculate target offsets
-bridge-cli calculate-target -b localhost:9093 -l Offset -i source_offsets.csv > target_offsets.csv
+kbridge calculate -b localhost:9093 -l Offset -i source_offsets.csv > target_offsets.csv
 
 # Step 3: Apply target offsets (with confirmation prompt)
-bridge-cli apply-target -b localhost:9093 -i target_offsets.csv
+kbridge apply -b localhost:9093 -i target_offsets.csv
 ```
 
 ### Chained Pipeline
@@ -117,7 +117,7 @@ kbridge apply -b localhost:9093
 #### SASL/SSL (Confluent Cloud)
 
 ```bash
-kbridge fetch-source -b <bootstrap-url> \
+kbridge fetch -b <bootstrap-url> \
     -o security.protocol=sasl_ssl \
     -o sasl.mechanism=PLAIN \
     -o sasl.username=<api-key> \
@@ -128,7 +128,7 @@ kbridge fetch-source -b <bootstrap-url> \
 #### SASL/PLAINTEXT
 
 ```bash
-bridge-cli fetch-source -b <bootstrap-url> \
+kbridge fetch -b <bootstrap-url> \
     -o security.protocol=sasl_plaintext \
     -o sasl.mechanism=SCRAM-SHA-256 \
     -o sasl.username=<username> \
@@ -138,7 +138,7 @@ bridge-cli fetch-source -b <bootstrap-url> \
 #### SSL with Client Certificates
 
 ```bash
-bridge-cli fetch-source -b <bootstrap-url> \
+kbridge fetch -b <bootstrap-url> \
     -o security.protocol=ssl \
     -o ssl.ca.location=/path/to/ca-cert \
     -o ssl.certificate.location=/path/to/client-cert \
@@ -151,14 +151,14 @@ bridge-cli fetch-source -b <bootstrap-url> \
 
 ```bash
 # Only process specific topics
-bridge-cli fetch-source -b localhost:9092 -t topic1 -t topic2 -t topic3
+kbridge fetch -b localhost:9092 -t topic1 -t topic2 -t topic3
 ```
 
 #### Custom Header Key
 
 ```bash
 # Use custom header key for offset mapping
-bridge-cli calculate-target -b localhost:9093 -l CustomOffsetHeader -i offsets.csv
+kbridge calculate -b localhost:9093 -l CustomOffsetHeader -i offsets.csv
 ```
 
 ### CSV Format
@@ -200,7 +200,7 @@ my-consumer-group,payments,0,5678
 Enable verbose logging for troubleshooting:
 
 ```bash
-RUST_LOG=debug bridge-cli fetch-source -b localhost:9092
+RUST_LOG=debug kbridge fetch -b localhost:9092
 ```
 
 ### Dry Run
@@ -209,11 +209,11 @@ To see what offsets would be applied without actually committing them:
 
 ```bash
 # Calculate and review target offsets before applying
-bridge-cli fetch-source -b source:9092 | \
-bridge-cli calculate-target -b target:9093 -l Offset > review_offsets.csv
+kbridge fetch -b source:9092 | \
+kbridge calculate -b target:9093 -l Offset > review_offsets.csv
 
 # Review the CSV file, then apply if satisfied
-bridge-cli apply-target -b target:9093 -i review_offsets.csv
+kbridge apply -b target:9093 -i review_offsets.csv
 ```
 
 ## Contributing
@@ -241,7 +241,7 @@ cargo build
 cargo test
 
 # Run with sample data
-cargo run -- fetch-source -b localhost:9092
+cargo run -- fetch -b localhost:9092
 ```
 
 ## License
