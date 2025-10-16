@@ -28,3 +28,7 @@ run-example:
 	just setup-ci && \
 	just apply-offsets
 
+run-docs:
+	cargo doc --no-deps && \
+	docker compose -f docker-compose-docs.yml up --build
+	

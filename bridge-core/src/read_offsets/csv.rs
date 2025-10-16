@@ -4,8 +4,8 @@ use crate::commands::fetch_source_offsets::OffsetSnapshotImporter;
 use crate::commands::fetch_source_offsets::errors::ImportError;
 use crate::{OffsetRecord, OffsetSnapshot};
 
-pub struct CsvOffsetSnapshotImporter {
-    pub file_path: PathBuf,
+pub struct CsvOffsetSnapshotImporter<'a> {
+    pub file_path: &'a PathBuf,
 }
 
 const CSV_HEADERS: [&str; 4] = ["consumer_group", "topic", "partition", "offset"];
@@ -17,9 +17,9 @@ pub fn convert(value: String) -> Result<OffsetRecord, ImportError> {
     Ok(result[0].clone())
 }
 
-impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter {
+impl OffsetSnapshotImporter for CsvOffsetSnapshotImporter<'_> {
     fn import(&self) -> Result<OffsetSnapshot, ImportError> {
-        if let Ok(mut reader) = csv::Reader::from_path(&self.file_path) {
+        if let Ok(mut reader) = csv::Reader::from_path(self.file_path) {
             reader.set_headers(csv::StringRecord::from(CSV_HEADERS.to_vec()));
             import_records(reader.deserialize::<OffsetRecord>())
         } else {
@@ -169,7 +169,7 @@ mod tests {
         fs::write(&temp_file, csv_content)?;
 
         let importer = CsvOffsetSnapshotImporter {
-            file_path: temp_file.path().to_path_buf(),
+            file_path: &temp_file.path().to_path_buf(),
         };
 
         let result = importer.import().unwrap();
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_csv_offset_snapshot_importer_file_not_found() {
         let importer = CsvOffsetSnapshotImporter {
-            file_path: PathBuf::from("/nonexistent/path/file.csv"),
+            file_path: &PathBuf::from("/nonexistent/path/file.csv"),
         };
 
         let result = importer.import();
@@ -212,7 +212,7 @@ mod tests {
         fs::write(&temp_file, csv_content)?;
 
         let importer = CsvOffsetSnapshotImporter {
-            file_path: temp_file.path().to_path_buf(),
+            file_path: &temp_file.path().to_path_buf(),
         };
 
         let result = importer.import();

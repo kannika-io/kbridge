@@ -1,9 +1,8 @@
 use crate::commands::calculate_target_offsets::errors::TransformationError;
+use crate::helpers::get_unique_topics_from_offset_snapshot;
 use crate::kafka::client_config::ConfigBuilder;
 use crate::kafka::consumer::setup_consumer_and_metadata;
-use crate::{
-    OffsetRecord, OffsetSnapshot, TransformationRecord, get_unique_topics_from_offset_snapshot,
-};
+use crate::{OffsetRecord, OffsetSnapshot, TransformationRecord};
 use log::trace;
 use rdkafka::ClientConfig;
 use transform::get_target_offsets;
@@ -12,10 +11,10 @@ pub mod errors;
 mod transform;
 
 pub async fn execute(
-    bootstrap_server: String,
-    legacy_offset_header: String,
-    optional_client_properties: Option<Vec<String>>,
-    topics: Option<Vec<String>>,
+    bootstrap_server: &str,
+    legacy_offset_header: &str,
+    optional_client_properties: &Option<Vec<String>>,
+    topics: &Option<Vec<String>>,
     result: OffsetSnapshot,
 ) -> Result<OffsetSnapshot, TransformationError> {
     let result_filtered: Vec<OffsetRecord> = result
@@ -25,9 +24,8 @@ pub async fn execute(
 
     trace!("Initializing consumer and fetching metadata..");
 
-    let mut transformer_consumer_config = ClientConfig::new();
-    transformer_consumer_config
-        .set_bootstrap_server(bootstrap_server.as_str())
+    let mut transformer_consumer_config = ClientConfig::new()
+        .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
@@ -41,7 +39,7 @@ pub async fn execute(
     trace!("Initialization completed.");
 
     let transformed_result =
-        get_target_offsets(&legacy_offset_header, &result_filtered, consumer, metadata).await?;
+        get_target_offsets(legacy_offset_header, &result_filtered, consumer, metadata).await?;
 
     Ok(transformed_result
         .iter()

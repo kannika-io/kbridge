@@ -1,24 +1,28 @@
-use std::{fmt::Display, path::PathBuf};
+use std::path::PathBuf;
 
+use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient};
 use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
+
+impl From<KafkaConnection> for BridgeConfig {
+    fn from(value: KafkaConnection) -> Self {
+        BridgeConfig::new(value.bootstrap_server)
+            .set_optional_client_properties(value.optional_client_properties)
+            .set_topics(value.topics)
+    }
+}
+
+impl From<KafkaConnection> for KafkaBridgeClient {
+    fn from(value: KafkaConnection) -> Self {
+        let config: BridgeConfig = value.into();
+        config.into()
+    }
+}
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
-}
-
-#[derive(Debug, Clone)]
-pub enum CsvInput {
-    File(PathBuf),
-    Stdin,
-}
-
-impl Display for CsvInput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("{self:?}").as_str())
-    }
 }
 
 #[derive(Clone)]

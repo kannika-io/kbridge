@@ -1,16 +1,24 @@
 use anyhow::Result;
 use assert_matches::assert_matches;
-use bridge_core::commands::errors::FetchSourceOffsetsError::FetchMetadataError;
-use bridge_core::commands::fetch_source_offsets;
+use bridge_core::{BridgeClient, BridgeConfig, KafkaBridgeClient, errors::BridgeError};
 use init::{init_logging, setup_test_environment};
 use stubs::get_expected_source_offsets;
 
-use crate::{init, stubs};
+use crate::{
+    init,
+    stubs::{self, SOURCE_BOOTSTRAP_SERVER},
+};
 
 #[test]
 pub fn fetch_source_offsets_when_invalid_broker_url_should_return_error() -> Result<()> {
-    let invalid_broker_address = fetch_source_offsets::execute("".to_string(), None, None);
-    assert_matches!(invalid_broker_address, Err(FetchMetadataError(_)));
+    let source_config: BridgeConfig = BridgeConfig::new("".to_string());
+    let source_client: KafkaBridgeClient = source_config.into();
+    let invalid_broker_address = source_client.fetch_source_offsets_from_cluster();
+
+    assert_matches!(
+        invalid_broker_address,
+        Err(BridgeError::FetchSourceOffsetsError(_))
+    );
 
     Ok(())
 }
@@ -20,11 +28,12 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
 
-    let result = fetch_source_offsets::execute(
-        "localhost:9092".to_string(),
-        None,
-        Some(vec!["orders-1".to_string(), "orders-2".to_string()]),
-    )?;
+    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string())
+        .set_topics(Some(vec!["orders-1".to_string(), "orders-2".to_string()]));
+
+    let client: KafkaBridgeClient = config.into();
+
+    let result = client.fetch_source_offsets_from_cluster()?;
 
     let expected_offsets = get_expected_source_offsets();
 
@@ -49,23 +58,20 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
 
-    let result = fetch_source_offsets::execute("localhost:9092".to_string(), None, None)?;
+    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string())
+        .set_topics(Some(vec!["orders-1".to_string(), "orders-2".to_string()]));
+    let client: KafkaBridgeClient = config.into();
+    let result = client.fetch_source_offsets_from_cluster()?;
     println!("{:#?}", result);
 
     let correct_result = get_expected_source_offsets();
-
-    let result_filtered = fetch_source_offsets::execute(
-        "localhost:9092".to_string(),
-        None,
-        Some(vec!["orders-1".to_string()]),
-    )?;
 
     assert!(result.iter().all(|item| correct_result.contains(item)));
 
     assert!(
         result
             .iter()
-            .all(|item| item.topic != "orders-1" || result_filtered.contains(item))
+            .all(|item| item.topic != "orders-1" || result.contains(item))
     );
 
     Ok(())

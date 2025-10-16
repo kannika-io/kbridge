@@ -1,8 +1,7 @@
 use anyhow::Result;
 use bridge_core::{
-    commands::{apply_target_offsets::execute, calculate_target_offsets, fetch_source_offsets},
+    BridgeClient, BridgeConfig, KafkaBridgeClient,
     kafka::{
-        admin::initialize_admin,
         client_config::{ConfigBuilder, GROUP_ID_KEY},
         consumer::setup_consumer_and_metadata,
     },
@@ -10,14 +9,27 @@ use bridge_core::{
 use init::{init_logging, setup_test_environment};
 use log::info;
 use rdkafka::{
-    ClientConfig, TopicPartitionList, admin::AdminOptions, consumer::Consumer, util::Timeout,
+    ClientConfig, TopicPartitionList,
+    admin::{AdminClient, AdminOptions},
+    client::DefaultClientContext,
+    config::FromClientConfig,
+    consumer::Consumer,
+    error::KafkaError,
+    util::Timeout,
 };
 use stubs::{
     CONSUMER_GROUP_1, CONSUMER_GROUP_2, OFFSET_HEADER, ORDERS_1_TOPIC, SOURCE_BOOTSTRAP_SERVER,
-    TARGET_BOOTSTRAP_SERVER, get_expected_offsets_filtered_by_topics, get_expected_target_offsets,
+    TARGET_BOOTSTRAP_SERVER, get_expected_stub_offsets_filtered_by_topics,
+    get_expected_stub_target_offsets,
 };
 
 use crate::{init, stubs};
+
+fn initialize_admin(
+    config: &mut ClientConfig,
+) -> Result<AdminClient<DefaultClientContext>, KafkaError> {
+    AdminClient::<DefaultClientContext>::from_config(config)
+}
 
 #[tokio::test]
 pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -> Result<()> {
@@ -28,8 +40,7 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
 
     let topics: Vec<String> = vec![String::from(ORDERS_1_TOPIC)];
 
-    let mut client_config = ClientConfig::new();
-    client_config.set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
+    let mut client_config = ClientConfig::new().set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
 
     let admin_client = initialize_admin(&mut client_config)?;
 
@@ -38,29 +49,24 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
         .delete_groups(&[consumer_group_id.as_str()], &AdminOptions::new())
         .await?;
 
-    info!("Fetching source offsets");
-    let result = fetch_source_offsets::execute(String::from(SOURCE_BOOTSTRAP_SERVER), None, None)?;
+    let source_config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
+    let source_client: KafkaBridgeClient = source_config.into();
 
+    info!("Fetching source offsets");
+    let result = source_client.fetch_source_offsets_from_cluster()?;
+
+    let target_config: BridgeConfig = BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
+    let target_client: KafkaBridgeClient = target_config.into();
     info!("Fetching target offsets");
-    let target_offsets = calculate_target_offsets::execute(
-        String::from(TARGET_BOOTSTRAP_SERVER),
-        String::from(OFFSET_HEADER),
-        None,
-        Some(topics.clone()),
-        result,
-    )
-    .await?;
+    let target_offsets = target_client
+        .calculate_target_offsets(OFFSET_HEADER, result)
+        .await?;
 
     info!("{:#?}", target_offsets);
 
-    execute(
-        String::from(TARGET_BOOTSTRAP_SERVER),
-        None,
-        Some(topics.clone()),
-        target_offsets,
-        &|_| true,
-    )
-    .await?;
+    target_client
+        .apply_target_offsets(target_offsets, &|_| true)
+        .await?;
 
     verify_consumer(topics.clone(), CONSUMER_GROUP_1).await?;
     verify_consumer(topics.clone(), CONSUMER_GROUP_2).await?;
@@ -69,12 +75,11 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
 }
 
 async fn verify_consumer(topics: Vec<String>, consumer_group: &str) -> Result<()> {
-    let mut consumer_client_config = ClientConfig::new();
     let topic_references: Vec<&str> = topics.iter().map(|t| t.as_str()).collect();
 
-    consumer_client_config.set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
-    consumer_client_config
-        .set_optional_properties(Some(vec![format!("{GROUP_ID_KEY}={consumer_group}")]));
+    let mut consumer_client_config = ClientConfig::new()
+        .set_bootstrap_server(TARGET_BOOTSTRAP_SERVER)
+        .set_optional_properties(&Some(vec![format!("{}={consumer_group}", GROUP_ID_KEY)]));
 
     let (consumer, metadata) =
         setup_consumer_and_metadata(&topic_references, &mut consumer_client_config).await?;
@@ -93,8 +98,8 @@ async fn verify_consumer(topics: Vec<String>, consumer_group: &str) -> Result<()
         .committed_offsets(tpl, Timeout::Never)?
         .to_topic_map();
 
-    let expected_targets = get_expected_offsets_filtered_by_topics(
-        get_expected_target_offsets().to_vec(),
+    let expected_targets = get_expected_stub_offsets_filtered_by_topics(
+        get_expected_stub_target_offsets().to_vec(),
         topics.to_vec(),
     );
 

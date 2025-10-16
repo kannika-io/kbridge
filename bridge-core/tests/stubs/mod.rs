@@ -12,7 +12,7 @@ pub const OFFSET_HEADER: &str = "Offset";
 pub const SOURCE_BOOTSTRAP_SERVER: &str = "localhost:9092";
 pub const TARGET_BOOTSTRAP_SERVER: &str = "localhost:9093";
 
-pub fn get_expected_offsets_filtered_by_topics(
+pub fn get_expected_stub_offsets_filtered_by_topics(
     source_offsets: Vec<OffsetRecord>,
     topic_names: Vec<String>,
 ) -> Vec<OffsetRecord> {
@@ -73,7 +73,7 @@ pub fn get_expected_source_offsets() -> [OffsetRecord; 6] {
     ]
 }
 
-pub fn get_expected_target_offsets() -> [OffsetRecord; 6] {
+pub fn get_expected_stub_target_offsets() -> [OffsetRecord; 6] {
     [
         OffsetRecord {
             topic: ORDERS_1_TOPIC.to_string(),

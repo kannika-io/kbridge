@@ -9,15 +9,14 @@ pub mod errors;
 mod export;
 
 pub async fn execute(
-    bootstrap_server: String,
-    optional_client_properties: Option<Vec<String>>,
-    topics: Option<Vec<String>>,
+    bootstrap_server: &str,
+    optional_client_properties: &Option<Vec<String>>,
+    topics: &Option<Vec<String>>,
     offset_snapshot: OffsetSnapshot,
     confirmation: &dyn Fn(&OffsetSnapshot) -> bool,
 ) -> Result<(), ApplyOffsetsError> {
-    let mut exporter_base_config = ClientConfig::new();
-    exporter_base_config
-        .set_bootstrap_server(bootstrap_server.as_str())
+    let mut exporter_base_config = ClientConfig::new()
+        .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();

@@ -1,0 +1,8 @@
+services:
+     docs:
+       build:
+         context: .
+         dockerfile: ./dockerfiles/docs.dockerfile
+       ports:
+         - 9000:8080
+
