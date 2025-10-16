@@ -18,9 +18,7 @@ async fn main() -> Result<(), BridgeError> {
         Commands::FetchSource { kafka_connection } => {
             let client: KafkaBridgeClient = kafka_connection.into();
 
-            let result = client
-                .fetch_source_offsets_from_cluster()
-                .map_err(BridgeError::from)?;
+            let result = client.fetch_source_offsets_from_cluster()?;
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -33,8 +31,7 @@ async fn main() -> Result<(), BridgeError> {
             let offset_snapshot = helpers::get_offset_records(&input)?;
             let result = client
                 .calculate_target_offsets(legacy_offset_header.as_str(), offset_snapshot)
-                .await
-                .map_err(BridgeError::from)?;
+                .await?;
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -49,7 +46,6 @@ async fn main() -> Result<(), BridgeError> {
                     ask_for_confirmation(offset_snapshot)
                 })
                 .await
-                .map_err(|e| e.into())
         }
     };
     trace!("Execution finished.");

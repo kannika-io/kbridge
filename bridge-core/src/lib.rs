@@ -1,7 +1,3 @@
-use commands::{
-    apply_target_offsets::errors::ApplyOffsetsError,
-    calculate_target_offsets::errors::TransformationError, errors::FetchSourceOffsetsError,
-};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -9,7 +5,7 @@ pub mod client;
 mod commands;
 pub mod errors;
 pub mod helpers;
-mod kafka;
+pub mod kafka;
 mod read_offsets;
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
@@ -31,19 +27,21 @@ pub type TransformationRecord = (Topic, Partition, Offset, Offset);
 pub type ApplicationRecord = (Topic, Partition, Offset);
 
 pub trait BridgeClient {
-    fn fetch_source_offsets_from_cluster(&self) -> Result<OffsetSnapshot, FetchSourceOffsetsError>;
+    type Error;
+
+    fn fetch_source_offsets_from_cluster(&self) -> Result<OffsetSnapshot, Self::Error>;
 
     fn calculate_target_offsets(
         &self,
         legacy_offset_header: &str,
         offset_snapshot: OffsetSnapshot,
-    ) -> impl Future<Output = Result<OffsetSnapshot, TransformationError>>;
+    ) -> impl Future<Output = Result<OffsetSnapshot, Self::Error>>;
 
     fn apply_target_offsets(
         &self,
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
-    ) -> impl Future<Output = Result<(), ApplyOffsetsError>>;
+    ) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
 impl From<BridgeConfig> for KafkaBridgeClient {
