@@ -11,7 +11,7 @@ pub trait ConfigBuilder {
 
     fn disable_auto_commit(&mut self) -> &mut ClientConfig;
 
-    fn set_optional_properties(&mut self, properties: Option<Vec<String>>) -> &mut ClientConfig;
+    fn set_optional_properties(&mut self, properties: &Option<Vec<String>>) -> &mut ClientConfig;
 }
 
 impl ConfigBuilder for ClientConfig {
@@ -32,7 +32,7 @@ impl ConfigBuilder for ClientConfig {
 
     fn set_optional_properties(
         &mut self,
-        optional_properties: Option<Vec<String>>,
+        optional_properties: &Option<Vec<String>>,
     ) -> &mut ClientConfig {
         let mut group_id_present = false;
         if let Some(properties) = optional_properties {

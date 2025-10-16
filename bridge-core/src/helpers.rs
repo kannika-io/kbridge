@@ -1,9 +1,10 @@
 use crate::commands::fetch_source_offsets::OffsetSnapshotImporter;
 use crate::commands::fetch_source_offsets::errors::ImportError;
 use crate::read_offsets::csv::{CsvOffsetSnapshotImporter, convert};
-use crate::{OffsetRecord, OffsetSnapshot};
+use crate::{CsvInput, OffsetRecord, OffsetSnapshot};
+use std::collections::HashSet;
+use std::fmt::Display;
 use std::io::{BufRead, stdin};
-use std::path::PathBuf;
 
 pub fn get_from_stdin() -> Vec<OffsetRecord> {
     stdin()
@@ -13,22 +14,40 @@ pub fn get_from_stdin() -> Vec<OffsetRecord> {
         .filter_map(|line| convert(line).ok())
         .collect()
 }
-/// Fetches offset records, either from stdin or from a CSV file on the specified path
-pub fn fetch_offset_records(
-    from_stdin: bool,
-    source_offsets_csv_file_location: Option<PathBuf>,
-) -> Result<OffsetSnapshot, ImportError> {
-    match from_stdin {
-        true => Ok(get_from_stdin()),
-        false => {
-            if let Some(path) = source_offsets_csv_file_location {
-                let offset_snapshot_importer = CsvOffsetSnapshotImporter { file_path: path };
-                offset_snapshot_importer.import()
-            } else {
-                Err(ImportError::ResourceNotFound(
-                    "Import path is required if --from-stdin is not specified.".to_string(),
-                ))
-            }
+/// Get offset records, either from stdin or from a CSV file on the specified path
+pub fn get_offset_records(input: &Option<CsvInput>) -> Result<OffsetSnapshot, ImportError> {
+    match input {
+        Some(CsvInput::Stdin) | None => Ok(get_from_stdin()),
+        Some(CsvInput::File(path)) => {
+            let offset_snapshot_importer = CsvOffsetSnapshotImporter { file_path: path };
+            offset_snapshot_importer.import()
         }
+    }
+}
+
+pub fn get_unique_topics_from_offset_snapshot(offset_snapshot: &OffsetSnapshot) -> Vec<&str> {
+    offset_snapshot
+        .iter()
+        .map(|o| o.topic.as_str())
+        // Filter out duplicates. source_offsets can contain duplicate topic names in case multiple
+        // consumer groups are present
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+impl Display for OffsetRecord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{},{},{},{}",
+            self.consumer_group, self.topic, self.partition, self.offset
+        )
+    }
+}
+
+impl Display for CsvInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("{self:?}").as_str())
     }
 }

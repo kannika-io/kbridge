@@ -1,8 +1,6 @@
 use crate::errors::GeneralError;
-use args::{Args, Commands, CsvInput};
-use bridge_core::OffsetSnapshot;
-use bridge_core::commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets};
-use bridge_core::helpers::fetch_offset_records;
+use args::{Args, Commands};
+use bridge_core::{BridgeClient, KafkaBridgeClient, OffsetSnapshot, helpers};
 use clap::Parser;
 use comfy_table::Table;
 use inquire::Text;
@@ -20,12 +18,11 @@ async fn main() -> Result<(), GeneralError> {
 
     let result: Result<(), GeneralError> = match args.command {
         Commands::FetchSource { kafka_connection } => {
-            let result = fetch_source_offsets::execute(
-                kafka_connection.bootstrap_server,
-                kafka_connection.optional_client_properties,
-                kafka_connection.topics,
-            )
-            .map_err(GeneralError::from)?;
+            let client: KafkaBridgeClient = kafka_connection.into();
+
+            let result = client
+                .fetch_source_offsets_from_cluster()
+                .map_err(GeneralError::from)?;
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -34,23 +31,12 @@ async fn main() -> Result<(), GeneralError> {
             kafka_connection,
             input,
         } => {
-            let file_location = match input {
-                Some(CsvInput::Stdin) => None,
-                Some(CsvInput::File(path_buf)) => Some(path_buf),
-                None => None,
-            };
-
-            let offset_snapshot = fetch_offset_records(file_location.is_none(), file_location)
+            let client: KafkaBridgeClient = kafka_connection.into();
+            let offset_snapshot = helpers::get_offset_records(&input)?;
+            let result = client
+                .calculate_target_offsets(legacy_offset_header.as_str(), offset_snapshot)
+                .await
                 .map_err(GeneralError::from)?;
-            let result = calculate_target_offsets::execute(
-                kafka_connection.bootstrap_server,
-                legacy_offset_header,
-                kafka_connection.optional_client_properties,
-                kafka_connection.topics,
-                offset_snapshot,
-            )
-            .await
-            .map_err(GeneralError::from)?;
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -58,22 +44,14 @@ async fn main() -> Result<(), GeneralError> {
             kafka_connection,
             input,
         } => {
-            let file_location = match input {
-                Some(CsvInput::Stdin) => None,
-                Some(CsvInput::File(path_buf)) => Some(path_buf),
-                None => None,
-            };
-            let offset_snapshot = fetch_offset_records(file_location.is_none(), file_location)
-                .map_err(GeneralError::from)?;
-            apply_target_offsets::execute(
-                kafka_connection.bootstrap_server,
-                kafka_connection.optional_client_properties,
-                kafka_connection.topics,
-                offset_snapshot,
-                &|offset_snapshot| ask_for_confirmation(offset_snapshot),
-            )
-            .await
-            .map_err(|e| e.into())
+            let client: KafkaBridgeClient = kafka_connection.into();
+            let offset_snapshot = helpers::get_offset_records(&input)?;
+            client
+                .apply_target_offsets(offset_snapshot, &|offset_snapshot| {
+                    ask_for_confirmation(offset_snapshot)
+                })
+                .await
+                .map_err(|e| e.into())
         }
     };
     trace!("Execution finished.");

@@ -19,7 +19,7 @@ pub struct Metadata {
 /// Fetches metadata from kafka cluster: All consumer groups and topic-partition combos
 pub fn fetch_metadata(
     consumer: BaseConsumer,
-    topics: Option<Vec<String>>,
+    topics: &Option<Vec<String>>,
 ) -> Result<Metadata, FetchMetadataError> {
     let group_list = consumer.fetch_group_list(None, Timeout::After(Duration::from_secs(5)))?;
 

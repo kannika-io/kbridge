@@ -11,7 +11,7 @@ use crate::commands::calculate_target_offsets::transform::message_header::extrac
 use crate::commands::calculate_target_offsets::transform::watermarks::{
     get_high_watermark_for_topics, update_partitions_to_check,
 };
-use crate::get_unique_topics_from_offset_snapshot;
+use crate::helpers::get_unique_topics_from_offset_snapshot;
 use crate::{
     ConsumerGroup, ConsumerGroupRecord, OffsetSnapshot, Partition, Topic, TransformationRecord,
 };

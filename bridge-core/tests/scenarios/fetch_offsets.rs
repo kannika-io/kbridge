@@ -9,7 +9,7 @@ use crate::{init, stubs};
 
 #[test]
 pub fn fetch_source_offsets_when_invalid_broker_url_should_return_error() -> Result<()> {
-    let invalid_broker_address = fetch_source_offsets::execute("".to_string(), None, None);
+    let invalid_broker_address = fetch_source_offsets::execute("", &None, &None);
     assert_matches!(invalid_broker_address, Err(FetchMetadataError(_)));
 
     Ok(())
@@ -21,9 +21,9 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     setup_test_environment()?;
 
     let result = fetch_source_offsets::execute(
-        "localhost:9092".to_string(),
-        None,
-        Some(vec!["orders-1".to_string(), "orders-2".to_string()]),
+        "localhost:9092",
+        &None,
+        &Some(vec!["orders-1".to_string(), "orders-2".to_string()]),
     )?;
 
     let expected_offsets = get_expected_source_offsets();
@@ -49,15 +49,15 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
 
-    let result = fetch_source_offsets::execute("localhost:9092".to_string(), None, None)?;
+    let result = fetch_source_offsets::execute("localhost:9092", &None, &None)?;
     println!("{:#?}", result);
 
     let correct_result = get_expected_source_offsets();
 
     let result_filtered = fetch_source_offsets::execute(
-        "localhost:9092".to_string(),
-        None,
-        Some(vec!["orders-1".to_string()]),
+        "localhost:9092",
+        &None,
+        &Some(vec!["orders-1".to_string()]),
     )?;
 
     assert!(result.iter().all(|item| correct_result.contains(item)));

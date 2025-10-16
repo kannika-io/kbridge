@@ -13,15 +13,15 @@ pub mod errors;
 mod sources;
 
 pub fn execute(
-    bootstrap_server: String,
+    bootstrap_server: &str,
     // TODO: to prevent API from breaking & too many arguments, use an `Options` struct for all
     // optional parameters, with a default implementation for those
-    optional_client_properties: Option<Vec<String>>,
-    topics: Option<Vec<String>>,
+    optional_client_properties: &Option<Vec<String>>,
+    topics: &Option<Vec<String>>,
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {
     let mut config = ClientConfig::new();
     config
-        .set_bootstrap_server(bootstrap_server.as_str())
+        .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties);
 
@@ -32,7 +32,7 @@ pub fn execute(
 
     for consumer_group in &metadata.consumer_groups {
         let consumer_config = config
-            .set_optional_properties(Some(vec![format!("{}={}", GROUP_ID_KEY, consumer_group)]));
+            .set_optional_properties(&Some(vec![format!("{}={}", GROUP_ID_KEY, consumer_group)]));
         let consumer_for_group = consumer_config.create()?;
         consumers.insert(consumer_group.to_string(), consumer_for_group);
     }

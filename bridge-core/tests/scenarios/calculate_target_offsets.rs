@@ -15,14 +15,14 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
     init_logging()?;
     setup_test_environment()?;
     info!("Fetching source offsets");
-    let result = fetch_source_offsets::execute(String::from(SOURCE_BOOTSTRAP_SERVER), None, None)?;
+    let result = fetch_source_offsets::execute(SOURCE_BOOTSTRAP_SERVER, &None, &None)?;
 
     info!("Fetching target offsets");
     let target_offsets = calculate_target_offsets::execute(
-        String::from(TARGET_BOOTSTRAP_SERVER),
-        String::from(OFFSET_HEADER),
-        None,
-        None,
+        TARGET_BOOTSTRAP_SERVER,
+        OFFSET_HEADER,
+        &None,
+        &None,
         result,
     )
     .await?;
@@ -53,14 +53,14 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
     let topics = vec![String::from(ORDERS_1_TOPIC), String::from(ORDERS_2_TOPIC)];
 
     info!("Fetching source offsets");
-    let result = fetch_source_offsets::execute(String::from(SOURCE_BOOTSTRAP_SERVER), None, None)?;
+    let result = fetch_source_offsets::execute(SOURCE_BOOTSTRAP_SERVER, &None, &None)?;
 
     info!("Fetching target offsets");
     let target_offsets = calculate_target_offsets::execute(
-        String::from(TARGET_BOOTSTRAP_SERVER),
-        String::from(OFFSET_HEADER),
-        None,
-        Some(topics.clone()),
+        TARGET_BOOTSTRAP_SERVER,
+        OFFSET_HEADER,
+        &None,
+        &Some(topics.clone()),
         result,
     )
     .await?;

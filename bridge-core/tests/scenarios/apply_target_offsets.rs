@@ -39,14 +39,14 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
         .await?;
 
     info!("Fetching source offsets");
-    let result = fetch_source_offsets::execute(String::from(SOURCE_BOOTSTRAP_SERVER), None, None)?;
+    let result = fetch_source_offsets::execute(SOURCE_BOOTSTRAP_SERVER, &None, &None)?;
 
     info!("Fetching target offsets");
     let target_offsets = calculate_target_offsets::execute(
-        String::from(TARGET_BOOTSTRAP_SERVER),
-        String::from(OFFSET_HEADER),
-        None,
-        Some(topics.clone()),
+        TARGET_BOOTSTRAP_SERVER,
+        OFFSET_HEADER,
+        &None,
+        &Some(topics.clone()),
         result,
     )
     .await?;
@@ -54,9 +54,9 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
     info!("{:#?}", target_offsets);
 
     execute(
-        String::from(TARGET_BOOTSTRAP_SERVER),
-        None,
-        Some(topics.clone()),
+        TARGET_BOOTSTRAP_SERVER,
+        &None,
+        &Some(topics.clone()),
         target_offsets,
         &|_| true,
     )
@@ -74,7 +74,7 @@ async fn verify_consumer(topics: Vec<String>, consumer_group: &str) -> Result<()
 
     consumer_client_config.set_bootstrap_server(TARGET_BOOTSTRAP_SERVER);
     consumer_client_config
-        .set_optional_properties(Some(vec![format!("{GROUP_ID_KEY}={consumer_group}")]));
+        .set_optional_properties(&Some(vec![format!("{GROUP_ID_KEY}={consumer_group}")]));
 
     let (consumer, metadata) =
         setup_consumer_and_metadata(&topic_references, &mut consumer_client_config).await?;
