@@ -1,5 +1,5 @@
 **/.git/
 **/target/
-!target/doc/bridge_core/
+!target/doc/
 **/examples/
 **/Dockerfile*
