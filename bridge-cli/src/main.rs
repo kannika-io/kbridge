@@ -1,6 +1,5 @@
-use crate::errors::GeneralError;
 use args::{Args, Commands};
-use bridge_core::{BridgeClient, KafkaBridgeClient, OffsetSnapshot, helpers};
+use bridge_core::{errors::BridgeError, helpers, BridgeClient, KafkaBridgeClient, OffsetSnapshot};
 use clap::Parser;
 use comfy_table::Table;
 use inquire::Text;
@@ -10,19 +9,19 @@ mod args;
 mod errors;
 
 #[tokio::main]
-async fn main() -> Result<(), GeneralError> {
+async fn main() -> Result<(), BridgeError> {
     let args = Args::parse();
 
     env_logger::init();
     trace!("Executing with following arguments: {:?}", args);
 
-    let result: Result<(), GeneralError> = match args.command {
+    let result: Result<(), BridgeError> = match args.command {
         Commands::FetchSource { kafka_connection } => {
             let client: KafkaBridgeClient = kafka_connection.into();
 
             let result = client
                 .fetch_source_offsets_from_cluster()
-                .map_err(GeneralError::from)?;
+                .map_err(BridgeError::from)?;
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -36,7 +35,7 @@ async fn main() -> Result<(), GeneralError> {
             let result = client
                 .calculate_target_offsets(legacy_offset_header.as_str(), offset_snapshot)
                 .await
-                .map_err(GeneralError::from)?;
+                .map_err(BridgeError::from)?;
             print_offset_snapshot(&result);
             Ok(())
         }

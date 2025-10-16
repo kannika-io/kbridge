@@ -22,7 +22,7 @@ pub enum TransformationError {
     #[error("Offset header from message could not be fetched. Reason: {0}")]
     FetchOffsetError(#[from] FetchOffsetError),
     #[error("Error during offset mapping transformation. Reason: {0}")]
-    OffsetMappingTransformationError(#[from] OffsetMappingTransformationError),
+    OffsetMappingError(#[from] OffsetMappingTransformationError),
     #[error("Failed to fetch metadata. Reason: {0}")]
     MetadataFetchFailed(String),
     #[error(

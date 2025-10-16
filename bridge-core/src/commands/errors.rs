@@ -5,11 +5,11 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum FetchSourceOffsetsError {
     #[error("Kafka Error. Reason: {0}")]
-    KafkaError(#[from] KafkaError),
+    Kafka(#[from] KafkaError),
 
     #[error("Error while fetching metadata. Reason: {0}")]
-    FetchMetadataError(#[from] FetchMetadataError),
+    FetchMetadata(#[from] FetchMetadataError),
 
     #[error("Error while importing offsets. Reason: {0}")]
-    ImportOffsetsError(#[from] ImportOffsetsError),
+    ImportOffsets(#[from] ImportOffsetsError),
 }

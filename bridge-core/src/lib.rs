@@ -6,9 +6,10 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 pub mod client;
-pub mod commands;
+pub mod errors;
+mod commands;
 pub mod helpers;
-pub mod kafka;
+mod kafka;
 mod read_offsets;
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
