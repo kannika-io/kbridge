@@ -27,32 +27,32 @@ pub type TransformationRecord = (Topic, Partition, Offset, Offset);
 pub type ApplicationRecord = (Topic, Partition, Offset);
 
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
-/// 
+///
 /// This trait provides the core functionality for migrating consumer group offsets from a source
 /// Kafka cluster to a target cluster, handling the transformation of offsets based on message
 /// headers that contain the original source offsets.
-/// 
+///
 /// # Workflow
-/// 
+///
 /// The typical workflow for using a `BridgeClient` is:
 /// 1. Fetch current consumer group offsets from the source cluster
 /// 2. Calculate corresponding target offsets by reading messages and their headers
 /// 3. Apply the calculated offsets to consumer groups on the target cluster
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust,no_run
 /// # use bridge_core::{BridgeClient, KafkaBridgeClient, BridgeConfig};
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = BridgeConfig::new("localhost:9092".to_string());
 /// let client = KafkaBridgeClient::from(config);
-/// 
+///
 /// // Fetch current offsets from source cluster
 /// let source_offsets = client.fetch_source_offsets_from_cluster()?;
-/// 
+///
 /// // Calculate target offsets based on message headers
 /// let target_offsets = client.calculate_target_offsets("source-offset", source_offsets).await?;
-/// 
+///
 /// // Apply offsets to target cluster (with confirmation)
 /// client.apply_target_offsets(target_offsets, &|offsets| {
 ///     println!("About to apply {} offset records. Continue? (y/n)", offsets.len());
@@ -67,17 +67,17 @@ pub trait BridgeClient {
     type Error;
 
     /// Fetches the current consumer group offsets from the Kafka cluster.
-    /// 
+    ///
     /// This method retrieves the committed offsets for all consumer groups and their
     /// associated topic-partition combinations from the source Kafka cluster.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns an `OffsetSnapshot` containing all the current consumer group offset records,
     /// or an error if the operation fails (e.g., due to network issues or authentication problems).
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// This method will return an error if:
     /// - The Kafka cluster is unreachable
     /// - Authentication or authorization fails
@@ -85,24 +85,24 @@ pub trait BridgeClient {
     fn fetch_source_offsets_from_cluster(&self) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.
-    /// 
+    ///
     /// This method consumes messages from the target Kafka topics and looks for a specific
     /// header containing the original source offset. It then builds a mapping from source
     /// offsets to target offsets, allowing consumer groups to resume from the correct
     /// position in the target cluster.
-    /// 
+    ///
     /// # Parameters
-    /// 
+    ///
     /// * `legacy_offset_header` - The name of the message header that contains the source offset
     /// * `offset_snapshot` - The current consumer group offsets from the source cluster
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns a new `OffsetSnapshot` with the calculated target offsets that correspond
     /// to the source offsets, or an error if the calculation fails.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// This method will return an error if:
     /// - Messages cannot be consumed from the target topics
     /// - The specified header is missing from messages
@@ -115,22 +115,22 @@ pub trait BridgeClient {
     ) -> impl Future<Output = Result<OffsetSnapshot, Self::Error>>;
 
     /// Applies the calculated target offsets to consumer groups on the target cluster.
-    /// 
+    ///
     /// This method commits the provided offsets to the appropriate consumer groups,
     /// effectively setting their position in the target cluster topics. Before applying
     /// the offsets, it calls the provided confirmation function to allow for user approval.
-    /// 
+    ///
     /// # Parameters
-    /// 
+    ///
     /// * `offset_snapshot` - The target offsets to apply to consumer groups
     /// * `confirmation_request` - A function that receives the offsets and returns whether to proceed
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns `Ok(())` if all offsets were successfully applied, or an error if the operation fails.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// This method will return an error if:
     /// - The confirmation function returns `false`
     /// - Consumer groups cannot be created or accessed
