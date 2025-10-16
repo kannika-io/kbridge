@@ -6,8 +6,8 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 pub mod client;
-pub mod errors;
 mod commands;
+pub mod errors;
 pub mod helpers;
 mod kafka;
 mod read_offsets;

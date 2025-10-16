@@ -1,12 +1,11 @@
 use args::{Args, Commands};
-use bridge_core::{errors::BridgeError, helpers, BridgeClient, KafkaBridgeClient, OffsetSnapshot};
+use bridge_core::{BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, helpers};
 use clap::Parser;
 use comfy_table::Table;
 use inquire::Text;
 use log::trace;
 
 mod args;
-mod errors;
 
 #[tokio::main]
 async fn main() -> Result<(), BridgeError> {
