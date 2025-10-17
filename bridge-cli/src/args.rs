@@ -22,6 +22,9 @@ impl From<KafkaConnection> for KafkaBridgeClient {
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
+
+    #[arg(short, long, action)]
+    pub verbose: bool,
 }
 
 #[derive(Clone)]

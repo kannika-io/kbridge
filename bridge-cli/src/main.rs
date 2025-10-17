@@ -11,7 +11,16 @@ mod args;
 async fn main() -> Result<(), BridgeError> {
     let args = Args::parse();
 
-    env_logger::init();
+    if args.verbose {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Trace)
+            .init();
+    } else {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .init();
+    }
+
     trace!("Executing with following arguments: {:?}", args);
 
     let result: Result<(), BridgeError> = match args.command {
