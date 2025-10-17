@@ -49,14 +49,19 @@ async fn main() -> Result<(), BridgeError> {
         Commands::Apply {
             kafka_connection,
             input,
+            skip_confirmation,
         } => {
             let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
             let offset_snapshot = helpers::get_offset_records(&input)?;
+
+            let confirmation_clojure = match skip_confirmation {
+                true => |_: &OffsetSnapshot| true,
+                false => |offset_snapshot: &OffsetSnapshot| ask_for_confirmation(offset_snapshot),
+            };
+
             client
-                .apply_target_offsets(topics, offset_snapshot, &|offset_snapshot| {
-                    ask_for_confirmation(offset_snapshot)
-                })
+                .apply_target_offsets(topics, offset_snapshot, &confirmation_clojure)
                 .await
         }
     };
