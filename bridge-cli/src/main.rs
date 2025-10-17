@@ -33,7 +33,7 @@ async fn main() -> Result<(), BridgeError> {
             Ok(())
         }
         Commands::Calculate {
-            legacy_offset_header,
+            offset_header,
             kafka_connection,
             input,
         } => {
@@ -41,7 +41,7 @@ async fn main() -> Result<(), BridgeError> {
             let client: KafkaBridgeClient = kafka_connection.into();
             let offset_snapshot = helpers::get_offset_records(&input)?;
             let result = client
-                .calculate_target_offsets(legacy_offset_header.as_str(), topics, offset_snapshot)
+                .calculate_target_offsets(offset_header.as_str(), topics, offset_snapshot)
                 .await?;
             print_offset_snapshot(&result);
             Ok(())
