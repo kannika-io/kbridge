@@ -86,7 +86,7 @@ pub trait BridgeClient {
     fn fetch_source_offsets_from_cluster(
         &self,
         topics: &Option<Vec<String>>,
-        client_timeout: u64
+        client_timeout: u64,
     ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.

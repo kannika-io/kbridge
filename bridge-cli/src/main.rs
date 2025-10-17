@@ -27,11 +27,14 @@ async fn main() -> Result<(), BridgeError> {
     trace!("Executing with following arguments: {:?}", args);
 
     let result: Result<(), BridgeError> = match args.command {
-        Commands::Fetch { kafka_connection } => {
+        Commands::Fetch {
+            kafka_connection,
+            timeout,
+        } => {
             let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
 
-            let result = client.fetch_source_offsets_from_cluster(topics)?;
+            let result = client.fetch_source_offsets_from_cluster(topics, timeout)?;
             print_offset_snapshot(&result);
             Ok(())
         }

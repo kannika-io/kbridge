@@ -18,6 +18,7 @@ pub fn execute(
     // optional parameters, with a default implementation for those
     optional_client_properties: &Option<Vec<String>>,
     topics: &Option<Vec<String>>,
+    client_timeout: u64,
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {
     let config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)
@@ -25,7 +26,7 @@ pub fn execute(
         .set_optional_properties(optional_client_properties);
 
     let consumer: BaseConsumer = config.clone().create()?;
-    let metadata = fetch_metadata(consumer, topics)?;
+    let metadata = fetch_metadata(consumer, topics, client_timeout)?;
 
     let mut consumers: HashMap<String, BaseConsumer> = HashMap::new();
 

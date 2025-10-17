@@ -10,11 +10,13 @@ impl BridgeClient for KafkaBridgeClient {
     fn fetch_source_offsets_from_cluster(
         &self,
         topics: &Option<Vec<String>>,
+        client_timeout: u64,
     ) -> Result<OffsetSnapshot, BridgeError> {
         fetch_source_offsets::execute(
             self.config.bootstrap_server(),
             self.config.optional_client_properties(),
             topics,
+            client_timeout,
         )
         .map_err(|err| err.into())
     }

@@ -69,6 +69,10 @@ pub enum Commands {
     Fetch {
         #[command(flatten)]
         kafka_connection: KafkaConnection,
+
+        /// Timeout
+        #[arg(short, long, default_value_t = 5)]
+        timeout: u64,
     },
     /// Calculates target offsets based on message header in target cluster
     Calculate {

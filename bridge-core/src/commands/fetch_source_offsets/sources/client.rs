@@ -20,10 +20,13 @@ pub struct Metadata {
 pub fn fetch_metadata(
     consumer: BaseConsumer,
     topics: &Option<Vec<String>>,
+    client_timeout: u64,
 ) -> Result<Metadata, FetchMetadataError> {
-    let group_list = consumer.fetch_group_list(None, Timeout::After(Duration::from_secs(5)))?;
+    let group_list =
+        consumer.fetch_group_list(None, Timeout::After(Duration::from_secs(client_timeout)))?;
 
-    let metadata = consumer.fetch_metadata(None, Timeout::After(Duration::from_secs(5)))?;
+    let metadata =
+        consumer.fetch_metadata(None, Timeout::After(Duration::from_secs(client_timeout)))?;
 
     let mut topics_and_partitions: HashMap<String, Vec<i32>> = HashMap::new();
 
