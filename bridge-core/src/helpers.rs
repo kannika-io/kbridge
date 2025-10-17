@@ -1,12 +1,22 @@
+use log::trace;
+
 use crate::commands::fetch_source_offsets::OffsetSnapshotImporter;
 use crate::commands::fetch_source_offsets::errors::ImportError;
 use crate::read_offsets::csv::{CsvOffsetSnapshotImporter, convert};
 use crate::{CsvInput, OffsetRecord, OffsetSnapshot};
 use std::collections::HashSet;
 use std::fmt::Display;
-use std::io::{BufRead, stdin};
+use std::io::{BufRead, stdin, IsTerminal};
 
 pub fn get_from_stdin() -> Vec<OffsetRecord> {
+    trace!("Fetching offset records from stdin");
+    
+    // Check if stdin is a terminal (interactive) - if so, return empty vec to avoid blocking
+    if stdin().is_terminal() {
+        trace!("Stdin is a terminal, returning empty offset records");
+        return Vec::new();
+    }
+    
     stdin()
         .lock()
         .lines()
