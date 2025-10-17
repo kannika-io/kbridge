@@ -82,7 +82,7 @@ pub trait BridgeClient {
     /// - The Kafka cluster is unreachable
     /// - Authentication or authorization fails
     /// - There are issues reading consumer group metadata
-    fn fetch_source_offsets_from_cluster(&self) -> Result<OffsetSnapshot, Self::Error>;
+    fn fetch_source_offsets_from_cluster(&self, topics: &Option<Vec<String>>) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.
     ///
@@ -111,6 +111,7 @@ pub trait BridgeClient {
     fn calculate_target_offsets(
         &self,
         legacy_offset_header: &str,
+        topics: &Option<Vec<String>>,
         offset_snapshot: OffsetSnapshot,
     ) -> impl Future<Output = Result<OffsetSnapshot, Self::Error>>;
 
@@ -138,6 +139,7 @@ pub trait BridgeClient {
     /// - The operation is cancelled
     fn apply_target_offsets(
         &self,
+        topics: &Option<Vec<String>>, 
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
     ) -> impl Future<Output = Result<(), Self::Error>>;
@@ -156,9 +158,9 @@ pub struct KafkaBridgeClient {
 pub struct BridgeConfig {
     bootstrap_server: String,
 
+    // TODO this should be a HashMap instead of a Vec - CLI's responsibility to parse this
+    // correctly
     optional_client_properties: Option<Vec<String>>,
-
-    topics: Option<Vec<String>>,
 }
 
 impl BridgeConfig {
@@ -166,7 +168,6 @@ impl BridgeConfig {
         BridgeConfig {
             bootstrap_server,
             optional_client_properties: None,
-            topics: None,
         }
     }
 
@@ -178,21 +179,12 @@ impl BridgeConfig {
         self
     }
 
-    pub fn set_topics(mut self, topics: Option<Vec<String>>) -> Self {
-        self.topics = topics;
-        self
-    }
-
     pub fn bootstrap_server(&self) -> &str {
         self.bootstrap_server.as_str()
     }
 
     pub fn optional_client_properties(&self) -> &Option<Vec<String>> {
         &self.optional_client_properties
-    }
-
-    pub fn topics(&self) -> &Option<Vec<Topic>> {
-        &self.topics
     }
 }
 

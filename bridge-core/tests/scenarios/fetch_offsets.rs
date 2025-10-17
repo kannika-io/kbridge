@@ -13,7 +13,7 @@ use crate::{
 pub fn fetch_source_offsets_when_invalid_broker_url_should_return_error() -> Result<()> {
     let source_config: BridgeConfig = BridgeConfig::new("".to_string());
     let source_client: KafkaBridgeClient = source_config.into();
-    let invalid_broker_address = source_client.fetch_source_offsets_from_cluster();
+    let invalid_broker_address = source_client.fetch_source_offsets_from_cluster(&None);
 
     assert_matches!(
         invalid_broker_address,
@@ -28,12 +28,14 @@ pub fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
 
-    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string())
-        .set_topics(Some(vec!["orders-1".to_string(), "orders-2".to_string()]));
+    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
 
     let client: KafkaBridgeClient = config.into();
 
-    let result = client.fetch_source_offsets_from_cluster()?;
+    let result = client.fetch_source_offsets_from_cluster(&Some(vec![
+        "orders-1".to_string(),
+        "orders-2".to_string(),
+    ]))?;
 
     let expected_offsets = get_expected_source_offsets();
 
@@ -58,10 +60,12 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
 
-    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string())
-        .set_topics(Some(vec!["orders-1".to_string(), "orders-2".to_string()]));
+    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let client: KafkaBridgeClient = config.into();
-    let result = client.fetch_source_offsets_from_cluster()?;
+    let result = client.fetch_source_offsets_from_cluster(&Some(vec![
+        "orders-1".to_string(),
+        "orders-2".to_string(),
+    ]))?;
     println!("{:#?}", result);
 
     let correct_result = get_expected_source_offsets();

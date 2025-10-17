@@ -16,9 +16,10 @@ async fn main() -> Result<(), BridgeError> {
 
     let result: Result<(), BridgeError> = match args.command {
         Commands::Fetch { kafka_connection } => {
+            let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
 
-            let result = client.fetch_source_offsets_from_cluster()?;
+            let result = client.fetch_source_offsets_from_cluster(topics)?;
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -27,10 +28,11 @@ async fn main() -> Result<(), BridgeError> {
             kafka_connection,
             input,
         } => {
+            let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
             let offset_snapshot = helpers::get_offset_records(&input)?;
             let result = client
-                .calculate_target_offsets(legacy_offset_header.as_str(), offset_snapshot)
+                .calculate_target_offsets(legacy_offset_header.as_str(), topics, offset_snapshot)
                 .await?;
             print_offset_snapshot(&result);
             Ok(())
@@ -39,10 +41,11 @@ async fn main() -> Result<(), BridgeError> {
             kafka_connection,
             input,
         } => {
+            let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
             let offset_snapshot = helpers::get_offset_records(&input)?;
             client
-                .apply_target_offsets(offset_snapshot, &|offset_snapshot| {
+                .apply_target_offsets(topics, offset_snapshot, &|offset_snapshot| {
                     ask_for_confirmation(offset_snapshot)
                 })
                 .await
