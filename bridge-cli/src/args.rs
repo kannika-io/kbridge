@@ -73,7 +73,7 @@ pub enum Commands {
     /// Calculates target offsets based on message header in target cluster
     Calculate {
         /// Header in target messages that contains the offsets of the source topic
-        #[arg(short = 'h', long)]
+        #[arg(short = 'H', long)]
         offset_header: String,
 
         #[arg(
