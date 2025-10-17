@@ -1,5 +1,5 @@
 [package]
-name = "bridge-cli"
+name = "kbridge"
 version.workspace = true
 authors.workspace = true
 description.workspace = true

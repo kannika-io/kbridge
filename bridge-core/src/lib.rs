@@ -1,5 +1,8 @@
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub mod client;
 mod commands;
@@ -26,6 +29,8 @@ pub type ConsumerGroupRecord = (ConsumerGroup, Topic, Partition, Offset);
 pub type TransformationRecord = (Topic, Partition, Offset, Offset);
 pub type ApplicationRecord = (Topic, Partition, Offset);
 
+pub type Properties = HashMap<String, String>;
+
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
 ///
 /// This trait provides the core functionality for migrating consumer group offsets from a source
@@ -43,18 +48,19 @@ pub type ApplicationRecord = (Topic, Partition, Offset);
 ///
 /// ```rust,no_run
 /// # use bridge_core::{BridgeClient, KafkaBridgeClient, BridgeConfig};
+/// # use std::time::Duration;
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = BridgeConfig::new("localhost:9092".to_string());
-/// let client = KafkaBridgeClient::from(config);
+/// let client: KafkaBridgeClient = config.into();
 ///
 /// // Fetch current offsets from source cluster
-/// let source_offsets = client.fetch_source_offsets_from_cluster()?;
+/// let source_offsets = client.fetch_source_offsets_from_cluster(&None, Duration::from_secs(5))?;
 ///
 /// // Calculate target offsets based on message headers
-/// let target_offsets = client.calculate_target_offsets("source-offset", source_offsets).await?;
+/// let target_offsets = client.calculate_target_offsets("source-offset", &None, source_offsets).await?;
 ///
 /// // Apply offsets to target cluster (with confirmation)
-/// client.apply_target_offsets(target_offsets, &|offsets| {
+/// client.apply_target_offsets(&None, target_offsets, &|offsets| {
 ///     println!("About to apply {} offset records. Continue? (y/n)", offsets.len());
 ///     // In real code, read user input here
 ///     true
@@ -82,7 +88,11 @@ pub trait BridgeClient {
     /// - The Kafka cluster is unreachable
     /// - Authentication or authorization fails
     /// - There are issues reading consumer group metadata
-    fn fetch_source_offsets_from_cluster(&self) -> Result<OffsetSnapshot, Self::Error>;
+    fn fetch_source_offsets_from_cluster(
+        &self,
+        topics: &Option<Vec<String>>,
+        client_timeout: Duration,
+    ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.
     ///
@@ -111,6 +121,7 @@ pub trait BridgeClient {
     fn calculate_target_offsets(
         &self,
         legacy_offset_header: &str,
+        topics: &Option<Vec<String>>,
         offset_snapshot: OffsetSnapshot,
     ) -> impl Future<Output = Result<OffsetSnapshot, Self::Error>>;
 
@@ -138,6 +149,7 @@ pub trait BridgeClient {
     /// - The operation is cancelled
     fn apply_target_offsets(
         &self,
+        topics: &Option<Vec<String>>,
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
     ) -> impl Future<Output = Result<(), Self::Error>>;
@@ -155,10 +167,7 @@ pub struct KafkaBridgeClient {
 
 pub struct BridgeConfig {
     bootstrap_server: String,
-
-    optional_client_properties: Option<Vec<String>>,
-
-    topics: Option<Vec<String>>,
+    optional_client_properties: Option<Properties>,
 }
 
 impl BridgeConfig {
@@ -166,20 +175,14 @@ impl BridgeConfig {
         BridgeConfig {
             bootstrap_server,
             optional_client_properties: None,
-            topics: None,
         }
     }
 
     pub fn set_optional_client_properties(
         mut self,
-        optional_client_properties: Option<Vec<String>>,
+        optional_client_properties: Option<HashMap<String, String>>,
     ) -> Self {
         self.optional_client_properties = optional_client_properties;
-        self
-    }
-
-    pub fn set_topics(mut self, topics: Option<Vec<String>>) -> Self {
-        self.topics = topics;
         self
     }
 
@@ -187,12 +190,8 @@ impl BridgeConfig {
         self.bootstrap_server.as_str()
     }
 
-    pub fn optional_client_properties(&self) -> &Option<Vec<String>> {
+    pub fn optional_client_properties(&self) -> &Option<Properties> {
         &self.optional_client_properties
-    }
-
-    pub fn topics(&self) -> &Option<Vec<Topic>> {
-        &self.topics
     }
 }
 

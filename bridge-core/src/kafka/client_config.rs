@@ -1,6 +1,8 @@
 use log::warn;
 use rdkafka::ClientConfig;
 
+use crate::Properties;
+
 pub const DEFAULT_GROUP_ID: &str = "bridge-consumer-group";
 pub const GROUP_ID_KEY: &str = "group.id";
 
@@ -11,7 +13,7 @@ pub trait ConfigBuilder {
 
     fn disable_auto_commit(self) -> Self;
 
-    fn set_optional_properties(self, properties: &Option<Vec<String>>) -> Self;
+    fn set_optional_properties(self, properties: &Option<Properties>) -> Self;
 }
 
 impl ConfigBuilder for ClientConfig {
@@ -30,17 +32,14 @@ impl ConfigBuilder for ClientConfig {
         self
     }
 
-    fn set_optional_properties(mut self, optional_properties: &Option<Vec<String>>) -> Self {
+    fn set_optional_properties(mut self, optional_properties: &Option<Properties>) -> Self {
         let mut group_id_present = false;
         if let Some(properties) = optional_properties {
-            for property in properties {
-                let property_elements: Vec<&str> = property.split('=').collect();
-                if property_elements.len() == 2 {
-                    if property_elements[0] == "group.id" {
-                        group_id_present = true;
-                    }
-                    self.set(property_elements[0], property_elements[1]);
+            for (key, value) in properties {
+                if key == "group.id" {
+                    group_id_present = true;
                 }
+                self.set(key, value);
             }
         }
         if !group_id_present {
