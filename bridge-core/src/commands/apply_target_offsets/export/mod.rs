@@ -1,3 +1,4 @@
+use log::trace;
 use rdkafka::{
     ClientConfig, Offset, TopicPartitionList,
     consumer::{BaseConsumer, CommitMode, Consumer},
@@ -24,6 +25,8 @@ pub async fn apply_target_offsets(
                 Offset::Offset(transformation.2),
             )?;
         }
+
+        trace!("Commiting partition list {:#?}", topic_partition_list);
         consumer.commit(&topic_partition_list, CommitMode::Sync)?;
     }
     Ok(())

@@ -59,6 +59,7 @@ async fn main() -> Result<(), BridgeError> {
         } => {
             let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
+            trace!("applying target offsets");
             let offset_snapshot = get_offset_records(&input)?;
 
             let confirmation_clojure = match skip_confirmation {
