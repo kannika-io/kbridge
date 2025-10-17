@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use bridge_core::{
     BridgeClient, BridgeConfig, KafkaBridgeClient,
@@ -80,7 +82,10 @@ async fn verify_consumer(topics: &Option<Vec<String>>, consumer_group: &str) -> 
 
         let mut consumer_client_config = ClientConfig::new()
             .set_bootstrap_server(TARGET_BOOTSTRAP_SERVER)
-            .set_optional_properties(&Some(vec![format!("{}={consumer_group}", GROUP_ID_KEY)]));
+            .set_optional_properties(&Some(HashMap::from([(
+                GROUP_ID_KEY.to_string(),
+                consumer_group.to_string(),
+            )])));
 
         let (consumer, metadata) =
             setup_consumer_and_metadata(&topic_references, &mut consumer_client_config).await?;

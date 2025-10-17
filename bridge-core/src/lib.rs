@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 
@@ -26,6 +27,8 @@ pub type Offset = i64;
 pub type ConsumerGroupRecord = (ConsumerGroup, Topic, Partition, Offset);
 pub type TransformationRecord = (Topic, Partition, Offset, Offset);
 pub type ApplicationRecord = (Topic, Partition, Offset);
+
+pub type Properties = HashMap<String, String>;
 
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
 ///
@@ -162,10 +165,7 @@ pub struct KafkaBridgeClient {
 
 pub struct BridgeConfig {
     bootstrap_server: String,
-
-    // TODO this should be a HashMap instead of a Vec - CLI's responsibility to parse this
-    // correctly
-    optional_client_properties: Option<Vec<String>>,
+    optional_client_properties: Option<Properties>,
 }
 
 impl BridgeConfig {
@@ -178,7 +178,7 @@ impl BridgeConfig {
 
     pub fn set_optional_client_properties(
         mut self,
-        optional_client_properties: Option<Vec<String>>,
+        optional_client_properties: Option<HashMap<String, String>>,
     ) -> Self {
         self.optional_client_properties = optional_client_properties;
         self
@@ -188,7 +188,7 @@ impl BridgeConfig {
         self.bootstrap_server.as_str()
     }
 
-    pub fn optional_client_properties(&self) -> &Option<Vec<String>> {
+    pub fn optional_client_properties(&self) -> &Option<Properties> {
         &self.optional_client_properties
     }
 }

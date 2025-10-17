@@ -3,21 +3,19 @@ use std::path::PathBuf;
 
 use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient, Properties};
 use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
-use log::{error, warn};
 
 impl From<KafkaConnection> for BridgeConfig {
     fn from(value: KafkaConnection) -> Self {
-        let merged_properties = value.optional_client_properties
-            .map(|props_vec| {
-                props_vec.into_iter()
-                    .fold(HashMap::new(), |mut acc, props| {
-                        acc.extend(props);
-                        acc
-                    })
-            });
-        
-        BridgeConfig::new(value.bootstrap_server)
-            .set_optional_client_properties(merged_properties)
+        let merged_properties = value.optional_client_properties.map(|props_vec| {
+            props_vec
+                .into_iter()
+                .fold(HashMap::new(), |mut acc, props| {
+                    acc.extend(props);
+                    acc
+                })
+        });
+
+        BridgeConfig::new(value.bootstrap_server).set_optional_client_properties(merged_properties)
     }
 }
 

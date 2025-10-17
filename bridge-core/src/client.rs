@@ -1,5 +1,5 @@
 use crate::{
-    BridgeClient, KafkaBridgeClient, OffsetSnapshot,
+    BridgeClient, KafkaBridgeClient, OffsetSnapshot, Topic,
     commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets},
     errors::BridgeError,
 };
@@ -40,7 +40,7 @@ impl BridgeClient for KafkaBridgeClient {
 
     async fn apply_target_offsets(
         &self,
-        topics: &Option<Vec<String>>,
+        topics: &Option<Vec<Topic>>,
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
     ) -> Result<(), BridgeError> {
