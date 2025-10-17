@@ -8,6 +8,7 @@ use crate::{OffsetSnapshot, Properties};
 use rdkafka::ClientConfig;
 use rdkafka::consumer::BaseConsumer;
 use std::collections::HashMap;
+use std::time::Duration;
 
 pub mod errors;
 mod sources;
@@ -18,7 +19,7 @@ pub fn execute(
     // optional parameters, with a default implementation for those
     optional_client_properties: &Option<Properties>,
     topics: &Option<Vec<String>>,
-    client_timeout: u64,
+    client_timeout: Duration,
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {
     let config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)

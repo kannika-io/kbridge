@@ -1,5 +1,5 @@
-use std::{collections::HashMap, time::Duration};
 use std::path::PathBuf;
+use std::{collections::HashMap, time::Duration};
 
 use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient, Properties};
 use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
@@ -76,37 +76,14 @@ impl TypedValueParser for DurationParser {
         })?;
 
         // Try to parse as plain seconds first
-        if let Ok(seconds) = value_str.parse::<u64>() {
-            return Ok(Duration::from_secs(seconds));
-        }
-
-        // Parse duration with suffix (e.g., "5s", "30m", "1h")
-        let (number_part, suffix) = if value_str.ends_with("ms") {
-            (&value_str[..value_str.len() - 2], "ms")
-        } else if let Some(pos) = value_str.rfind(|c: char| c.is_alphabetic()) {
-            (&value_str[..pos], &value_str[pos..])
-        } else {
-            return Err(clap::Error::raw(
+        match value_str.parse::<u64>() {
+            Ok(seconds) => Ok(Duration::from_secs(seconds)),
+            Err(err) => Err(clap::Error::raw(
                 clap::error::ErrorKind::InvalidValue,
-                format!("Invalid duration format: '{}'. Expected format: number + suffix (s, m, h, ms) or plain seconds", value_str),
-            ));
-        };
-
-        let number: u64 = number_part.parse().map_err(|_| {
-            clap::Error::raw(
-                clap::error::ErrorKind::InvalidValue,
-                format!("Invalid number in duration: '{}'", number_part),
-            )
-        })?;
-
-        match suffix {
-            "ms" => Ok(Duration::from_millis(number)),
-            "s" => Ok(Duration::from_secs(number)),
-            "m" => Ok(Duration::from_secs(number * 60)),
-            "h" => Ok(Duration::from_secs(number * 3600)),
-            _ => Err(clap::Error::raw(
-                clap::error::ErrorKind::InvalidValue,
-                format!("Invalid duration suffix: '{}'. Supported: ms, s, m, h", suffix),
+                format!(
+                    "{} could not be parsed to seconds. Reason: {}",
+                    value_str, err
+                ),
             )),
         }
     }
@@ -172,8 +149,8 @@ pub enum Commands {
         #[command(flatten)]
         kafka_connection: KafkaConnection,
 
-        /// Timeout (e.g., "5s", "30m", "1h", or plain seconds)
-        #[arg(short = 'T', long, value_parser = DurationParser, default_value = "5s")]
+        /// Timeout for api requests to kafka server, in seconds
+        #[arg(short = 'T', long, value_parser = DurationParser, default_value = "5")]
         timeout: Duration,
     },
     /// Calculates target offsets based on message header in target cluster

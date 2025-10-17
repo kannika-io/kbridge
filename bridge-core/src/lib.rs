@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub mod client;
 mod commands;
@@ -89,7 +90,7 @@ pub trait BridgeClient {
     fn fetch_source_offsets_from_cluster(
         &self,
         topics: &Option<Vec<String>>,
-        client_timeout: u64,
+        client_timeout: Duration,
     ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.

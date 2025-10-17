@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     BridgeClient, KafkaBridgeClient, OffsetSnapshot, Topic,
     commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets},
@@ -10,7 +12,7 @@ impl BridgeClient for KafkaBridgeClient {
     fn fetch_source_offsets_from_cluster(
         &self,
         topics: &Option<Vec<String>>,
-        client_timeout: u64,
+        client_timeout: Duration,
     ) -> Result<OffsetSnapshot, BridgeError> {
         fetch_source_offsets::execute(
             self.config.bootstrap_server(),

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use bridge_core::{
@@ -55,7 +55,7 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
     let source_client: KafkaBridgeClient = source_config.into();
 
     info!("Fetching source offsets");
-    let result = source_client.fetch_source_offsets_from_cluster(topics, 5)?;
+    let result = source_client.fetch_source_offsets_from_cluster(topics, Duration::from_secs(5))?;
 
     let target_config: BridgeConfig = BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
     let target_client: KafkaBridgeClient = target_config.into();
