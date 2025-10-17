@@ -49,12 +49,12 @@ jobs:
        include:
          - os: ubuntu-latest
            target: x86_64-unknown-linux-gnu
-           binary_name: bridge-cli
-           artifact_name: bridge-cli-linux-x86_64
+           binary_name: kbridge
+           artifact_name: kbridge-linux-x86_64
          - os: windows-latest
            target: x86_64-pc-windows-msvc
-           binary_name: bridge-cli.exe
-           artifact_name: bridge-cli-windows-x86_64.exe
+           binary_name: kbridge.exe
+           artifact_name: kbridge-windows-x86_64.exe
    
    runs-on: ${{ matrix.os }}
    
