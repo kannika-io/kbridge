@@ -101,5 +101,8 @@ pub enum Commands {
 
         #[command(flatten)]
         kafka_connection: KafkaConnection,
+
+        #[arg(short = 'y', help = "Apply offsets without asking for confirmation")]
+        skip_confirmation: bool,
     },
 }
