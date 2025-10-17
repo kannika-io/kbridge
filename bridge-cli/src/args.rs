@@ -1,12 +1,23 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
-use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient};
+use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient, Properties};
 use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
+use log::{error, warn};
 
 impl From<KafkaConnection> for BridgeConfig {
     fn from(value: KafkaConnection) -> Self {
+        let merged_properties = value.optional_client_properties
+            .map(|props_vec| {
+                props_vec.into_iter()
+                    .fold(HashMap::new(), |mut acc, props| {
+                        acc.extend(props);
+                        acc
+                    })
+            });
+        
         BridgeConfig::new(value.bootstrap_server)
-            .set_optional_client_properties(value.optional_client_properties)
+            .set_optional_client_properties(merged_properties)
     }
 }
 
@@ -47,6 +58,38 @@ impl TypedValueParser for CsvInputParser {
     }
 }
 
+#[derive(Clone)]
+struct PropertiesInputParser;
+
+impl TypedValueParser for PropertiesInputParser {
+    type Value = Properties;
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let value_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                "Property value contains invalid UTF-8",
+            )
+        })?;
+
+        let mut properties = HashMap::new();
+        if let Some((key, val)) = value_str.split_once('=') {
+            properties.insert(key.to_string(), val.to_string());
+        } else {
+            return Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                format!("Property '{}' must be in format 'key=value'", value_str),
+            ));
+        }
+
+        Ok(properties)
+    }
+}
+
 #[derive(Debug, Parser)]
 pub struct KafkaConnection {
     /// The bootstrap server URL for the Kafka Broker
@@ -55,8 +98,13 @@ pub struct KafkaConnection {
 
     /// Additional properties for the kafka client, separated by a '='. e.g.:
     /// ssl.key.password=test
-    #[arg(short, long)]
-    pub optional_client_properties: Option<Vec<String>>,
+    #[arg(
+            short = 'p',
+            long,
+            value_parser = PropertiesInputParser,
+            action = clap::ArgAction::Append,
+        )]
+    pub optional_client_properties: Option<Vec<Properties>>,
 
     /// Specify topics. If no topics specified, all topics will be used.
     #[arg(short, long)]
@@ -71,7 +119,7 @@ pub enum Commands {
         kafka_connection: KafkaConnection,
 
         /// Timeout
-        #[arg(short, long, default_value_t = 5)]
+        #[arg(short = 'T', long, default_value_t = 5)]
         timeout: u64,
     },
     /// Calculates target offsets based on message header in target cluster
