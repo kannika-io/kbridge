@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use std::path::PathBuf;
 
 use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient, Properties};
@@ -52,6 +52,62 @@ impl TypedValueParser for CsvInputParser {
             Ok(CsvInput::Stdin)
         } else {
             Ok(CsvInput::File(PathBuf::from(value)))
+        }
+    }
+}
+
+#[derive(Clone)]
+struct DurationParser;
+
+impl TypedValueParser for DurationParser {
+    type Value = Duration;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let value_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                "Duration value contains invalid UTF-8",
+            )
+        })?;
+
+        // Try to parse as plain seconds first
+        if let Ok(seconds) = value_str.parse::<u64>() {
+            return Ok(Duration::from_secs(seconds));
+        }
+
+        // Parse duration with suffix (e.g., "5s", "30m", "1h")
+        let (number_part, suffix) = if value_str.ends_with("ms") {
+            (&value_str[..value_str.len() - 2], "ms")
+        } else if let Some(pos) = value_str.rfind(|c: char| c.is_alphabetic()) {
+            (&value_str[..pos], &value_str[pos..])
+        } else {
+            return Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                format!("Invalid duration format: '{}'. Expected format: number + suffix (s, m, h, ms) or plain seconds", value_str),
+            ));
+        };
+
+        let number: u64 = number_part.parse().map_err(|_| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                format!("Invalid number in duration: '{}'", number_part),
+            )
+        })?;
+
+        match suffix {
+            "ms" => Ok(Duration::from_millis(number)),
+            "s" => Ok(Duration::from_secs(number)),
+            "m" => Ok(Duration::from_secs(number * 60)),
+            "h" => Ok(Duration::from_secs(number * 3600)),
+            _ => Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                format!("Invalid duration suffix: '{}'. Supported: ms, s, m, h", suffix),
+            )),
         }
     }
 }
@@ -116,9 +172,9 @@ pub enum Commands {
         #[command(flatten)]
         kafka_connection: KafkaConnection,
 
-        /// Timeout
-        #[arg(short = 'T', long, default_value_t = 5)]
-        timeout: u64,
+        /// Timeout (e.g., "5s", "30m", "1h", or plain seconds)
+        #[arg(short = 'T', long, value_parser = DurationParser, default_value = "5s")]
+        timeout: Duration,
     },
     /// Calculates target offsets based on message header in target cluster
     Calculate {
