@@ -48,12 +48,13 @@ pub type Properties = HashMap<String, String>;
 ///
 /// ```rust,no_run
 /// # use bridge_core::{BridgeClient, KafkaBridgeClient, BridgeConfig};
+/// # use std::time::Duration;
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = BridgeConfig::new("localhost:9092".to_string());
 /// let client: KafkaBridgeClient = config.into();
 ///
 /// // Fetch current offsets from source cluster
-/// let source_offsets = client.fetch_source_offsets_from_cluster(&None, 5)?;
+/// let source_offsets = client.fetch_source_offsets_from_cluster(&None, Duration::from_secs(5))?;
 ///
 /// // Calculate target offsets based on message headers
 /// let target_offsets = client.calculate_target_offsets("source-offset", &None, source_offsets).await?;
