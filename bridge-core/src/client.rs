@@ -7,11 +7,14 @@ use crate::{
 impl BridgeClient for KafkaBridgeClient {
     type Error = BridgeError;
 
-    fn fetch_source_offsets_from_cluster(&self,  topics : &Option<Vec<String>>) -> Result<OffsetSnapshot, BridgeError> {
+    fn fetch_source_offsets_from_cluster(
+        &self,
+        topics: &Option<Vec<String>>,
+    ) -> Result<OffsetSnapshot, BridgeError> {
         fetch_source_offsets::execute(
             self.config.bootstrap_server(),
             self.config.optional_client_properties(),
-            topics
+            topics,
         )
         .map_err(|err| err.into())
     }
@@ -19,7 +22,7 @@ impl BridgeClient for KafkaBridgeClient {
     async fn calculate_target_offsets(
         &self,
         legacy_offset_header: &str,
-        topics : &Option<Vec<String>>,
+        topics: &Option<Vec<String>>,
         offset_snapshot: OffsetSnapshot,
     ) -> Result<OffsetSnapshot, BridgeError> {
         calculate_target_offsets::execute(

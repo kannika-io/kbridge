@@ -82,7 +82,10 @@ pub trait BridgeClient {
     /// - The Kafka cluster is unreachable
     /// - Authentication or authorization fails
     /// - There are issues reading consumer group metadata
-    fn fetch_source_offsets_from_cluster(&self, topics: &Option<Vec<String>>) -> Result<OffsetSnapshot, Self::Error>;
+    fn fetch_source_offsets_from_cluster(
+        &self,
+        topics: &Option<Vec<String>>,
+    ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.
     ///
@@ -139,7 +142,7 @@ pub trait BridgeClient {
     /// - The operation is cancelled
     fn apply_target_offsets(
         &self,
-        topics: &Option<Vec<String>>, 
+        topics: &Option<Vec<String>>,
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
     ) -> impl Future<Output = Result<(), Self::Error>>;
