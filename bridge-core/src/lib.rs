@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::future::Future;
 use std::path::PathBuf;
 
 pub mod client;
@@ -45,16 +46,16 @@ pub type ApplicationRecord = (Topic, Partition, Offset);
 /// # use bridge_core::{BridgeClient, KafkaBridgeClient, BridgeConfig};
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = BridgeConfig::new("localhost:9092".to_string());
-/// let client = KafkaBridgeClient::from(config);
+/// let client: KafkaBridgeClient = config.into();
 ///
 /// // Fetch current offsets from source cluster
-/// let source_offsets = client.fetch_source_offsets_from_cluster()?;
+/// let source_offsets = client.fetch_source_offsets_from_cluster(&None, 5)?;
 ///
 /// // Calculate target offsets based on message headers
-/// let target_offsets = client.calculate_target_offsets("source-offset", source_offsets).await?;
+/// let target_offsets = client.calculate_target_offsets("source-offset", &None, source_offsets).await?;
 ///
 /// // Apply offsets to target cluster (with confirmation)
-/// client.apply_target_offsets(target_offsets, &|offsets| {
+/// client.apply_target_offsets(&None, target_offsets, &|offsets| {
 ///     println!("About to apply {} offset records. Continue? (y/n)", offsets.len());
 ///     // In real code, read user input here
 ///     true
@@ -85,6 +86,7 @@ pub trait BridgeClient {
     fn fetch_source_offsets_from_cluster(
         &self,
         topics: &Option<Vec<String>>,
+        client_timeout: u64
     ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.
