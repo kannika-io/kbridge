@@ -1,6 +1,20 @@
 use log::warn;
 
-
+/// Calculates a new target offset based on the difference between current and target source offsets.
+///
+/// This function applies the offset delta from source to target, ensuring the result stays within
+/// the partition's watermark boundaries. Returns `None` if no adjustment is needed.
+///
+/// # Arguments
+/// * `current_target` - The current offset in the target partition
+/// * `current_source` - The current offset in the source partition  
+/// * `target_source` - The desired offset in the source partition
+/// * `high_water_mark` - Maximum valid offset for the target partition
+/// * `low_water_mark` - Minimum valid offset for the target partition
+///
+/// # Returns
+/// * `Some(offset)` - The calculated new target offset, clamped to watermark bounds
+/// * `None` - If current_source equals target_source (no change needed)
 pub fn execute(
     current_target: i64,
     current_source: i64,
@@ -42,6 +56,7 @@ pub fn execute(
 
     new_target
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
