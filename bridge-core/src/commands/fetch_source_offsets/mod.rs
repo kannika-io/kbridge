@@ -23,7 +23,6 @@ pub fn execute(
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {
     let config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)
-        .set_reset_from_beginning()
         .set_optional_properties(optional_client_properties);
 
     let consumer: BaseConsumer = config.clone().create()?;

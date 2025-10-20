@@ -1,6 +1,8 @@
 use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
 use crate::{OffsetRecord, OffsetSnapshot};
 use log::{trace, warn};
+use rdkafka::admin::{AdminClient, AdminOptions};
+use rdkafka::client::DefaultClientContext;
 use rdkafka::{
     TopicPartitionList,
     consumer::{BaseConsumer, Consumer},

@@ -1,21 +1,24 @@
-use log::trace;
+use log::{error, info, trace, warn};
 use rdkafka::Message;
-use rdkafka::consumer::StreamConsumer;
+use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::metadata::Metadata;
 use std::collections::HashMap;
+use std::time::Duration;
+use watermarks::{
+    get_topic_partition_watermarks, get_watermarks_for_topics, update_partitions_to_search,
+};
 
 use crate::commands::calculate_target_offsets::errors::TransformationError;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset::try_find_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset_mapping::handle_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::message_header::extract_source_offset_from_message_headers;
-use crate::commands::calculate_target_offsets::transform::watermarks::{
-    get_high_watermark_for_topics, update_partitions_to_check,
-};
 use crate::helpers::get_unique_topics_from_offset_snapshot;
 use crate::{
-    ConsumerGroup, ConsumerGroupRecord, OffsetSnapshot, Partition, Topic, TransformationRecord,
+    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetSnapshot, Partition, Topic,
+    TransformationRecord,
 };
 
+mod calculate_new_offset;
 mod consumer_group_offset;
 mod consumer_group_offset_mapping;
 mod message_header;
@@ -70,9 +73,7 @@ pub async fn get_target_offsets(
     let mut transformations = HashMap::new();
     let topics: Vec<&str> = get_unique_topics_from_offset_snapshot(source_offsets);
 
-    // Fetch watermarks for topics and partitions
-    // We need this to be able to exit the consumer loop
-    let topic_partition_watermarks = get_high_watermark_for_topics(&consumer, &metadata, &topics)?;
+    let topic_partition_watermarks = get_watermarks_for_topics(&consumer, &metadata, &topics)?;
 
     let mut partitions_to_search: Vec<(Topic, Partition)> = topic_partition_watermarks
         .iter()
@@ -100,7 +101,6 @@ pub async fn get_target_offsets(
     let mut nearest_offsets = HashMap::new();
 
     trace!("Starting consumer loop");
-    // Consume all messages from the topics we are subscribed to
 
     // TODO add timeout to consumer loop
     // If target topic without messages, will otherwise be stuck in an endless loop
@@ -114,21 +114,70 @@ pub async fn get_target_offsets(
                     topic_selector: topics.join(","),
                 })?;
 
-        let source_offset = extract_source_offset_from_message_headers(
-            consume_result.headers(),
-            offset_header_key,
-        )?;
+        let source_offset_to_search = missing_offsets
+            .iter()
+            .find(|m| m.1 == consume_result.topic() && m.2 == consume_result.partition())
+            .iter()
+            .map(|o| o.3)
+            .min();
 
-        try_find_missing_offsets(
-            &consume_result,
-            source_offset,
-            source_offsets,
-            &mut transformations,
-            &mut missing_offsets,
-            &mut nearest_offsets,
-        )?;
+        trace!("Source offset: {:?}", source_offset_to_search);
 
-        update_partitions_to_check(
+        if let Some(source_offset) = source_offset_to_search {
+            let source_offset_current_message = extract_source_offset_from_message_headers(
+                consume_result.headers(),
+                offset_header_key,
+            )?;
+
+            let watermarks = *get_topic_partition_watermarks(
+                &topic_partition_watermarks,
+                consume_result.topic(),
+                consume_result.partition(),
+            )?;
+
+            warn!(
+                "Calculating new offset for topic {} and partition {}",
+                consume_result.topic(),
+                consume_result.partition()
+            );
+            let new_offset = calculate_new_offset::execute(
+                consume_result.offset(),
+                source_offset_current_message,
+                source_offset,
+                watermarks.1,
+                watermarks.0,
+            );
+
+            if let Some(offset) = new_offset {
+                warn!(
+                    "Setting new offset for topic {}, partition {} : {}",
+                    consume_result.topic(),
+                    consume_result.partition(),
+                    offset
+                );
+                consumer.seek(
+                    consume_result.topic(),
+                    consume_result.partition(),
+                    rdkafka::Offset::Offset(offset),
+                    Duration::from_secs(5),
+                )?;
+            }
+
+            try_find_missing_offsets(
+                &consume_result,
+                source_offset_current_message,
+                source_offsets,
+                &mut transformations,
+                &mut missing_offsets,
+                &mut nearest_offsets,
+            )?;
+
+            trace!("missing offsets: {:?}", missing_offsets);
+            trace!("remaining partitions: {:?}", partitions_to_search);
+        } else {
+            trace!("Skipping finding missing offsets.");
+        }
+        update_partitions_to_search(
             &consume_result,
             &topic_partition_watermarks,
             &mut partitions_to_search,
