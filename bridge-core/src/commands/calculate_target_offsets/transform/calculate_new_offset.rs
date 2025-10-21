@@ -1,4 +1,4 @@
-use log::warn;
+use log::trace;
 
 /// Calculates a new target offset based on the difference between current and target source offsets.
 ///
@@ -23,7 +23,7 @@ pub fn execute(
     low_water_mark: i64,
 ) -> Option<i64> {
     let mut new_target = None;
-    warn!(
+    trace!(
         "{}, {}, {}, {}, {}",
         current_target, current_source, target_source, high_water_mark, low_water_mark
     );
@@ -45,8 +45,8 @@ pub fn execute(
         new_target = None
     }
 
-    warn!("{:?}", new_target);
-    warn!("\n");
+    trace!("{:?}", new_target);
+    trace!("\n");
 
     if let Some(value) = new_target {
         if value == current_target {
@@ -119,7 +119,7 @@ mod tests {
         let result = execute(100, 60, 70, 200, 0);
         let calculated = 100 + (70 - 60); // = 110
         assert_eq!(result, Some(110));
-        
+
         // Now test a case where calculated value would equal current_target
         let result2 = execute(100, 60, 60, 200, 0);
         assert_eq!(result2, None); // current_source == target_source
@@ -153,4 +153,3 @@ mod tests {
         assert_eq!(result, Some(2500)); // 1000 + (2000 - 500) = 2500
     }
 }
-
