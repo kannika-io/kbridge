@@ -1,5 +1,14 @@
 use log::trace;
 
+#[derive(Debug)]
+pub struct CalculateOffsetInput {
+    pub current_target: i64,
+    pub current_source: i64,
+    pub target_source: i64,
+    pub high_water_mark: i64,
+    pub low_water_mark: i64,
+}
+
 /// Calculates a new target offset based on the difference between current and target source offsets.
 ///
 /// This function applies the offset delta from source to target, ensuring the result stays within
@@ -15,19 +24,19 @@ use log::trace;
 /// # Returns
 /// * `Some(offset)` - The calculated new target offset, clamped to watermark bounds
 /// * `None` - If current_source equals target_source (no change needed)
-pub fn execute(
-    current_target: i64,
-    current_source: i64,
-    target_source: i64,
-    high_water_mark: i64,
-    low_water_mark: i64,
-) -> Option<i64> {
+pub fn execute(input: CalculateOffsetInput) -> Option<i64> {
+    trace!("{:?}", input);
+
+    let CalculateOffsetInput {
+        current_target,
+        current_source,
+        target_source,
+        high_water_mark,
+        low_water_mark,
+    } = input;
     let mut new_target = None;
-    trace!(
-        "{}, {}, {}, {}, {}",
-        current_target, current_source, target_source, high_water_mark, low_water_mark
-    );
-    if current_source < target_source {
+
+    if input.current_source < target_source {
         let calculated_value = current_target + (target_source - current_source);
         if calculated_value > high_water_mark {
             new_target = Some(high_water_mark - 1);
@@ -64,92 +73,170 @@ mod tests {
     #[test]
     fn test_current_source_less_than_target_source_within_bounds() {
         // current_target + (target_source - current_source) <= high_water_mark
-        let result = execute(100, 50, 80, 200, 0);
-        assert_eq!(result, Some(130)); // 100 + (80 - 50) = 130
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 50,
+            target_source: 80,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
+        assert_eq!(execute(input), Some(130)); // 100 + (80 - 50) = 130
     }
 
     #[test]
     fn test_current_source_less_than_target_source_exceeds_high_watermark() {
         // current_target + (target_source - current_source) > high_water_mark
-        let result = execute(100, 50, 200, 120, 0);
-        assert_eq!(result, Some(119)); // high_water_mark - 1 = 119
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 50,
+            target_source: 200,
+            high_water_mark: 120,
+            low_water_mark: 0,
+        };
+        assert_eq!(execute(input), Some(119)); // high_water_mark - 1 = 119
     }
 
     #[test]
     fn test_current_source_greater_than_target_source_within_bounds() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 80,
+            target_source: 50,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
         // current_target - (current_source - target_source) >= low_water_mark
-        let result = execute(100, 80, 50, 200, 0);
-        assert_eq!(result, Some(70)); // 100 - (80 - 50) = 70
+        assert_eq!(execute(input), Some(70)); // 100 - (80 - 50) = 70
     }
 
     #[test]
     fn test_current_source_greater_than_target_source_below_low_watermark() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 150,
+            target_source: 50,
+            high_water_mark: 200,
+            low_water_mark: 80,
+        };
         // current_target - (current_source - target_source) < low_water_mark
-        let result = execute(100, 150, 50, 200, 80);
-        assert_eq!(result, Some(80)); // low_water_mark = 80
+        assert_eq!(execute(input), Some(80)); // low_water_mark = 80
     }
 
     #[test]
     fn test_current_source_equals_target_source() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 75,
+            target_source: 75,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
         // When current_source == target_source, should return None initially
-        let result = execute(100, 75, 75, 200, 0);
-        assert_eq!(result, None);
+        assert_eq!(execute(input), None);
     }
 
     #[test]
     fn test_calculated_value_equals_current_target_gets_adjusted() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 50,
+            target_source: 50,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
         // When calculated value equals current_target, it should be adjusted to high_water_mark - 1
-        let result = execute(100, 50, 50, 200, 0);
         // Initially returns None (current_source == target_source)
         // But the adjustment logic at the end doesn't apply since new_target is None
-        assert_eq!(result, None);
+        assert_eq!(execute(input), None);
     }
 
     #[test]
     fn test_calculated_value_equals_current_target_forward_calculation() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 50,
+            target_source: 50,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
         // Test case where forward calculation results in current_target
-        let result = execute(100, 50, 50, 200, 0);
-        assert_eq!(result, None); // current_source == target_source
+        assert_eq!(execute(input), None); // current_source == target_source
     }
 
     #[test]
     fn test_adjustment_when_new_target_equals_current_target() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 60,
+            target_source: 70,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
         // Create a scenario where the calculated value equals current_target
         // This happens when target_source == current_source, but let's test the adjustment logic
-        let result = execute(100, 60, 70, 200, 0);
         let calculated = 100 + (70 - 60); // = 110
-        assert_eq!(result, Some(110));
+        assert_eq!(execute(input), Some(calculated));
 
+        let input2 = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 60,
+            target_source: 60,
+            high_water_mark: 200,
+            low_water_mark: 0,
+        };
         // Now test a case where calculated value would equal current_target
-        let result2 = execute(100, 60, 60, 200, 0);
-        assert_eq!(result2, None); // current_source == target_source
+        assert_eq!(execute(input2), None); // current_source == target_source
     }
 
     #[test]
     fn test_edge_case_high_watermark_boundary() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 50,
+            target_source: 100,
+            high_water_mark: 150,
+            low_water_mark: 0,
+        };
         // Test when calculated value exactly equals high_water_mark
-        let result = execute(100, 50, 100, 150, 0);
-        assert_eq!(result, Some(149)); // high_water_mark - 1 = 149
+        assert_eq!(execute(input), Some(150));
     }
 
     #[test]
     fn test_edge_case_low_watermark_boundary() {
+        let input = CalculateOffsetInput {
+            current_target: 100,
+            current_source: 100,
+            target_source: 50,
+            high_water_mark: 200,
+            low_water_mark: 50,
+        };
         // Test when calculated value exactly equals low_water_mark
-        let result = execute(100, 100, 50, 200, 50);
-        assert_eq!(result, Some(50)); // low_water_mark = 50
+        assert_eq!(execute(input), Some(50)); // low_water_mark = 50
     }
 
     #[test]
     fn test_negative_offsets() {
+        let input = CalculateOffsetInput {
+            current_target: 10,
+            current_source: 20,
+            target_source: 5,
+            high_water_mark: 50,
+            low_water_mark: -10,
+        };
         // Test with negative values (though unlikely in Kafka, good for robustness)
-        let result = execute(10, 20, 5, 50, -10);
-        assert_eq!(result, Some(-5)); // 10 - (20 - 5) = -5
+        assert_eq!(execute(input), Some(-5)); // 10 - (20 - 5) = -5
     }
 
     #[test]
     fn test_large_offset_differences() {
+        let input = CalculateOffsetInput {
+            current_target: 1000,
+            current_source: 500,
+            target_source: 2000,
+            high_water_mark: 5000,
+            low_water_mark: 0,
+        };
         // Test with large differences
-        let result = execute(1000, 500, 2000, 5000, 0);
-        assert_eq!(result, Some(2500)); // 1000 + (2000 - 500) = 2500
+        assert_eq!(execute(input), Some(2500)); // 1000 + (2000 - 500) = 2500
     }
 }

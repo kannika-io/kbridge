@@ -1,3 +1,4 @@
+use calculate_new_offset::CalculateOffsetInput;
 use log::{error, info, trace, warn};
 use rdkafka::Message;
 use rdkafka::consumer::{Consumer, StreamConsumer};
@@ -140,13 +141,14 @@ pub async fn get_target_offsets(
                 consume_result.topic(),
                 consume_result.partition()
             );
-            let new_offset = calculate_new_offset::execute(
-                consume_result.offset(),
-                source_offset_current_message,
-                source_offset,
-                watermarks.1,
-                watermarks.0,
-            );
+
+            let new_offset = calculate_new_offset::execute(CalculateOffsetInput {
+                current_target: consume_result.offset(),
+                current_source: source_offset_current_message,
+                target_source: source_offset,
+                high_water_mark: watermarks.1,
+                low_water_mark: watermarks.0,
+            });
 
             if let Some(offset) = new_offset {
                 warn!(
