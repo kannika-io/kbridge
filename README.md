@@ -29,9 +29,8 @@ graph LR
 
 ### Prerequisites
 
-- Kafka clusters must be accessible via bootstrap servers
-- Consumer groups must exist on both source and target clusters
-- Messages on target cluster must contain source offset information in headers (for transformation step)
+- Kafka clusters must be accessible via bootstrap servers and credentials
+- Messages on target cluster must contain **source offset information** in headers (for transformation step) the name of the header is configurable
 - Appropriate permissions to read consumer group metadata and commit offsets
 
 ## Installation
@@ -52,15 +51,11 @@ sudo mv kbridge /usr/local/bin/
 
 ### macOS
 
-```bash
-# Download and install (replace VERSION with actual version)
-curl -L https://github.com/cymo-eu/kannika-bridge/releases/download/vVERSION/kbridge-macos.tar.gz | tar xz
-sudo mv kbridge /usr/local/bin/
-```
+No installation possible. In a later release, installation via Docker will be added.
 
 ### Windows
 
-Download the Windows executable from the releases page and add it to your PATH.
+Download the Windows executable from the releases page and add it to your PATH variable.
 
 ### Build from Source
 
@@ -94,7 +89,7 @@ Against local source (localhost:9092) and target (localhost:9093) clusters:
 kbridge fetch -b localhost:9092 > source_offsets.csv
 
 # Step 2: Calculate target offsets
-kbridge calculate -b localhost:9093 -l Offset -i source_offsets.csv > target_offsets.csv
+kbridge calculate -b localhost:9093 -H Offset -i source_offsets.csv > target_offsets.csv
 
 # Step 3: Apply target offsets (with confirmation prompt)
 kbridge apply -b localhost:9093 -i target_offsets.csv
@@ -110,7 +105,7 @@ kbridge calculate -b localhost:9093 -l Offset | \
 kbridge apply -b localhost:9093
 ```
 
-> ⚠️ **Safety First**: Before applying offsets, a confirmation prompt is shown to prevent accidental modifications.
+> ⚠️ **Safety First**: Before applying offsets, a confirmation prompt is shown to prevent accidental modifications. The prompt can be skipped by adding the '-y' flag to the apply step (See help section for more info).
 
 ### Authentication Examples
 
@@ -158,7 +153,7 @@ kbridge fetch -b localhost:9092 -t topic1 -t topic2 -t topic3
 
 ```bash
 # Use custom header key for offset mapping
-kbridge calculate -b localhost:9093 -l CustomOffsetHeader -i offsets.csv
+kbridge calculate -b localhost:9093 -H CustomOffsetHeader -i offsets.csv
 ```
 
 ### CSV Format
@@ -182,7 +177,7 @@ my-consumer-group,payments,0,5678
 
 #### "No headers in message" or "Header not found"
 - Messages on the target cluster must contain source offset information in headers
-- Verify the header key matches what you specified with `-l` flag
+- Verify the header key matches what you specified with `-H` flag
 - Check that your replication process is preserving message headers
 
 #### "Kafka Error: Authentication failed"
@@ -200,7 +195,9 @@ my-consumer-group,payments,0,5678
 Enable verbose logging for troubleshooting:
 
 ```bash
-RUST_LOG=debug kbridge fetch -b localhost:9092
+kbridge --verbose fetch -b localhost:9092
+# or
+kbridge -v fetch -b localhost:9092
 ```
 
 ### Dry Run
@@ -210,7 +207,7 @@ To see what offsets would be applied without actually committing them:
 ```bash
 # Calculate and review target offsets before applying
 kbridge fetch -b source:9092 | \
-kbridge calculate -b target:9093 -l Offset > review_offsets.csv
+kbridge calculate -b target:9093 -l Offset
 
 # Review the CSV file, then apply if satisfied
 kbridge apply -b target:9093 -i review_offsets.csv
@@ -250,7 +247,4 @@ TODO
 
 ## Support
 
-- 📖 [Documentation](https://github.com/cymo-eu/kannika-bridge/wiki)
 - 🐛 [Issue Tracker](https://github.com/cymo-eu/kannika-bridge/issues)
-- 💬 [Discussions](https://github.com/cymo-eu/kannika-bridge/discussions)
-
