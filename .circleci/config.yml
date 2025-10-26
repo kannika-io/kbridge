@@ -9,6 +9,20 @@ always: &always
     only: /.*/
   branches:
     only: /.*/
+    
+docker-context: &docker-context
+  - prj-product-d-kannika-3bcd-artifact-registry-d-kannika-docker-internal
+  - product-pool-gcp-oidc
+  - prj-product-d-kannika-3bcd
+  - slack-auth-token
+  - dependency-tracker-api-key
+
+cache-context: &cache-context
+  - prj-product-d-kannika-3bcd-artifact-registry-d-kannika-docker-internal
+  - prj-product-d-kannika-3bcd-artifact-registry-d-kannika-docker-internal-cache-cache
+  - product-pool-gcp-oidc
+  - prj-product-d-kannika-3bcd
+  - slack-auth-token
 
 # define the parameters that will be used to generate the dynamic configuration.
 parameters:
