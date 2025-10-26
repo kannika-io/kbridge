@@ -66,7 +66,7 @@ workflows:
           use_docker_buildkit: true
           extra_build_args: --ssh default
           # git_pull_submodules: true
-          # push_gar: << pipeline.parameters.push >> 
+          push_gar: << pipeline.parameters.push >> 
           cache: $CIRCLE_BRANCH #if invoked by tag var is empty and cache will be disabled
           cache_key: $CIRCLE_BRANCH/amd
           cache_repo: $CACHE_ARTIFACT_REGISTRY_URL/$CACHE_ARTIFACT_REGISTRY_PROJECT/$CACHE_ARTIFACT_REGISTRY_NAME
@@ -85,7 +85,7 @@ workflows:
           use_docker_buildkit: true
           extra_build_args: --ssh default
           # git_pull_submodules: true
-          # push_gar: << pipeline.parameters.push >> 
+          push_gar: << pipeline.parameters.push >> 
           cache: $CIRCLE_BRANCH #if invoked by tag var is empty and cache will be disabled
           cache_key: $CIRCLE_BRANCH/arm
           cache_repo: $CACHE_ARTIFACT_REGISTRY_URL/$CACHE_ARTIFACT_REGISTRY_PROJECT/$CACHE_ARTIFACT_REGISTRY_NAME
@@ -96,8 +96,7 @@ workflows:
 # manifest
       # create docker manifest and push images/manifest
       - orbert-downey-jr/docker_create_manifest_gar:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           image_name: kannika-bridge-cli
           manifest_version: <<pipeline.number>>-manifest
           context: *docker-context
@@ -106,8 +105,7 @@ workflows:
             - docker_build_arm
     # Tag pushed manifest in gar with $CIRCLE_SHA1 or $CIRCLE_TAG
       - orbert-downey-jr/docker_tag_gar:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           name: tag_with_sha
           image_name: kannika-bridge-cli
           image_old_tag: <<pipeline.number>>-manifest
@@ -117,8 +115,7 @@ workflows:
           context: *docker-context
     # Tag pushed manifest in gar with 0.0.0
       - orbert-downey-jr/docker_tag_gar:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           name: tag_with_0.0.0
           image_name: kannika-bridge-cli
           image_old_tag: <<pipeline.number>>-manifest
@@ -130,8 +127,7 @@ workflows:
 # sbom
     # build sbom for rust code
       - orbert-downey-jr/rust_sbom:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           path: .
           push_sbom_directly: false
           context:
@@ -139,16 +135,14 @@ workflows:
             - dependency-tracker-api-key
     # merge rust sbom folder
       - orbert-downey-jr/cyclonedx_merge_folder:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           requires:
             - orbert-downey-jr/rust_sbom
           context:
             - slack-auth-token
     # build sbom for rust container
       - orbert-downey-jr/syft_sbom:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           pre-steps: # steps to run before steps defined in the job bar
             - orbert-downey-jr/gcp_auth_oidc:
                 version: 471.0.0
@@ -162,8 +156,7 @@ workflows:
           context: *docker-context
     # merge container sbom with code sbom
       - orbert-downey-jr/cyclonedx_merge:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           requires:
             - orbert-downey-jr/syft_sbom
             - orbert-downey-jr/cyclonedx_merge_folder
@@ -171,8 +164,7 @@ workflows:
             - slack-auth-token
     # push sbom to deptrack
       - orbert-downey-jr/push_sbom:
-          # filters: *main-master-release-branch-tag
-          filters: *always
+          filters: *main-master-release-branch-tag
           dt_project_name: kannika-bridge-cli
           dt_project_version: latest
           requires:
