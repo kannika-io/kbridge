@@ -9,7 +9,7 @@ always: &always
     only: /.*/
   branches:
     only: /.*/
-    
+
 docker-context: &docker-context
   - prj-product-d-kannika-3bcd-artifact-registry-d-kannika-docker-internal
   - product-pool-gcp-oidc
@@ -80,7 +80,7 @@ jobs:
   # manifest
     # create docker manifest and push images/manifest
       - orbert-downey-jr/docker_create_manifest_gar:
-          filters: *main-master-release-branch-tag
+          filters: *always
           image_name: kannika-bridge-core
           manifest_version: <<pipeline.number>>-manifest
           context: *docker-context
