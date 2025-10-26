@@ -85,7 +85,7 @@ workflows:
       # create docker manifest and push images/manifest
       - orbert-downey-jr/docker_create_manifest_gar:
           filters: *always
-          image_name: kannika-bridge-core
+          image_name: kannika-bridge-cli
           manifest_version: <<pipeline.number>>-manifest
           context: *docker-context
           requires:
