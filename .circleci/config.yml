@@ -42,6 +42,9 @@ parameters:
   push:
     type: boolean
     default: true
+  tag:
+    type: string
+    default: "$CIRCLE_SHA1"
 
 # invoke the orbs to filter, pack and continue configs.
 orbs:
