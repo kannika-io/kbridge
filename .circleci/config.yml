@@ -50,6 +50,7 @@ workflows:
           image: kannika-bridge-cli
           image_tag: <<pipeline.number>>-amd64
           directory: bridge-cli
+          dockerfile: ../dockerfiles/bridge-cli.dockerfile
           use_docker_buildkit: true
           # extra_build_args: --ssh default
           # git_pull_submodules: true
@@ -68,6 +69,7 @@ workflows:
           image: kannika-bridge-cli
           image_tag: <<pipeline.number>>-arm64
           directory: bridge-cli
+          dockerfile: ../dockerfiles/bridge-cli.dockerfile
           use_docker_buildkit: true
           # extra_build_args: --ssh default
           # git_pull_submodules: true
