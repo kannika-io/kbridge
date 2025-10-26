@@ -52,7 +52,7 @@ workflows:
           directory: bridge-cli
           dockerfile: ../dockerfiles/bridge-cli.dockerfile
           use_docker_buildkit: true
-          # extra_build_args: --ssh default
+          extra_build_args: --ssh default
           # git_pull_submodules: true
           # push_gar: << pipeline.parameters.push >> 
           cache: $CIRCLE_BRANCH #if invoked by tag var is empty and cache will be disabled
@@ -71,7 +71,7 @@ workflows:
           directory: bridge-cli
           dockerfile: ../dockerfiles/bridge-cli.dockerfile
           use_docker_buildkit: true
-          # extra_build_args: --ssh default
+          extra_build_args: --ssh default
           # git_pull_submodules: true
           # push_gar: << pipeline.parameters.push >> 
           cache: $CIRCLE_BRANCH #if invoked by tag var is empty and cache will be disabled
