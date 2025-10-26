@@ -38,9 +38,11 @@ orbs:
   orbert-downey-jr: cymo-eu/orbert-downey-jr@2.2.0
   orbert-deniro: cymo-eu/orbert-deniro@0.1.1
 
-jobs:
-  # =================
-  # AMD build artifact
+workflows:
+  build:
+    jobs:
+      # =================
+      # AMD build artifact
       - orbert-downey-jr/docker_buildx:
           filters: *always
           executor: orbert-downey-jr/ubuntu_2204_medium
@@ -57,8 +59,8 @@ jobs:
           cache_repo: $CACHE_ARTIFACT_REGISTRY_URL/$CACHE_ARTIFACT_REGISTRY_PROJECT/$CACHE_ARTIFACT_REGISTRY_NAME
           persist_to_workspace: true
           context: *cache-context
-  # =================
-  # ARM build artifact
+      # =================
+      # ARM build artifact
       - orbert-downey-jr/docker_buildx:
           filters: *always
           executor: orbert-downey-jr/ubuntu_2204_medium_arm
@@ -76,9 +78,9 @@ jobs:
           enabled: << pipeline.parameters.arm >> 
           persist_to_workspace: true
           context: *cache-context
-  # =================
-  # manifest
-    # create docker manifest and push images/manifest
+      # =================
+      # manifest
+      # create docker manifest and push images/manifest
       - orbert-downey-jr/docker_create_manifest_gar:
           filters: *always
           image_name: kannika-bridge-core
