@@ -48,8 +48,7 @@ parameters:
 
 # invoke the orbs to filter, pack and continue configs.
 orbs:
-  orbert-downey-jr: cymo-eu/orbert-downey-jr@2.2.0
-  orbert-deniro: cymo-eu/orbert-deniro@0.1.1
+  orbert-downey-jr: cymo-eu/orbert-downey-jr@2.3.1
 
 workflows:
   build:
@@ -127,7 +126,7 @@ workflows:
           requires:
             - orbert-downey-jr/docker_create_manifest_gar
           context: *docker-context
-# =================
+# ================= 
 # sbom
     # build sbom for rust code
       - orbert-downey-jr/rust_sbom:
