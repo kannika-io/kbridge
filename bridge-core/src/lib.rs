@@ -9,7 +9,9 @@ mod commands;
 pub mod errors;
 pub mod helpers;
 pub mod kafka;
+mod prelude;
 mod read_offsets;
+pub use prelude::*;
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 pub struct OffsetRecord {
@@ -18,18 +20,6 @@ pub struct OffsetRecord {
     pub offset: i64,
     pub consumer_group: String,
 }
-
-pub type OffsetSnapshot = Vec<OffsetRecord>;
-
-pub type Partition = i32;
-pub type Topic = String;
-pub type ConsumerGroup = String;
-pub type Offset = i64;
-pub type ConsumerGroupRecord = (ConsumerGroup, Topic, Partition, Offset);
-pub type TransformationRecord = (Topic, Partition, Offset, Offset);
-pub type ApplicationRecord = (Topic, Partition, Offset);
-
-pub type Properties = HashMap<String, String>;
 
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
 ///
