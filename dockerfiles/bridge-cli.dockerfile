@@ -33,6 +33,6 @@ ARG KNK_CORE_BUILD_MODE
 RUN apk add --no-cache ca-certificates librdkafka cyrus-sasl libgcc zstd zlib jemalloc bash
 ## Override the default allocator with jemalloc for the whole container.
 ENV LD_PRELOAD="/usr/lib/libjemalloc.so.2"
-COPY --from=core-builder /usr/src/kannika-bridge/target/${KNK_CORE_BUILD_MODE}/kbridge /usr/bin/bridge-cli
+COPY --from=core-builder /usr/src/kannika-bridge/target/${KNK_CORE_BUILD_MODE}/kbridge /usr/bin/kbridge
 
 ENTRYPOINT ["/bin/bash"]
