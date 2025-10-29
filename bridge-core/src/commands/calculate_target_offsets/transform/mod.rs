@@ -1,5 +1,5 @@
 use calculate_new_offset::CalculateOffsetInput;
-use log::{error, info, trace, warn};
+use log::{trace, warn};
 use rdkafka::Message;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::metadata::Metadata;
@@ -13,11 +13,8 @@ use crate::commands::calculate_target_offsets::errors::TransformationError;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset::try_find_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::consumer_group_offset_mapping::handle_missing_offsets;
 use crate::commands::calculate_target_offsets::transform::message_header::extract_source_offset_from_message_headers;
-use crate::helpers::get_unique_topics_from_offset_snapshot;
-use crate::{
-    ConsumerGroup, ConsumerGroupRecord, Offset, OffsetSnapshot, Partition, Topic,
-    TransformationRecord,
-};
+
+use crate::prelude::*;
 
 mod calculate_new_offset;
 mod consumer_group_offset;
@@ -72,7 +69,7 @@ pub async fn get_target_offsets(
     validate_input_parameters(source_offsets, offset_header_key)?;
 
     let mut transformations = HashMap::new();
-    let topics: Vec<&str> = get_unique_topics_from_offset_snapshot(source_offsets);
+    let topics: Vec<&str> = source_offsets.topics().iter().cloned().collect();
 
     let topic_partition_watermarks = get_watermarks_for_topics(&consumer, &metadata, &topics)?;
 
@@ -89,7 +86,7 @@ pub async fn get_target_offsets(
 
     let mut missing_offsets: Vec<ConsumerGroupRecord> = source_offsets
         .iter()
-        .map(|o| {
+        .map(|o: &OffsetRecord| {
             (
                 o.consumer_group.clone(),
                 o.topic.clone(),
@@ -215,45 +212,44 @@ mod tests {
 
     #[test]
     fn test_validate_input_parameters_success() {
-        let source_offsets = vec![OffsetRecord {
+        let mut snapshot = OffsetSnapshot::new();
+        snapshot.push(OffsetRecord {
             topic: "test-topic".to_string(),
             partition: 0,
             offset: 100,
             consumer_group: "test-group".to_string(),
-        }];
+        });
+
         let offset_header_key = "source-offset";
 
-        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        let result = validate_input_parameters(&snapshot, offset_header_key);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_validate_input_parameters_empty_source_offsets() {
-        let source_offsets = vec![];
+    fn test_validate_input_parameters_empty_snapshot() {
+        let snapshot = OffsetSnapshot::new();
         let offset_header_key = "source-offset";
 
-        let result = validate_input_parameters(&source_offsets, offset_header_key);
-        assert!(result.is_err());
+        let result = validate_input_parameters(&snapshot, offset_header_key);
 
-        match result.unwrap_err() {
-            TransformationError::InvalidInput(msg) => {
-                assert_eq!(msg, "Source offsets cannot be empty");
-            }
-            _ => panic!("Expected InvalidInput error"),
-        }
+        assert!(matches!(result,
+            Err(TransformationError::InvalidInput(msg)) if msg == "Source offsets cannot be empty"
+        ));
     }
 
     #[test]
     fn test_validate_input_parameters_empty_offset_header_key() {
-        let source_offsets = vec![OffsetRecord {
+        let mut snapshot = OffsetSnapshot::new();
+        snapshot.push(OffsetRecord {
             topic: "test-topic".to_string(),
             partition: 0,
             offset: 100,
             consumer_group: "test-group".to_string(),
-        }];
+        });
         let offset_header_key = "";
 
-        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        let result = validate_input_parameters(&snapshot, offset_header_key);
         assert!(result.is_err());
 
         match result.unwrap_err() {
@@ -266,22 +262,24 @@ mod tests {
 
     #[test]
     fn test_validate_input_parameters_whitespace_only_offset_header_key() {
-        let source_offsets = vec![OffsetRecord {
+        let mut snapshot = OffsetSnapshot::new();
+        snapshot.push(OffsetRecord {
             topic: "test-topic".to_string(),
             partition: 0,
             offset: 100,
             consumer_group: "test-group".to_string(),
-        }];
+        });
         let offset_header_key = "   ";
 
         // This should pass validation since we only check for empty string, not whitespace
-        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        // FIXME: consider enhancing validation to trim whitespace
+        let result = validate_input_parameters(&snapshot, offset_header_key);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_validate_input_parameters_multiple_source_offsets() {
-        let source_offsets = vec![
+        let snapshot = OffsetSnapshot::from(vec![
             OffsetRecord {
                 topic: "test-topic-1".to_string(),
                 partition: 0,
@@ -294,10 +292,10 @@ mod tests {
                 offset: 200,
                 consumer_group: "test-group-2".to_string(),
             },
-        ];
+        ]);
         let offset_header_key = "source-offset";
 
-        let result = validate_input_parameters(&source_offsets, offset_header_key);
+        let result = validate_input_parameters(&snapshot, offset_header_key);
         assert!(result.is_ok());
     }
 }

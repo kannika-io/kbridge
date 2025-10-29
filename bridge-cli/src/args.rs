@@ -1,7 +1,9 @@
+use std::fmt::Display;
+use std::io::{self, stdin};
 use std::path::PathBuf;
 use std::{collections::HashMap, time::Duration};
 
-use bridge_core::{BridgeConfig, CsvInput, KafkaBridgeClient, Properties};
+use bridge_core::{BridgeConfig, KafkaBridgeClient, Properties};
 use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
 
 impl From<KafkaConnection> for BridgeConfig {
@@ -166,7 +168,7 @@ pub enum Commands {
             value_parser = CsvInputParser,
             help = "Path to CSV file containing the offsets (use '-' for stdin)",
         )]
-        input: Option<CsvInput>,
+        input: CsvInput,
 
         #[command(flatten)]
         kafka_connection: KafkaConnection,
@@ -180,7 +182,7 @@ pub enum Commands {
             value_parser = CsvInputParser,
             help = "Path to CSV file containing the offsets (use '-' for stdin)",
         )]
-        input: Option<CsvInput>,
+        input: CsvInput,
 
         #[command(flatten)]
         kafka_connection: KafkaConnection,
@@ -188,4 +190,29 @@ pub enum Commands {
         #[arg(short = 'y', help = "Apply offsets without asking for confirmation")]
         skip_confirmation: bool,
     },
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum CsvInput {
+    #[default]
+    Stdin,
+    File(PathBuf),
+}
+
+impl io::Read for CsvInput {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            CsvInput::Stdin => stdin().read(buf),
+            CsvInput::File(file_path) => {
+                let mut file = std::fs::File::open(file_path)?;
+                file.read(buf)
+            }
+        }
+    }
+}
+
+impl Display for CsvInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("{self:?}").as_str())
+    }
 }

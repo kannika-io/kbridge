@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub mod errors;
 mod export;
 
+// TODO split in plan and apply so we can avoid the confirmation request
 pub async fn execute(
     bootstrap_server: &str,
     optional_client_properties: &Option<Properties>,

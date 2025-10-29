@@ -1,8 +1,6 @@
 use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
 use crate::{OffsetRecord, OffsetSnapshot};
 use log::{trace, warn};
-use rdkafka::admin::{AdminClient, AdminOptions};
-use rdkafka::client::DefaultClientContext;
 use rdkafka::{
     TopicPartitionList,
     consumer::{BaseConsumer, Consumer},
@@ -63,7 +61,7 @@ pub fn fetch_all_committed_consumer_group_offsets(
     metadata: Metadata,
     consumers: HashMap<String, BaseConsumer>,
 ) -> Result<OffsetSnapshot, ImportOffsetsError> {
-    let mut all_offsets: OffsetSnapshot = Vec::new();
+    let mut all_offsets = OffsetSnapshot::new();
     for group in &metadata.consumer_groups {
         trace!("Fetching committed offsets for group {}", group);
         let group_consumer = consumers
@@ -84,19 +82,20 @@ pub fn fetch_all_committed_consumer_group_offsets(
         for committed_offset in committed_offsets.elements() {
             trace!("Committed offset: {:?}", committed_offset);
             match committed_offset.offset().to_raw() {
-                Some(value) => {
-                    if value != NO_OFFSET {
-                        let value = OffsetRecord {
-                            topic: committed_offset.topic().to_string(),
-                            partition: committed_offset.partition(),
-                            offset: value,
-                            consumer_group: group.to_string(),
-                        };
-                        all_offsets.push(value);
-                    }
+                Some(value) if value != NO_OFFSET => {
+                    let value = OffsetRecord {
+                        topic: committed_offset.topic().to_string(),
+                        partition: committed_offset.partition(),
+                        offset: value,
+                        consumer_group: group.to_string(),
+                    };
+                    all_offsets.push(value);
                 }
                 None => {
                     warn!("Error fetching offset. Ignoring.");
+                }
+                _ => {
+                    // Offset not found
                 }
             }
         }

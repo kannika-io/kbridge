@@ -1,25 +1,14 @@
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::PathBuf;
 use std::time::Duration;
 
 pub mod client;
 mod commands;
 pub mod errors;
-pub mod helpers;
 pub mod kafka;
-mod prelude;
-mod read_offsets;
+pub mod prelude;
+pub mod snapshot;
 pub use prelude::*;
-
-#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
-pub struct OffsetRecord {
-    pub topic: String,
-    pub partition: i32,
-    pub offset: i64,
-    pub consumer_group: String,
-}
 
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
 ///
@@ -51,7 +40,7 @@ pub struct OffsetRecord {
 ///
 /// // Apply offsets to target cluster (with confirmation)
 /// client.apply_target_offsets(&None, target_offsets, &|offsets| {
-///     println!("About to apply {} offset records. Continue? (y/n)", offsets.len());
+///     println!("About to apply {} offset records. Continue? (y/n)", offsets.size());
 ///     // In real code, read user input here
 ///     true
 /// }).await?;
@@ -183,10 +172,4 @@ impl BridgeConfig {
     pub fn optional_client_properties(&self) -> &Option<Properties> {
         &self.optional_client_properties
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum CsvInput {
-    File(PathBuf),
-    Stdin,
 }

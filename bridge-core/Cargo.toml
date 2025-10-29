@@ -10,13 +10,15 @@ rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "f
 log = { workspace = true }
 thiserror = { workspace = true }
 csv = { workspace = true }
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+futures = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl", "cmake-build"] }
 
 [dev-dependencies]
-anyhow = "1.0.100"
+anyhow = "1"
+indoc = "2"
 assert_matches = "1.5.0"
 tempfile = "3.23.0"
 env_logger = { workspace = true }

@@ -1,7 +1,6 @@
 use args::{Args, Commands};
 use bridge_core::{
-    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError,
-    helpers::get_offset_records,
+    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, snapshot::csv::FromCsv,
 };
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot};
@@ -45,7 +44,7 @@ async fn main() -> Result<(), BridgeError> {
         } => {
             let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
-            let offset_snapshot = get_offset_records(&input)?;
+            let offset_snapshot = OffsetSnapshot::from_csv(input)?;
             let result = client
                 .calculate_target_offsets(offset_header.as_str(), topics, offset_snapshot)
                 .await?;
@@ -60,15 +59,15 @@ async fn main() -> Result<(), BridgeError> {
             let topics = &kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
             trace!("applying target offsets");
-            let offset_snapshot = get_offset_records(&input)?;
+            let snapshot = OffsetSnapshot::from_csv(input)?;
 
             let confirmation_clojure = match skip_confirmation {
                 true => |_: &OffsetSnapshot| true,
-                false => |offset_snapshot: &OffsetSnapshot| ask_for_confirmation(offset_snapshot),
+                false => |snapshot: &OffsetSnapshot| ask_for_confirmation(snapshot),
             };
 
             client
-                .apply_target_offsets(topics, offset_snapshot, &confirmation_clojure)
+                .apply_target_offsets(topics, snapshot, &confirmation_clojure)
                 .await
         }
     };

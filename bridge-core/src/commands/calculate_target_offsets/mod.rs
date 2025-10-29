@@ -1,5 +1,4 @@
 use crate::commands::calculate_target_offsets::errors::TransformationError;
-use crate::helpers::get_unique_topics_from_offset_snapshot;
 use crate::kafka::client_config::ConfigBuilder;
 use crate::kafka::consumer::setup_consumer_and_metadata;
 use crate::{OffsetRecord, OffsetSnapshot, Properties, TransformationRecord};
@@ -15,12 +14,12 @@ pub async fn execute(
     legacy_offset_header: &str,
     optional_client_properties: &Option<Properties>,
     topics: &Option<Vec<String>>,
-    result: OffsetSnapshot,
+    snapshot: OffsetSnapshot,
 ) -> Result<OffsetSnapshot, TransformationError> {
-    let result_filtered: Vec<OffsetRecord> = result
-        .into_iter()
-        .filter(|o| topics.as_ref().is_none_or(|t| t.contains(&o.topic)))
-        .collect();
+    let snapshot = match topics {
+        Some(topics) => snapshot.filter_by_topic(topics),
+        None => snapshot,
+    };
 
     trace!("Initializing consumer and fetching metadata..");
 
@@ -30,7 +29,7 @@ pub async fn execute(
         .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
 
-    let topics: Vec<&str> = get_unique_topics_from_offset_snapshot(&result_filtered);
+    let topics: Vec<&str> = snapshot.topics().into_iter().collect();
 
     // Initialize consumer
     let (consumer, metadata) =
@@ -39,17 +38,16 @@ pub async fn execute(
     trace!("Initialization completed.");
 
     let transformed_result =
-        get_target_offsets(legacy_offset_header, &result_filtered, consumer, metadata).await?;
+        get_target_offsets(legacy_offset_header, &snapshot, consumer, metadata).await?;
 
-    Ok(transformed_result
-        .iter()
-        .flat_map(|o| {
-            o.1.iter().map(|t: &TransformationRecord| OffsetRecord {
-                topic: t.0.to_string(),
-                partition: t.1,
-                offset: t.3,
-                consumer_group: o.0.to_string(),
-            })
+    let snapshot = OffsetSnapshot::from_iter(transformed_result.iter().flat_map(|o| {
+        o.1.iter().map(|t: &TransformationRecord| OffsetRecord {
+            topic: t.0.to_string(),
+            partition: t.1,
+            offset: t.3,
+            consumer_group: o.0.to_string(),
         })
-        .collect())
+    }));
+
+    Ok(snapshot)
 }

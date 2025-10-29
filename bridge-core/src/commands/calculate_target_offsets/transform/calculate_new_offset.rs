@@ -16,7 +16,7 @@ pub struct CalculateOffsetInput {
 ///
 /// # Arguments
 /// * `current_target` - The current offset in the target partition
-/// * `current_source` - The current offset in the source partition  
+/// * `current_source` - The current offset in the source partition
 /// * `target_source` - The desired offset in the source partition
 /// * `high_water_mark` - Maximum valid offset for the target partition
 /// * `low_water_mark` - Minimum valid offset for the target partition
@@ -34,7 +34,7 @@ pub fn execute(input: CalculateOffsetInput) -> Option<i64> {
         high_water_mark,
         low_water_mark,
     } = input;
-    let mut new_target = None;
+    let mut new_target;
 
     if input.current_source < target_source {
         let calculated_value = current_target + (target_source - current_source);

@@ -1,5 +1,4 @@
 use super::errors::FetchSourceOffsetsError;
-use crate::commands::fetch_source_offsets::errors::ImportError;
 use crate::commands::fetch_source_offsets::sources::client::{
     fetch_all_committed_consumer_group_offsets, fetch_metadata,
 };
@@ -44,7 +43,4 @@ pub fn execute(
     Ok(fetch_all_committed_consumer_group_offsets(
         metadata, consumers,
     )?)
-}
-pub trait OffsetSnapshotImporter {
-    fn import(&self) -> Result<OffsetSnapshot, ImportError>;
 }

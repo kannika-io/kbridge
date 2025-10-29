@@ -69,7 +69,6 @@ pub fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> {
         &Some(vec!["orders-1".to_string(), "orders-2".to_string()]),
         Duration::from_secs(5),
     )?;
-    println!("{:#?}", result);
 
     let correct_result = get_expected_source_offsets();
 
