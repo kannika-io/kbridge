@@ -8,8 +8,6 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
 };
 
-use crate::snapshot::csv::CsvSnapshotError;
-
 #[derive(Clone, Default, Debug)]
 pub struct OffsetSnapshot {
     records: Vec<OffsetRecord>,
@@ -50,7 +48,7 @@ impl OffsetSnapshot {
         self.records.contains(record)
     }
 
-    //
+    #[cfg(test)]
     pub fn get_opt(
         &self,
         consumer_group: impl Into<String>,
@@ -172,7 +170,7 @@ impl From<Vec<OffsetRecord>> for OffsetSnapshot {
 
 #[cfg(test)]
 impl std::str::FromStr for OffsetSnapshot {
-    type Err = CsvSnapshotError;
+    type Err = crate::snapshot::csv::CsvSnapshotError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use csv::FromCsv;
