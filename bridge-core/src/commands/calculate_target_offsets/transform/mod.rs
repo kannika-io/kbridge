@@ -73,7 +73,7 @@ pub async fn get_target_offsets(
 
     let topic_partition_watermarks = get_watermarks_for_topics(&consumer, &metadata, &topics)?;
 
-    let mut partitions_to_search: Vec<(Topic, Partition)> = topic_partition_watermarks
+    let mut partitions_to_search: Vec<(Topic, PartitionNumber)> = topic_partition_watermarks
         .iter()
         .flat_map(|t| t.1.iter().map(|p| (t.0.to_string(), *p.0)))
         .collect();

@@ -8,10 +8,19 @@ edition.workspace = true
 [dependencies]
 rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl"] }
 log = { workspace = true }
+tracing = { workspace = true }
 thiserror = { workspace = true }
 csv = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 futures = { workspace = true }
+pin-project = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
+ahash = { workspace = true }
+maplit = { workspace = true }
+ulid = { workspace = true }
+lazy_static = { workspace = true }
+regex = { workspace = true }
+itertools = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl", "cmake-build"] }

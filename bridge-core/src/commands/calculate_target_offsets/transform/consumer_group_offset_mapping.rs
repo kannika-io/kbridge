@@ -1,7 +1,7 @@
 use crate::commands::calculate_target_offsets::errors::{
     OffsetMappingTransformationError, TransformationError,
 };
-use crate::{ConsumerGroup, Offset, Partition, Topic, TransformationRecord};
+use crate::{ConsumerGroup, Offset, PartitionNumber, Topic, TransformationRecord};
 use log::info;
 use std::collections::HashMap;
 
@@ -15,7 +15,7 @@ pub fn insert_offset_transformations(
     source_offset_from_message: &Offset,
     current_offset_from_message: &Offset,
     topic: Topic,
-    partition: Partition,
+    partition: PartitionNumber,
     consumer_group: ConsumerGroup,
 ) -> Result<(), OffsetMappingTransformationError> {
     match transformations.get_mut(&consumer_group) {
@@ -64,9 +64,9 @@ pub fn insert_offset_transformations(
 ///
 /// The function logs the missing offsets at info level for debugging purposes.
 pub fn handle_missing_offsets(
-    mut transformations: HashMap<ConsumerGroup, Vec<(Topic, Partition, Offset, Offset)>>,
-    missing_offsets: Vec<(ConsumerGroup, Topic, Partition, Offset)>,
-    nearest_offsets: HashMap<(ConsumerGroup, Topic, Partition, Offset), Offset>,
+    mut transformations: HashMap<ConsumerGroup, Vec<(Topic, PartitionNumber, Offset, Offset)>>,
+    missing_offsets: Vec<(ConsumerGroup, Topic, PartitionNumber, Offset)>,
+    nearest_offsets: HashMap<(ConsumerGroup, Topic, PartitionNumber, Offset), Offset>,
 ) -> Result<HashMap<ConsumerGroup, Vec<TransformationRecord>>, TransformationError> {
     if missing_offsets.is_empty() {
         return Ok(transformations);

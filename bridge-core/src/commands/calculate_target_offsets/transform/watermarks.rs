@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::{
-    Offset, Partition, Topic, commands::calculate_target_offsets::errors::TransformationError,
+    Offset, PartitionNumber, Topic, commands::calculate_target_offsets::errors::TransformationError,
 };
 use log::info;
 use rdkafka::{
@@ -13,7 +13,7 @@ use rdkafka::{
 /// Updates the list of partitions that still need to be checked for messages.
 pub fn update_partitions_to_search(
     message: &rdkafka::message::BorrowedMessage,
-    topic_partition_watermarks: &HashMap<Topic, HashMap<Partition, (Offset, Offset)>>,
+    topic_partition_watermarks: &HashMap<Topic, HashMap<PartitionNumber, (Offset, Offset)>>,
     partitions_to_search: &mut Vec<(String, i32)>,
 ) -> Result<(), TransformationError> {
     let water_mark = get_topic_partition_high_watermark(
@@ -31,9 +31,9 @@ pub fn update_partitions_to_search(
 
 /// Gets high watermark for specified topic/partition combination
 pub fn get_topic_partition_high_watermark<'a>(
-    topic_partition_watermarks: &'a HashMap<String, HashMap<Partition, (Offset, Offset)>>,
+    topic_partition_watermarks: &'a HashMap<String, HashMap<PartitionNumber, (Offset, Offset)>>,
     topic: &'a str,
-    partition: Partition,
+    partition: PartitionNumber,
 ) -> Result<Offset, TransformationError> {
     get_topic_partition_watermark(
         topic_partition_watermarks,
@@ -44,9 +44,9 @@ pub fn get_topic_partition_high_watermark<'a>(
 }
 
 pub fn get_topic_partition_watermarks<'a>(
-    topic_partition_watermarks: &'a HashMap<String, HashMap<Partition, (Offset, Offset)>>,
+    topic_partition_watermarks: &'a HashMap<String, HashMap<PartitionNumber, (Offset, Offset)>>,
     topic: &'a str,
-    partition: Partition,
+    partition: PartitionNumber,
 ) -> Result<&'a (Offset, Offset), TransformationError> {
     topic_partition_watermarks
         .get(topic)
@@ -59,9 +59,9 @@ pub fn get_topic_partition_watermarks<'a>(
 }
 
 fn get_topic_partition_watermark<'a>(
-    topic_partition_watermarks: &'a HashMap<String, HashMap<Partition, (Offset, Offset)>>,
+    topic_partition_watermarks: &'a HashMap<String, HashMap<PartitionNumber, (Offset, Offset)>>,
     topic: &'a str,
-    partition: Partition,
+    partition: PartitionNumber,
     water_mark: WaterMark,
 ) -> Result<Offset, TransformationError> {
     topic_partition_watermarks
@@ -88,8 +88,8 @@ pub fn get_watermarks_for_topics(
     consumer: &StreamConsumer,
     metadata: &Metadata,
     topics: &[&str],
-) -> Result<HashMap<String, HashMap<Partition, (Offset, Offset)>>, TransformationError> {
-    let mut topic_partition_watermarks: HashMap<Topic, HashMap<Partition, (Offset, Offset)>> =
+) -> Result<HashMap<String, HashMap<PartitionNumber, (Offset, Offset)>>, TransformationError> {
+    let mut topic_partition_watermarks: HashMap<Topic, HashMap<PartitionNumber, (Offset, Offset)>> =
         HashMap::new();
 
     for topic in metadata
@@ -97,7 +97,7 @@ pub fn get_watermarks_for_topics(
         .iter()
         .filter(|t| topics.contains(&t.name()))
     {
-        let mut partition_map: HashMap<Partition, (Offset, Offset)> = HashMap::new();
+        let mut partition_map: HashMap<PartitionNumber, (Offset, Offset)> = HashMap::new();
 
         for partition in topic.partitions() {
             let partition_id = partition.id();

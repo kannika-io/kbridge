@@ -5,9 +5,16 @@ use std::time::Duration;
 pub mod client;
 mod commands;
 pub mod errors;
+#[allow(dead_code)]
 pub mod kafka;
+#[allow(dead_code)]
+pub mod partition;
+#[allow(dead_code)]
 pub mod prelude;
+#[allow(dead_code)]
 pub mod snapshot;
+// #[allow(dead_code)]
+// pub mod transform;
 pub use prelude::*;
 
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
