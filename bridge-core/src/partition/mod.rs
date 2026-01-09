@@ -4,12 +4,31 @@ use std::collections::HashMap;
 
 use futures::Stream;
 
+// An event from a partition stream.
+#[derive(Debug)]
+pub enum PartitionEvent<M> {
+    // A new message has been received.
+    Message(M),
+
+    // The partition has been seeked to a new offset.
+    Seeked,
+}
+
+impl<M> PartitionEvent<M> {
+    pub fn as_message(&self) -> Option<&M> {
+        match self {
+            PartitionEvent::Message(msg) => Some(msg),
+            PartitionEvent::Seeked => None,
+        }
+    }
+}
+
 // Represents a single partition that can be consumed from.
 // This trait abstracts over different consumer implementations.
 pub trait Partition {
     type Error;
     type Message: Message;
-    type Stream: Stream<Item = Result<Self::Message, Self::Error>> + Unpin;
+    type Stream: Stream<Item = Result<PartitionEvent<Self::Message>, Self::Error>> + Unpin;
 
     // Creates a stream for consuming messages from the partition.
     // This may involve assigning the partition to a consumer.
@@ -107,6 +126,47 @@ where
             offset,
             timestamp,
             headers,
+        }
+    }
+}
+
+// An extension trait for draining messages from a partition stream until a seek event is encountered.
+// This is useful for collecting all messages received before a seek operation,
+// or more importantly, to ignore messages received before a seek.
+pub trait DrainUntilSeeked {
+    type Error;
+    type Message: Message;
+
+    fn drain_until_seeked(
+        &mut self,
+    ) -> impl Future<Output = Result<Vec<PartitionRecord>, Self::Error>>;
+}
+
+impl<S, M, E> DrainUntilSeeked for S
+where
+    S: Stream<Item = Result<PartitionEvent<M>, E>> + Unpin,
+    M: Message,
+{
+    type Error = E;
+    type Message = M;
+
+    fn drain_until_seeked(
+        &mut self,
+    ) -> impl Future<Output = Result<Vec<PartitionRecord>, Self::Error>> {
+        use futures::StreamExt;
+        async move {
+            let mut records = Vec::new();
+            while let Some(event) = self.next().await {
+                match event? {
+                    PartitionEvent::Message(msg) => {
+                        records.push(PartitionRecord::from(&msg));
+                    }
+                    PartitionEvent::Seeked => {
+                        break;
+                    }
+                }
+            }
+            Ok(records)
         }
     }
 }

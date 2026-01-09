@@ -1,4 +1,4 @@
-use crate::partition::PartitionRecord;
+use crate::partition::{PartitionEvent, PartitionRecord};
 use crate::prelude::*;
 
 use std::pin::Pin;
@@ -20,9 +20,20 @@ use assignment::AssignmentGuard;
 
 use crate::kafka::source::StreamConsumer;
 
+// Commands sent to the consumer task
 enum SubscriberCommand {
     Subscribe(SubscriptionRequest),
     Seek(SeekRequest),
+}
+
+// Events a partition consumer can receive from the consumer task
+enum SubscriberEvent {
+    // A batch of records, available for consumption.
+    Batch { records: Vec<PartitionRecord> },
+
+    // A partition has been seeked to a new offset.
+    // We must clear any buffered records to avoid delivering out-of-order records.
+    PartitionSeeked,
 }
 
 struct SubscriptionRequest {
@@ -43,28 +54,30 @@ pub struct PartitionSubscriber {
     sender: mpsc::Sender<SubscriberCommand>,
 }
 
+pub type PartitionConsumerEvent = PartitionEvent<PartitionRecord>;
+
 pub struct PartitionConsumer {
     _assign_guard: AssignmentGuard,
-    buffered: Option<std::vec::IntoIter<PartitionRecord>>,
-    receiver: mpsc::Receiver<Result<Vec<PartitionRecord>, KafkaError>>,
+    buffered: Option<std::vec::IntoIter<PartitionConsumerEvent>>,
+    receiver: mpsc::Receiver<Result<SubscriberEvent, KafkaError>>,
 }
 
 impl PartitionConsumer {
-    fn next_buffered(&mut self) -> Option<PartitionRecord> {
+    fn next_buffered(&mut self) -> Option<PartitionConsumerEvent> {
         self.buffered.as_mut().and_then(|iter| iter.next())
     }
 }
 
 impl futures::Stream for PartitionConsumer {
-    type Item = Result<PartitionRecord, KafkaError>;
+    type Item = Result<PartitionConsumerEvent, KafkaError>;
 
     #[inline(always)]
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             let mut this = self.as_mut();
 
-            if let Some(record) = this.next_buffered() {
-                break Poll::Ready(Some(Ok(record)));
+            if let Some(event) = this.next_buffered() {
+                break Poll::Ready(Some(Ok(event)));
             }
 
             match futures::ready!(this.receiver.poll_next_unpin(cx)) {
@@ -74,9 +87,22 @@ impl futures::Stream for PartitionConsumer {
                 Some(Err(err)) => {
                     break Poll::Ready(Some(Err(err)));
                 }
-                Some(Ok(batch)) => {
-                    this.buffered = Some(batch.into_iter());
-                }
+                Some(Ok(evt)) => match evt {
+                    SubscriberEvent::Batch { records } => {
+                        // Turn batch into record events
+                        this.buffered = Some(
+                            records
+                                .into_iter()
+                                .map(PartitionConsumerEvent::Message)
+                                .collect::<Vec<_>>()
+                                .into_iter(),
+                        );
+                    }
+                    SubscriberEvent::PartitionSeeked => {
+                        // Clear buffered records and emit a Seeked event
+                        this.buffered = Some(vec![PartitionConsumerEvent::Seeked].into_iter());
+                    }
+                },
             }
         }
     }
@@ -184,7 +210,7 @@ async fn consumer_loop(
 ) {
     struct Subscriber {
         _assign_guard: AssignmentGuard,
-        queue: mpsc::Sender<Result<Vec<PartitionRecord>, KafkaError>>,
+        events: mpsc::Sender<Result<SubscriberEvent, KafkaError>>,
     }
 
     type TopicPartition = (TopicName, PartitionNumber);
@@ -197,11 +223,11 @@ async fn consumer_loop(
 
     loop {
         if !consumers_gone.is_empty() {
-            subscriptions.retain(|_, consumer| !consumer.queue.is_closed());
+            subscriptions.retain(|_, consumer| !consumer.events.is_closed());
             consumers_gone.clear();
         }
 
-        futures::select! {
+        futures::select_biased! {
             // Handle new commands
             cmd = commands.select_next_some() => {
                 match cmd {
@@ -237,17 +263,18 @@ async fn consumer_loop(
                         if consumer.send(Ok(record_consumer)).is_ok() {
                             subscriptions.insert((topic,partition), Subscriber {
                                 _assign_guard: assignment_guard,
-                                queue: tx
+                                events: tx
                             });
                         }
                     },
                     SubscriberCommand::Seek(SeekRequest { topic, partition, offset, response }) => {
+
                         // Find the subscriber
-                        // let Some(_) = subscriptions.get(&(topic.clone(), partition)) else {
-                        //     let err = format!("No subscriber for topic partition `{topic}:{partition}`");
-                        //     response.send(Err(KafkaError::Subscription(err))).ok();
-                        //     continue;
-                        // };
+                        let Some(subscriber) = subscriptions.get_mut(&(topic.clone(), partition)) else {
+                            let err = format!("No subscriber for topic partition `{topic}:{partition}`");
+                            response.send(Err(KafkaError::Subscription(err))).ok();
+                            continue;
+                        };
 
                         let seek_result = {
                             let mut tpl = TopicPartitionList::new();
@@ -262,12 +289,18 @@ async fn consumer_loop(
 
                         match seek_result {
                             Ok(tpl) => {
-                                response.send(Ok(tpl)).ok();
+                                let _ = response.send(Ok(tpl));
                             },
                             Err(err) => {
-                                response.send(Err(err)).ok();
+                                let _ = response.send(Err(err));
                             }
                         }
+
+                        let _ = subscriber.events
+                            .feed(Ok(SubscriberEvent::PartitionSeeked))
+                            .await;
+
+                        let _ = subscriber.events.flush().await;
                     }
                 };
             }
@@ -307,7 +340,7 @@ async fn consumer_loop(
 
                     let num_records = records.len();
 
-                    if subscriber.queue.feed(Ok(records)).await.is_err() {
+                    if subscriber.events.feed(Ok(SubscriberEvent::Batch{records})).await.is_err() {
                         tracing::debug!(%topic, %partition, "Subcriber gone.");
                         consumers_gone.insert(topic.to_owned());
                         continue;
@@ -322,8 +355,8 @@ async fn consumer_loop(
                     tracing::error!(%err, "Kafka consumer error");
                     // Forward the error to all clients and cleanup
                     for subscriber in subscriptions.values_mut() {
-                        subscriber.queue.feed(Err(err.clone())).await.ok();
-                        subscriber.queue.close().await.ok();
+                        subscriber.events.feed(Err(err.clone())).await.ok();
+                        subscriber.events.close().await.ok();
                     }
                     subscriptions.clear();
                 }

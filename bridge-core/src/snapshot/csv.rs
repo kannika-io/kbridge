@@ -1,3 +1,4 @@
+//! Module for reading and writing CSV consumer group offset snapshots.
 use crate::prelude::*;
 use std::io;
 
@@ -55,7 +56,7 @@ mod tests {
 
         let snapshot = OffsetSnapshot::from_csv(csv_data.as_bytes()).unwrap();
 
-        assert_eq!(snapshot.size(), 2);
+        assert_eq!(snapshot.len(), 2);
         assert!(
             snapshot
                 .get_opt("group1", "topic1", 0)

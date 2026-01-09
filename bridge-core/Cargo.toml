@@ -21,6 +21,7 @@ ulid = { workspace = true }
 lazy_static = { workspace = true }
 regex = { workspace = true }
 itertools = { workspace = true }
+async-trait = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl", "cmake-build"] }
@@ -32,3 +33,4 @@ assert_matches = "1.5.0"
 tempfile = "3.23.0"
 env_logger = { workspace = true }
 tokio = { workspace = true }
+testcontainers = { workspace = true }

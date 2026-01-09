@@ -1,6 +1,9 @@
-/// Module for managing snapshots of consumer group offsets.
-/// An `OffsetSnapshot` contains multiple `OffsetRecord`s,
-/// each representing the offset of a specific consumer group for a given topic and partition.
+//! Module for managing snapshots of consumer group offsets.
+//! An `OffsetSnapshot` contains multiple `OffsetRecord`s,
+//! each representing the offset of a specific consumer group for a given topic and partition.
+
+#[cfg(test)]
+pub mod assertions;
 pub mod csv;
 
 use std::{
@@ -18,6 +21,12 @@ impl OffsetSnapshot {
         OffsetSnapshot::default()
     }
 
+    pub fn with_capacity(len: usize) -> Self {
+        OffsetSnapshot {
+            records: Vec::with_capacity(len),
+        }
+    }
+
     /// Returns an iterator over references to the records
     pub fn iter(&self) -> std::slice::Iter<'_, OffsetRecord> {
         self.records.iter()
@@ -29,7 +38,7 @@ impl OffsetSnapshot {
     }
 
     /// Returns the number of records
-    pub fn size(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.records.len()
     }
 
@@ -94,6 +103,23 @@ impl OffsetSnapshot {
         let topic_set: HashSet<&str> = topics.iter().map(|s| s.as_ref()).collect();
         self.filter(|record| topic_set.contains(record.topic.as_str()))
     }
+
+    pub fn difference(&self, other: &OffsetSnapshot) -> OffsetSnapshot {
+        OffsetSnapshot {
+            records: self
+                .records
+                .iter()
+                .filter(|record| !other.contains(record))
+                .cloned()
+                .collect(),
+        }
+    }
+}
+
+impl AsRef<OffsetSnapshot> for OffsetSnapshot {
+    fn as_ref(&self) -> &OffsetSnapshot {
+        self
+    }
 }
 
 impl IntoIterator for OffsetSnapshot {
@@ -136,7 +162,7 @@ impl Display for OffsetSnapshot {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, Hash)]
 pub struct OffsetRecord {
     pub consumer_group: String,
     pub topic: String,

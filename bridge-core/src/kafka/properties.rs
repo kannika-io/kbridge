@@ -6,6 +6,9 @@ use rdkafka::{
     config::{ClientConfig as KafkaClientConfig, RDKafkaLogLevel},
     consumer::{BaseConsumer, ConsumerContext, DefaultConsumerContext, StreamConsumer},
     error::KafkaResult,
+    producer::{
+        BaseProducer, DefaultProducerContext, FutureProducer, ProducerContext, ThreadedProducer,
+    },
 };
 
 /// Default value for the "queue.buffering.max.kbytes" rdkafka producer setting.
@@ -31,6 +34,11 @@ struct KafkaProperties {
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct KafkaConsumerProperties {
+    inner: KafkaProperties,
+}
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct KafkaProducerProperties {
     inner: KafkaProperties,
 }
 
@@ -63,6 +71,12 @@ impl std::fmt::Debug for KafkaProperties {
 }
 
 impl std::fmt::Debug for KafkaConsumerProperties {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
+impl std::fmt::Debug for KafkaProducerProperties {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.inner)
     }
@@ -122,7 +136,127 @@ impl FromIterator<(String, String)> for KafkaConsumerProperties {
     }
 }
 
+impl FromIterator<(String, String)> for KafkaProducerProperties {
+    fn from_iter<T: IntoIterator<Item = (String, String)>>(iter: T) -> Self {
+        let mut props: BTreeMap<_, _> = iter.into_iter().collect();
+
+        props.remove("group.id");
+
+        if !props.contains_key("acks") {
+            props.insert("acks".to_string(), "all".to_string());
+        }
+
+        if !props.contains_key("allow.auto.create.topics") {
+            props.insert("allow.auto.create.topics".to_string(), "false".to_string());
+        }
+
+        if !props.contains_key("queue.buffering.max.kbytes") {
+            props.insert(
+                "queue.buffering.max.kbytes".to_string(),
+                DEFAULT_QUEUE_BUFFERING_MAX_KBYTES.to_string(),
+            );
+        }
+
+        Self {
+            inner: KafkaProperties { props },
+        }
+    }
+}
+
+impl KafkaProducerProperties {
+    pub fn insert(&mut self, key: impl Into<String>, val: impl Into<String>) -> bool {
+        let key = key.into();
+
+        if key == "group.id" {
+            tracing::warn!("Refusing to set the `group.id` property.");
+            false
+        } else {
+            if self.inner.props.contains_key(&key) {
+                tracing::warn!("Overriding previous value for {key}");
+            }
+            self.inner.props.insert(key, val.into());
+            true
+        }
+    }
+
+    pub fn insert_if_not_set(&mut self, key: impl Into<String>, val: impl Into<String>) -> bool {
+        let key = key.into();
+
+        #[allow(clippy::map_entry)]
+        if self.inner.props.contains_key(&key) {
+            false
+        } else if key == "group.id" {
+            tracing::warn!("Refusing to set the `group.id` property.");
+            false
+        } else {
+            self.inner.props.insert(key, val.into());
+            true
+        }
+    }
+
+    pub fn into_admin_client(self) -> KafkaResult<AdminClient<DefaultClientContext>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create()
+    }
+
+    pub fn into_base_producer(self) -> KafkaResult<BaseProducer<DefaultProducerContext>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create()
+    }
+
+    pub fn into_base_producer_with_context<C: ProducerContext>(
+        self,
+        context: C,
+    ) -> KafkaResult<BaseProducer<C>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create_with_context(context)
+    }
+
+    pub fn into_threaded_producer(self) -> KafkaResult<ThreadedProducer<DefaultProducerContext>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create()
+    }
+
+    pub fn into_threaded_producer_with_context<C: ProducerContext>(
+        self,
+        context: C,
+    ) -> KafkaResult<ThreadedProducer<C>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create_with_context(context)
+    }
+
+    pub fn into_future_producer(self) -> KafkaResult<FutureProducer<DefaultClientContext>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create()
+    }
+
+    pub fn into_future_producer_with_context<C: ProducerContext>(
+        self,
+        context: C,
+    ) -> KafkaResult<FutureProducer<C>> {
+        let mut config = KafkaClientConfig::from_iter(self.inner.props);
+        config.set_log_level(RDKafkaLogLevel::Info);
+        config.create_with_context(context)
+    }
+}
+
 impl KafkaConsumerProperties {
+    pub fn insert(&mut self, key: impl Into<String>, val: impl Into<String>) -> bool {
+        let key = key.into();
+
+        if self.inner.props.contains_key(&key) {
+            tracing::warn!("Overriding previous value for {key}");
+        }
+        self.inner.props.insert(key, val.into());
+        true
+    }
+
     pub fn into_admin_client(self) -> KafkaResult<AdminClient<DefaultClientContext>> {
         let mut config = KafkaClientConfig::from_iter(self.inner.props);
         config.set_log_level(RDKafkaLogLevel::Info);

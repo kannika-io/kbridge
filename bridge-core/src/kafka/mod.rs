@@ -5,9 +5,6 @@ pub(crate) mod partition;
 pub mod properties;
 pub mod source;
 
-#[cfg(test)]
-pub mod mock;
-
 use std::collections::HashMap;
 
 use rdkafka::message::Headers;
@@ -19,7 +16,9 @@ pub enum KafkaError {
     #[error("generic Kafka error: {0}")]
     Generic(String),
     #[error("topic `{0}` could not be found on the remote server")]
-    NotFound(String),
+    TopicNotFound(Topic),
+    #[error("partition `{1}` of topic `{0}` could not be found on the remote server")]
+    PartitionNotFound(Topic, PartitionNumber),
     #[error("detected invalid seek from rdkafka")]
     InvalidSeek,
     #[error("Kafka read error: {0}")]
