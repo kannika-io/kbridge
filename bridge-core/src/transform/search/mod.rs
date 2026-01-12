@@ -104,6 +104,7 @@ impl Ord for OffsetMapping {
 
 impl OffsetMapping {
     /// Creates a new OffsetMapping
+    #[allow(dead_code)]
     pub fn new(old_offset: i64, new_offset: i64) -> Self {
         OffsetMapping {
             old_offset,
@@ -123,12 +124,14 @@ impl From<(Offset, Offset)> for OffsetMapping {
 
 // The results of a partition scan
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct PartitionScan {
     // search results, ordered by old_offset
     results: BTreeMap<Offset, SearchResult>,
     metrics: PartitionScanMetrics,
 }
 
+#[allow(dead_code)]
 impl PartitionScan {
     pub fn new(
         results: impl IntoIterator<Item = SearchResult>,
@@ -159,6 +162,7 @@ impl PartitionScan {
         self.results.get(&old_offset)
     }
 
+    #[must_use]
     pub fn metrics(&self) -> &PartitionScanMetrics {
         &self.metrics
     }

@@ -4,6 +4,8 @@ use anyhow::Result;
 use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig};
 use log::info;
 
+use bridge_core::test;
+
 use crate::{
     init::{init_logging, setup_test_environment},
     stubs::{
@@ -17,11 +19,11 @@ use crate::{
 pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
-    info!("Fetching source offsets");
 
     let config: KafkaBridgeConfig = KafkaBridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let client: KafkaBridgeClient = config.into();
 
+    info!("Fetching source offsets");
     let result = client
         .fetch_source_offsets_from_cluster(Vec::<String>::new(), Duration::from_secs(5))
         .await?;
@@ -33,7 +35,7 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
 
     let expected_offsets = get_expected_stub_target_offsets();
 
-    bridge_core::test::snapshot::assertions::assert_eq(target_offsets, expected_offsets);
+    test::snapshot::assert_eq(target_offsets, expected_offsets);
 
     Ok(())
 }

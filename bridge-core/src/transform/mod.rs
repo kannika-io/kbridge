@@ -84,7 +84,7 @@ impl ConsumerGroupMigrator {
 
                 let window = Window::from(watermarks);
 
-                let opts = BinarySearchOpts::default()
+                let opts = BinarySearchOpts::new()
                     .with_search_window(window)
                     .with_seq_scan_size(NonZeroUsize::new(1).unwrap());
 
@@ -159,12 +159,8 @@ impl From<(Offset, Offset)> for OffsetMapping {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use crate::{
-        prelude::*,
-        test::kafka::cluster::ContainerizedCluster,
-        transform::{ConsumerGroupMigrator, search::OffsetSource},
+        prelude::*, test::kafka::cluster::ContainerizedCluster, transform::ConsumerGroupMigrator,
     };
 
     #[tokio::test]
@@ -224,7 +220,7 @@ mod tests {
         .parse()
         .expect("failed to parse snapshot");
 
-        crate::test::snapshot::assertions::assert_eq(transformed, expected);
+        crate::test::snapshot::assert_eq(transformed, expected);
 
         Ok(())
     }

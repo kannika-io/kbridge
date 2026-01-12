@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// A window representing a range of offsets.
 /// Used to limit the search space during offset transformations.
 use std::{

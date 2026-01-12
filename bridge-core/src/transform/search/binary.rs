@@ -484,7 +484,7 @@ mod tests {
         let expted_results: Vec<_> = expected_offsets.into_iter().zip(search_offsets).collect();
 
         let watermarks = broker.get_watermarks(topic, 0).await?;
-        let opts = BinarySearchOpts::default()
+        let opts = BinarySearchOpts::new()
             .with_search_window(watermarks)
             .with_seq_scan_size(NonZeroUsize::new(1000).unwrap());
 

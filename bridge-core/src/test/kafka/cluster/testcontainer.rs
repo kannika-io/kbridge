@@ -18,6 +18,7 @@ pub struct ContainerizedCluster {
 }
 
 struct StdoutLogConsumer;
+
 impl LogConsumer for StdoutLogConsumer {
     fn accept<'a>(
         &'a self,

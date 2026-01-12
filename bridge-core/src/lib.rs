@@ -1,8 +1,3 @@
-#![allow(dead_code)]
-use std::collections::HashMap;
-use std::future::Future;
-use std::time::Duration;
-
 pub mod client;
 mod commands;
 pub mod errors;
