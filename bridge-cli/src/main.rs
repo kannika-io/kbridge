@@ -1,7 +1,6 @@
 use args::{Args, Commands};
 use bridge_core::{
-    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError,
-    kafka::source::RecordStreamConsumer, snapshot::csv::FromCsv, transform::ConsumerGroupMigrator,
+    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, snapshot::csv::FromCsv,
 };
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot};
@@ -61,6 +60,7 @@ async fn main() -> Result<(), BridgeError> {
             kafka_connection,
             input,
             skip_confirmation,
+            dry_run,
         } => {
             let topics = kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
@@ -68,13 +68,19 @@ async fn main() -> Result<(), BridgeError> {
             let snapshot = OffsetSnapshot::from_csv(input)?;
 
             // Handle confirmation in CLI before calling the core library
-            if !skip_confirmation && !ask_for_confirmation(&snapshot) {
+            if !dry_run && !skip_confirmation && !ask_for_confirmation(&snapshot) {
                 return Err(BridgeError::Message(
                     "Operation cancelled by user".to_string(),
                 ));
             }
 
-            client.apply_target_offsets(topics, snapshot, false).await
+            if dry_run {
+                println!("DRY RUN: Would apply the following offsets:");
+                print_offset_snapshot(&snapshot);
+                Ok(())
+            } else {
+                client.apply_target_offsets(topics, snapshot, false).await
+            }
         }
     };
     trace!("Execution finished.");

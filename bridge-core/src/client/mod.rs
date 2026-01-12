@@ -22,20 +22,21 @@ pub mod kafka;
 /// # Example
 ///
 /// ```rust,no_run
-/// # use bridge_core::{BridgeClient, KafkaBridgeClient, BridgeConfig};
+/// # use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig};
 /// # use std::time::Duration;
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let config = BridgeConfig::new("localhost:9092".to_string());
+/// let config = KafkaBridgeConfig::new("localhost:9092".to_string());
 /// let client: KafkaBridgeClient = config.into();
 ///
 /// // Fetch current offsets from source cluster
-/// let source_offsets = client.fetch_source_offsets_from_cluster(&None, Duration::from_secs(5))?;
+/// let topics = vec!["orders".to_string(), "payments".to_string()];
+/// let source_offsets = client.fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5)).await?;
 ///
 /// // Calculate target offsets based on message headers
-/// let target_offsets = client.calculate_target_offsets("source-offset", &None, source_offsets).await?;
+/// let target_offsets = client.calculate_target_offsets("source-offset", topics.clone(), source_offsets).await?;
 ///
 /// // Apply offsets to target cluster (dry_run = false to actually apply)
-/// client.apply_target_offsets(&None, target_offsets, false).await?;
+/// client.apply_target_offsets(topics, target_offsets, false).await?;
 /// # Ok(())
 /// # }
 /// ```
