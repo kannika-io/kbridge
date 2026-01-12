@@ -34,7 +34,7 @@ pub fn fetch_metadata(
         .topics()
         .iter()
         // Optimization: filter topics when fetching metadata
-        .filter(|mt| topics.contains(&mt.name().to_string()))
+        .filter(|mt| topics.is_empty() || topics.contains(&mt.name().to_string()))
         .for_each(|topic| {
             topic.partitions().iter().for_each(|part| {
                 topics_and_partitions
