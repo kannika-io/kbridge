@@ -96,12 +96,10 @@ async fn verify_consumer(
 
     let mut tpl = TopicPartitionList::new();
 
-    for item in metadata
-        .topics()
-        .iter()
-        .flat_map(|t| (t.partitions().iter().map(|p| (p.id(), t.name()))))
-    {
-        tpl.add_partition(item.1, item.0);
+    for topic in metadata.topics().iter() {
+        for partition in topic.partitions().iter() {
+            tpl.add_partition(topic.name(), partition.id());
+        }
     }
 
     let committed_offsets = consumer
