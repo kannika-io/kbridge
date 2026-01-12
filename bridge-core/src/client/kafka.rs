@@ -43,6 +43,7 @@ impl BridgeClient for KafkaBridgeClient {
             topics,
             client_timeout,
         )
+        .await
         .map_err(|err| err.into())
     }
 

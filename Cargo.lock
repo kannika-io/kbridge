@@ -1831,7 +1831,7 @@ dependencies = [
 [[package]]
 name = "rdkafka"
 version = "0.38.0"
-source = "git+https://github.com/j-santander/rust-rdkafka.git#ffe40196781087d3b5a311cca166805eb37f8090"
+source = "git+https://github.com/wserr/rust-rdkafka.git?branch=feat%2Fadd-list-consumer-group-offsets-admin-api-call#529b44cd71455721e039ff73ce7857f646ae7513"
 dependencies = [
  "futures-channel",
  "futures-util",
@@ -1848,7 +1848,7 @@ dependencies = [
 [[package]]
 name = "rdkafka-sys"
 version = "4.9.0+2.10.0"
-source = "git+https://github.com/j-santander/rust-rdkafka.git#ffe40196781087d3b5a311cca166805eb37f8090"
+source = "git+https://github.com/wserr/rust-rdkafka.git?branch=feat%2Fadd-list-consumer-group-offsets-admin-api-call#529b44cd71455721e039ff73ce7857f646ae7513"
 dependencies = [
  "cmake",
  "libc",

@@ -9,7 +9,7 @@ edition.workspace = true
 test-utils = ["dep:testcontainers"]
 
 [dependencies]
-rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl"] }
+rdkafka = { git = "https://github.com/wserr/rust-rdkafka.git", branch = "feat/add-list-consumer-group-offsets-admin-api-call", features = ["ssl", "gssapi", "sasl"] }
 log = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
@@ -29,7 +29,7 @@ tokio = { workspace = true }
 testcontainers = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
-rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl", "cmake-build"] }
+rdkafka = { git = "https://github.com/wserr/rust-rdkafka.git", branch = "feat/add-list-consumer-group-offsets-admin-api-call", features = ["ssl", "gssapi", "sasl", "cmake-build"] }
 
 [dev-dependencies]
 bridge-core = { path = ".", features = ["test-utils"] }

@@ -2,7 +2,8 @@ use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOf
 use crate::{OffsetRecord, OffsetSnapshot};
 use log::{trace, warn};
 use rdkafka::{
-    TopicPartitionList,
+    admin::{AdminClient, AdminOptions, ListConsumerGroupOffsets},
+    client::DefaultClientContext,
     consumer::{BaseConsumer, Consumer},
     util::Timeout,
 };
@@ -54,46 +55,72 @@ pub fn fetch_metadata(
     })
 }
 
-/// Fetches all committed consumer group offsets from metadata provided, using consumers provided
-pub fn fetch_all_committed_consumer_group_offsets(
+/// Fetches all committed consumer group offsets from metadata provided using AdminClient
+pub async fn fetch_all_committed_consumer_group_offsets(
     metadata: Metadata,
-    consumers: HashMap<String, BaseConsumer>,
+    admin_client: &AdminClient<DefaultClientContext>,
+    client_timeout: Duration,
 ) -> Result<OffsetSnapshot, ImportOffsetsError> {
     let mut all_offsets = OffsetSnapshot::new();
-    for group in &metadata.consumer_groups {
-        trace!("Fetching committed offsets for group {}", group);
-        let group_consumer = consumers
-            .get(group)
-            .ok_or(ImportOffsetsError::ConsumerNotFound(group.to_string()))?;
 
-        let mut topic_partition_list = TopicPartitionList::new();
+    if metadata.consumer_groups.is_empty() {
+        warn!("No consumer groups found to fetch offsets for");
+        return Ok(all_offsets);
+    }
 
-        for topic in &metadata.topics_and_partitions {
-            for partition in topic.1 {
-                topic_partition_list.add_partition(topic.0.as_str(), *partition);
-            }
-        }
+    trace!(
+        "Fetching committed offsets for {} groups",
+        metadata.consumer_groups.len()
+    );
 
-        let committed_offsets = group_consumer
-            .committed_offsets(topic_partition_list, Timeout::After(Duration::from_secs(5)))?;
+    let opts = AdminOptions::new().request_timeout(Some(client_timeout));
 
-        for committed_offset in committed_offsets.elements() {
-            trace!("Committed offset: {:?}", committed_offset);
-            match committed_offset.offset().to_raw() {
-                Some(value) if value != NO_OFFSET => {
-                    let value = OffsetRecord {
-                        topic: committed_offset.topic().to_string(),
-                        partition: committed_offset.partition(),
-                        offset: value,
-                        consumer_group: group.to_string(),
-                    };
-                    all_offsets.push(value);
+    // Fetch offsets for each group individually
+    // Note: Calling one group at a time to work around potential librdkafka limitations
+    for group_id in &metadata.consumer_groups {
+        let group_request = ListConsumerGroupOffsets::new(group_id.as_str());
+
+        let results = admin_client
+            .list_consumer_group_offsets(&[group_request], &opts)
+            .await?;
+
+        for result in results {
+            match result {
+                Ok((group_name, offsets)) => {
+                    trace!("Received offsets for group {}", group_name);
+                    for elem in offsets.elements() {
+                        // Filter by topics we care about
+                        if !metadata.topics_and_partitions.is_empty()
+                            && !metadata.topics_and_partitions.contains_key(elem.topic())
+                        {
+                            continue;
+                        }
+
+                        trace!("Committed offset: {:?}", elem);
+                        match elem.offset().to_raw() {
+                            Some(value) if value != NO_OFFSET => {
+                                let record = OffsetRecord {
+                                    topic: elem.topic().to_string(),
+                                    partition: elem.partition(),
+                                    offset: value,
+                                    consumer_group: group_name.clone(),
+                                };
+                                all_offsets.push(record);
+                            }
+                            None => {
+                                warn!("Error fetching offset for group {}. Ignoring.", group_name);
+                            }
+                            _ => {
+                                // Offset not found
+                            }
+                        }
+                    }
                 }
-                None => {
-                    warn!("Error fetching offset. Ignoring.");
-                }
-                _ => {
-                    // Offset not found
+                Err((group_name, error_code)) => {
+                    warn!(
+                        "Failed to fetch offsets for group {}: {:?}",
+                        group_name, error_code
+                    );
                 }
             }
         }
