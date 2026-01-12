@@ -8,7 +8,4 @@ pub enum ApplyOffsetsError {
     KafkaError(#[from] KafkaError),
     #[error("IO error occurred. Reason: {0}")]
     IoError(#[from] io::Error),
-
-    #[error("The operation was cancelled")]
-    Cancelled,
 }

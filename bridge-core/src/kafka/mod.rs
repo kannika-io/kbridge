@@ -25,6 +25,8 @@ pub enum KafkaError {
     ReadError(#[source] rdkafka::error::KafkaError),
     #[error("Kafka config error: {0}")]
     ClientCreationError(#[source] rdkafka::error::KafkaError),
+    #[error("Failed to fetch metadata: {0}")]
+    MetadataFetchFailed(#[source] rdkafka::error::KafkaError),
 }
 
 impl From<rdkafka::error::KafkaError> for KafkaError {

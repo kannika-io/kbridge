@@ -20,12 +20,12 @@ setup-local-dev:
 	just setup-ci && docker compose -f docker-compose.yml -f docker-compose-local-dev.yml up -d
 
 calculate-offsets:
-	cargo run -- fetch -b localhost:9092 \
-	| cargo run -- calculate --bootstrap-server localhost:9093 -H Offset \
+	cargo run -- fetch -b localhost:9092 -t orders-2 \
+	| cargo run -- calculate --bootstrap-server localhost:9093 -H Offset -i -
 
 apply-offsets:
 	cargo run -- fetch -b localhost:9092 \
-	| cargo run -- calculate --bootstrap-server localhost:9093 --from-stdin --legacy-offset-header Offset \
+	| cargo run -- calculate --bootstrap-server localhost:9093 -H Offset -i - \
 	| cargo run -- apply -b localhost:9093 --from-stdin
 
 run-example:
@@ -35,4 +35,3 @@ run-example:
 run-docs:
 	cargo doc --no-deps && \
 	docker compose -f docker-compose-docs.yml up --build
-	

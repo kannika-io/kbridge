@@ -9,7 +9,9 @@ pub type TransformationRecord = (Topic, PartitionNumber, Offset, Offset);
 pub type ApplicationRecord = (Topic, PartitionNumber, Offset);
 pub type Properties = std::collections::HashMap<String, String>;
 
-pub use crate::BridgeClient;
+pub use crate::client::BridgeClient;
+pub use crate::client::kafka::{KafkaBridgeClient, KafkaBridgeConfig};
+pub use crate::errors::BridgeError;
 pub use crate::snapshot::{OffsetRecord, OffsetSnapshot};
 
 pub use crate::partition::Message;

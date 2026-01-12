@@ -2,11 +2,14 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use bridge_core::{
-    BridgeClient, BridgeConfig, KafkaBridgeClient, TopicName,
+    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, TopicName,
     kafka::{
         client_config::{ConfigBuilder, GROUP_ID_KEY},
         consumer::setup_consumer_and_metadata,
+        properties::KafkaConsumerProperties,
+        source::RecordStreamConsumer,
     },
+    transform::ConsumerGroupMigrator,
 };
 use init::{init_logging, setup_test_environment};
 use log::info;
@@ -51,13 +54,17 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
         .delete_groups(&[consumer_group_id.as_str()], &AdminOptions::new())
         .await?;
 
-    let source_config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
+    let source_config: KafkaBridgeConfig =
+        KafkaBridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let source_client: KafkaBridgeClient = source_config.into();
 
     info!("Fetching source offsets");
-    let result = source_client.fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5))?;
+    let result = source_client
+        .fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5))
+        .await?;
 
-    let target_config: BridgeConfig = BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
+    let target_config: KafkaBridgeConfig =
+        KafkaBridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
     let target_client: KafkaBridgeClient = target_config.into();
     info!("Fetching target offsets");
     let target_offsets = target_client
@@ -67,7 +74,7 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
     info!("{:#?}", target_offsets);
 
     target_client
-        .apply_target_offsets(topics.clone(), target_offsets, &|_| true)
+        .apply_target_offsets(topics.clone(), target_offsets, false)
         .await?;
 
     verify_consumer(topics.clone(), CONSUMER_GROUP_1).await?;
@@ -89,8 +96,7 @@ async fn verify_consumer(
             consumer_group.to_string(),
         )]));
 
-    let (consumer, metadata) =
-        setup_consumer_and_metadata(topics.clone(), &mut consumer_client_config).await?;
+    let (consumer, metadata) = setup_consumer_and_metadata(&mut consumer_client_config).await?;
 
     let mut tpl = TopicPartitionList::new();
 

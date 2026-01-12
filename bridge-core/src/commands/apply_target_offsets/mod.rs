@@ -9,13 +9,12 @@ use std::collections::HashMap;
 pub mod errors;
 mod export;
 
-// TODO split in plan and apply so we can avoid the confirmation request
 pub async fn execute(
     bootstrap_server: &str,
     properties: &HashMap<String, String>,
     topics: impl IntoIterator<Item = String>,
     offset_snapshot: OffsetSnapshot,
-    confirmation: &dyn Fn(&OffsetSnapshot) -> bool,
+    dry_run: bool,
 ) -> Result<(), ApplyOffsetsError> {
     trace!("apply target offsets");
 
@@ -41,10 +40,8 @@ pub async fn execute(
                 .or_insert(vec![value.clone()]);
         });
 
-    if confirmation(&offset_snapshot) {
+    if !dry_run {
         apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result).await?;
-        Ok(())
-    } else {
-        Err(ApplyOffsetsError::Cancelled)
     }
+    Ok(())
 }

@@ -12,7 +12,7 @@ TARGET_BOOTSTRAP_SERVERS=$4
 
 echo "Starting to consume $NUM_MESSAGES messages from topic '$TOPIC' for restoration..."
 
-PIPE_FILE=$(mktemp -u) 
+PIPE_FILE=$(mktemp -u)
 mkfifo "$PIPE_FILE"
 
 kafka-console-producer \
@@ -33,8 +33,8 @@ kafka-console-consumer \
     --topic $TOPIC \
     --max-messages $NUM_MESSAGES \
     --from-beginning \
-| sed 's/\s/|/g' \
-    > "$PIPE_FILE"                                                                           
+| sed 's/^\([0-9]*\)\s/Offset:\1|/' | sed 's/\s/|/g' \
+    > "$PIPE_FILE"
 
 wait $PRODUCER_ID
 

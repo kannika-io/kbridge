@@ -4,18 +4,18 @@ use std::path::PathBuf;
 use std::{collections::HashMap, time::Duration};
 
 use bridge_core::kafka::properties::KafkaConsumerProperties;
-use bridge_core::{BridgeConfig, KafkaBridgeClient};
+use bridge_core::{KafkaBridgeClient, KafkaBridgeConfig};
 use clap::{Parser, Subcommand, builder::TypedValueParser};
 
-impl From<KafkaConnection> for BridgeConfig {
+impl From<KafkaConnection> for KafkaBridgeConfig {
     fn from(conn: KafkaConnection) -> Self {
-        BridgeConfig::new(conn.bootstrap_server).set_properties(conn.properties)
+        KafkaBridgeConfig::new(conn.bootstrap_server).set_properties(conn.properties)
     }
 }
 
 impl From<KafkaConnection> for KafkaBridgeClient {
     fn from(value: KafkaConnection) -> Self {
-        let config: BridgeConfig = value.into();
+        let config: KafkaBridgeConfig = value.into();
         config.into()
     }
 }

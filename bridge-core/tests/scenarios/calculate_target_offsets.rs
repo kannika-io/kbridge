@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use bridge_core::{BridgeClient, BridgeConfig, KafkaBridgeClient};
+use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig};
 use log::info;
 
 use crate::{
@@ -20,10 +20,12 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
     setup_test_environment()?;
     info!("Fetching source offsets");
 
-    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
+    let config: KafkaBridgeConfig = KafkaBridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let client: KafkaBridgeClient = config.into();
 
-    let result = client.fetch_source_offsets_from_cluster(Vec::<String>::new(), Duration::from_secs(5))?;
+    let result = client
+        .fetch_source_offsets_from_cluster(Vec::<String>::new(), Duration::from_secs(5))
+        .await?;
 
     info!("Fetching target offsets");
     let target_offsets = client
@@ -55,14 +57,15 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
 
     let topics = vec![String::from(ORDERS_1_TOPIC), String::from(ORDERS_2_TOPIC)];
 
-    let config: BridgeConfig = BridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
+    let config: KafkaBridgeConfig = KafkaBridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let source_client: KafkaBridgeClient = config.into();
 
     info!("Fetching source offsets");
     let result = source_client
-        .fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5))?;
+        .fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5))
+        .await?;
 
-    let config: BridgeConfig = BridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
+    let config: KafkaBridgeConfig = KafkaBridgeConfig::new(TARGET_BOOTSTRAP_SERVER.to_string());
     let target_client: KafkaBridgeClient = config.into();
     info!("Fetching target offsets");
     let target_offsets = target_client

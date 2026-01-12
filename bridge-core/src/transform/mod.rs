@@ -52,7 +52,7 @@ impl ConsumerGroupMigrator {
         }
     }
 
-    pub fn search_offset_in_header(mut self, key: &str) -> Self {
+    pub fn search_offset_in_header(mut self, key: impl Into<String>) -> Self {
         self.offset_source = OffsetSource::from_header(key);
         self
     }

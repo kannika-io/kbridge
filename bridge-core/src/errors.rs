@@ -3,8 +3,7 @@ use thiserror::Error;
 use crate::{
     KafkaError,
     commands::{
-        apply_target_offsets::errors::ApplyOffsetsError,
-        calculate_target_offsets::errors::TransformationError, errors::FetchSourceOffsetsError,
+        apply_target_offsets::errors::ApplyOffsetsError, errors::FetchSourceOffsetsError,
         fetch_source_offsets::errors::ImportOffsetsError,
     },
     snapshot::csv::CsvSnapshotError,
@@ -16,8 +15,6 @@ pub enum BridgeError {
     #[error("Failed while parsing CSV snapshot. Reason: {0}")]
     CsvSnapshot(#[from] CsvSnapshotError),
     #[error("Failed during offset transformation. Reason: {0}")]
-    Transformation(#[from] TransformationError),
-    #[error("Failed during offset transformation. Reason: {0}")]
     ApplyOffsets(#[from] ApplyOffsetsError),
     #[error("Failed during offset import. Reason: {0}")]
     ImportOffsets(#[from] ImportOffsetsError),
@@ -27,4 +24,6 @@ pub enum BridgeError {
     KafkaError(#[from] KafkaError),
     #[error("Migration error: {0}")]
     MigrationError(#[from] MigrationError),
+    #[error("{0}")]
+    Message(String),
 }
