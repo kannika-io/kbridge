@@ -7,6 +7,7 @@ pub mod csv;
 use std::{
     collections::HashSet,
     fmt::{self, Debug, Display, Formatter},
+    io::{self, Write},
 };
 
 #[derive(Clone, Default, Debug)]
@@ -112,6 +113,11 @@ impl OffsetSnapshot {
                 .collect(),
         }
     }
+
+    /// Writes the snapshot in CSV format to the provided writer
+    pub fn print_csv<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write!(writer, "{}", self)
+    }
 }
 
 impl AsRef<OffsetSnapshot> for OffsetSnapshot {
@@ -199,5 +205,39 @@ impl std::str::FromStr for OffsetSnapshot {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use csv::FromCsv;
         OffsetSnapshot::from_csv(s.as_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_print_csv_format() {
+        let mut snapshot = OffsetSnapshot::new();
+        snapshot.push(OffsetRecord {
+            consumer_group: "group1".to_string(),
+            topic: "topic1".to_string(),
+            partition: 0,
+            offset: 100,
+        });
+        snapshot.push(OffsetRecord {
+            consumer_group: "group2".to_string(),
+            topic: "topic2".to_string(),
+            partition: 5,
+            offset: 42,
+        });
+
+        let mut output = Vec::new();
+        snapshot.print_csv(&mut output).unwrap();
+        let output_str = String::from_utf8(output).unwrap();
+
+        assert_eq!(output_str, "group1,topic1,0,100\ngroup2,topic2,5,42\n");
+
+        // Verify each line follows CSV format: consumer_group,topic,partition,offset
+        let lines: Vec<&str> = output_str.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], "group1,topic1,0,100");
+        assert_eq!(lines[1], "group2,topic2,5,42");
     }
 }

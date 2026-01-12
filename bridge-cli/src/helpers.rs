@@ -26,10 +26,5 @@ pub fn ask_for_confirmation(offset_snapshot: &OffsetSnapshot) -> bool {
 }
 
 pub fn print_offset_snapshot(offset_snapshot: &OffsetSnapshot) {
-    for element in offset_snapshot {
-        println!(
-            "{},{},{},{}",
-            element.consumer_group, element.topic, element.partition, element.offset
-        );
-    }
+    let _ = offset_snapshot.print_csv(&mut std::io::stdout());
 }
