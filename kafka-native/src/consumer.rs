@@ -62,6 +62,16 @@ impl Consumer {
         })
     }
 
+    /// Get the consumer's group ID.
+    pub fn group_id(&self) -> &str {
+        &self.group_id
+    }
+
+    /// Get current partition assignments.
+    pub async fn assignment(&self) -> TopicPartitionList {
+        self.assignments.read().await.clone()
+    }
+
     // === Metadata operations ===
 
     /// Fetch metadata for all topics.
@@ -127,6 +137,98 @@ impl Consumer {
             .await?;
 
         Ok((earliest, latest))
+    }
+
+    /// Fetch watermarks for multiple topic-partitions efficiently.
+    ///
+    /// Returns a map of (topic, partition) -> (earliest, latest) offsets.
+    /// This is more efficient than calling `fetch_watermarks` repeatedly
+    /// as it batches requests.
+    pub async fn fetch_watermarks_for_partitions(
+        &self,
+        topic_partitions: &TopicPartitionList,
+        timeout: Duration,
+    ) -> Result<HashMap<(String, i32), (i64, i64)>, Error> {
+        // Group by topic
+        let mut topic_map: HashMap<&str, Vec<i32>> = HashMap::new();
+        for elem in topic_partitions.elements() {
+            topic_map
+                .entry(&elem.topic)
+                .or_default()
+                .push(elem.partition);
+        }
+
+        // Fetch earliest offsets (-2)
+        let earliest_offsets = self
+            .fetch_offsets_batch(&topic_map, -2, timeout)
+            .await?;
+
+        // Fetch latest offsets (-1)
+        let latest_offsets = self
+            .fetch_offsets_batch(&topic_map, -1, timeout)
+            .await?;
+
+        // Combine results
+        let mut result = HashMap::new();
+        for ((topic, partition), earliest) in earliest_offsets {
+            if let Some(&latest) = latest_offsets.get(&(topic.clone(), partition)) {
+                result.insert((topic, partition), (earliest, latest));
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Fetch offsets for multiple topic-partitions with a specific timestamp.
+    async fn fetch_offsets_batch(
+        &self,
+        topic_map: &HashMap<&str, Vec<i32>>,
+        timestamp: i64,
+        timeout: Duration,
+    ) -> Result<HashMap<(String, i32), i64>, Error> {
+        use kafka_protocol::messages::{ListOffsetsRequest, list_offsets_request};
+        use kafka_protocol::protocol::StrBytes;
+
+        let mut request = ListOffsetsRequest::default();
+        request.replica_id = kafka_protocol::messages::BrokerId(-1);
+
+        request.topics = topic_map
+            .iter()
+            .map(|(topic, partitions)| {
+                let mut topic_req = list_offsets_request::ListOffsetsTopic::default();
+                topic_req.name = kafka_protocol::messages::TopicName::from(StrBytes::from_string(
+                    topic.to_string(),
+                ));
+                topic_req.partitions = partitions
+                    .iter()
+                    .map(|&partition| {
+                        let mut p = list_offsets_request::ListOffsetsPartition::default();
+                        p.partition_index = partition;
+                        p.timestamp = timestamp;
+                        p
+                    })
+                    .collect();
+                topic_req
+            })
+            .collect();
+
+        let conn = self.pool.get_any_connection().await?;
+        let response = conn.send_request(request, timeout).await?;
+
+        let mut result = HashMap::new();
+        for topic_resp in response.topics {
+            let topic_name = topic_resp.name.to_string();
+            for partition_resp in topic_resp.partitions {
+                if partition_resp.error_code == 0 {
+                    result.insert(
+                        (topic_name.clone(), partition_resp.partition_index),
+                        partition_resp.offset,
+                    );
+                }
+            }
+        }
+
+        Ok(result)
     }
 
     async fn fetch_offset_for_timestamp(
@@ -280,10 +382,14 @@ impl Consumer {
     }
 
     /// Commit offsets for this consumer's group.
+    ///
+    /// The `mode` parameter is currently ignored - all commits are synchronous.
+    /// This may change in future versions.
     pub async fn commit(
         &self,
         topic_partitions: &TopicPartitionList,
         _mode: CommitMode,
+        timeout: Duration,
     ) -> Result<(), Error> {
         use kafka_protocol::messages::{OffsetCommitRequest, offset_commit_request};
         use kafka_protocol::protocol::StrBytes;
@@ -323,12 +429,10 @@ impl Consumer {
         // Get coordinator connection
         let conn = self
             .coordinator_manager
-            .get_coordinator_connection(&self.group_id, Duration::from_secs(5))
+            .get_coordinator_connection(&self.group_id, timeout)
             .await?;
 
-        let response = conn
-            .send_request(request, Duration::from_secs(5))
-            .await?;
+        let response = conn.send_request(request, timeout).await?;
 
         // Check for errors
         for topic in response.topics {
@@ -346,6 +450,26 @@ impl Consumer {
         }
 
         Ok(())
+    }
+
+    /// Get the current position (offset) for assigned partitions.
+    ///
+    /// Returns the offsets that will be fetched next for each assigned partition.
+    /// If a partition is not in the assignment, it will not appear in the result.
+    pub async fn position(
+        &self,
+        topic_partitions: &TopicPartitionList,
+    ) -> Result<TopicPartitionList, Error> {
+        let assignments = self.assignments.read().await;
+        let mut result = TopicPartitionList::new();
+
+        for elem in topic_partitions.elements() {
+            if let Some(assigned) = assignments.find(&elem.topic, elem.partition) {
+                result.add_partition_offset(&elem.topic, elem.partition, assigned.offset)?;
+            }
+        }
+
+        Ok(result)
     }
 
     // === Partition assignment & streaming ===
