@@ -1,7 +1,7 @@
 use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 use crate::commands::apply_target_offsets::export::apply_target_offsets;
 use crate::kafka::client_config::ConfigBuilder;
-use crate::{ApplicationRecord, ConsumerGroup, OffsetSnapshot, Properties};
+use crate::{ApplicationRecord, ConsumerGroup, OffsetSnapshot};
 use log::trace;
 use rdkafka::ClientConfig;
 use std::collections::HashMap;
@@ -12,16 +12,19 @@ mod export;
 // TODO split in plan and apply so we can avoid the confirmation request
 pub async fn execute(
     bootstrap_server: &str,
-    optional_client_properties: &Option<Properties>,
-    topics: &Option<Vec<String>>,
+    properties: &HashMap<String, String>,
+    topics: impl IntoIterator<Item = String>,
     offset_snapshot: OffsetSnapshot,
     confirmation: &dyn Fn(&OffsetSnapshot) -> bool,
 ) -> Result<(), ApplyOffsetsError> {
     trace!("apply target offsets");
+
+    let topics = topics.into_iter().collect::<Vec<String>>();
+
     let mut exporter_base_config = ClientConfig::new()
+        .set_properties(properties)
         .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
-        .set_optional_properties(optional_client_properties)
         .disable_auto_commit();
 
     let mut mapped_intermediary_result: HashMap<ConsumerGroup, Vec<ApplicationRecord>> =
@@ -29,7 +32,7 @@ pub async fn execute(
 
     offset_snapshot
         .iter()
-        .filter(|r| topics.as_ref().is_none_or(|t| t.contains(&r.topic)))
+        .filter(|r| topics.contains(&r.topic))
         .for_each(|item| {
             let value = (item.topic.to_string(), item.partition, item.offset);
             mapped_intermediary_result

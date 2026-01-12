@@ -9,7 +9,7 @@ use rdkafka::{
 };
 
 pub async fn setup_consumer_and_metadata(
-    topics: &[&str],
+    topics: impl IntoIterator<Item = String>,
     transformer_consumer_config: &mut ClientConfig,
 ) -> Result<(StreamConsumer, Metadata), TransformationError> {
     let consumer = initialize_consumer(transformer_consumer_config)?;
@@ -34,8 +34,11 @@ pub fn initialize_consumer(
 
 pub fn manage_topic_subscriptions(
     consumer: &StreamConsumer,
-    topics: &[&str],
+    topics: impl IntoIterator<Item = String>,
 ) -> Result<(), TransformationError> {
+    let topics = topics.into_iter().collect::<Vec<String>>();
+    let topic_refs: Vec<&str> = topics.iter().map(|s| s.as_str()).collect();
+
     if topics.is_empty() {
         return Err(TransformationError::InvalidInput(
             "Topics list cannot be empty".to_string(),
@@ -46,7 +49,7 @@ pub fn manage_topic_subscriptions(
     info!("Subscribing to topics: {topic_selector}");
 
     consumer
-        .subscribe(topics)
+        .subscribe(&topic_refs)
         .map_err(|kafka_error| TransformationError::SubscribingFailed {
             message: format!("Failed to subscribe to topics: {kafka_error}"),
             topic_selector,

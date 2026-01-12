@@ -96,7 +96,7 @@ impl OffsetSnapshot {
 
     /// Filters the snapshot to include only records with topics in the provided list.
     /// If the list is empty, returns the original snapshot.
-    pub fn filter_by_topic<S: AsRef<str>>(&self, topics: &[S]) -> OffsetSnapshot {
+    pub fn filter_by_topics<S: AsRef<str>>(&self, topics: &[S]) -> OffsetSnapshot {
         if topics.is_empty() {
             return self.clone();
         }

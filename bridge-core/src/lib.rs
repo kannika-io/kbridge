@@ -80,7 +80,7 @@ pub trait BridgeClient {
     /// - There are issues reading consumer group metadata
     fn fetch_source_offsets_from_cluster(
         &self,
-        topics: &Option<Vec<String>>,
+        topics: impl IntoIterator<Item = String>,
         client_timeout: Duration,
     ) -> Result<OffsetSnapshot, Self::Error>;
 
@@ -110,8 +110,8 @@ pub trait BridgeClient {
     /// - Consumer initialization or subscription fails
     fn calculate_target_offsets(
         &self,
-        legacy_offset_header: &str,
-        topics: &Option<Vec<String>>,
+        legacy_offset_header: impl Into<String>,
+        topics: impl IntoIterator<Item = String>,
         offset_snapshot: OffsetSnapshot,
     ) -> impl Future<Output = Result<OffsetSnapshot, Self::Error>>;
 
@@ -139,7 +139,7 @@ pub trait BridgeClient {
     /// - The operation is cancelled
     fn apply_target_offsets(
         &self,
-        topics: &Option<Vec<String>>,
+        topics: impl IntoIterator<Item = String>,
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
     ) -> impl Future<Output = Result<(), Self::Error>>;
@@ -156,31 +156,29 @@ pub struct KafkaBridgeClient {
 }
 
 pub struct BridgeConfig {
-    bootstrap_server: String,
-    optional_client_properties: Option<Properties>,
+    properties: HashMap<String, String>,
 }
 
 impl BridgeConfig {
-    pub fn new(bootstrap_server: String) -> Self {
-        BridgeConfig {
-            bootstrap_server,
-            optional_client_properties: None,
-        }
+    pub fn new(bootstrap_server: impl Into<String>) -> Self {
+        let mut properties = HashMap::new();
+        properties.insert("bootstrap.servers".to_string(), bootstrap_server.into());
+        BridgeConfig { properties }
     }
 
-    pub fn set_optional_client_properties(
-        mut self,
-        optional_client_properties: Option<HashMap<String, String>>,
-    ) -> Self {
-        self.optional_client_properties = optional_client_properties;
+    pub fn set_properties(mut self, properties: HashMap<String, String>) -> Self {
+        self.properties.extend(properties);
         self
     }
 
-    pub fn bootstrap_server(&self) -> &str {
-        self.bootstrap_server.as_str()
+    pub fn bootstrap_server(&self) -> String {
+        self.properties
+            .get("bootstrap.servers")
+            .cloned()
+            .unwrap_or("localhost:9092".to_string())
     }
 
-    pub fn optional_client_properties(&self) -> &Option<Properties> {
-        &self.optional_client_properties
+    pub fn properties(&self) -> &HashMap<String, String> {
+        &self.properties
     }
 }

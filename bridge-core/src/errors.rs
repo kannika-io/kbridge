@@ -1,12 +1,14 @@
 use thiserror::Error;
 
 use crate::{
+    KafkaError,
     commands::{
         apply_target_offsets::errors::ApplyOffsetsError,
         calculate_target_offsets::errors::TransformationError, errors::FetchSourceOffsetsError,
         fetch_source_offsets::errors::ImportOffsetsError,
     },
     snapshot::csv::CsvSnapshotError,
+    transform::MigrationError,
 };
 
 #[derive(Error, Debug)]
@@ -21,4 +23,8 @@ pub enum BridgeError {
     ImportOffsets(#[from] ImportOffsetsError),
     #[error("Failed during offset import. Reason: {0}")]
     FetchSourceOffsetsError(#[from] FetchSourceOffsetsError),
+    #[error("Kafka error: {0}")]
+    KafkaError(#[from] KafkaError),
+    #[error("Migration error: {0}")]
+    MigrationError(#[from] MigrationError),
 }

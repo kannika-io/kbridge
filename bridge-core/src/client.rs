@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    BridgeClient, KafkaBridgeClient, OffsetSnapshot, Topic,
+    BridgeClient, KafkaBridgeClient, OffsetSnapshot,
     commands::{apply_target_offsets, calculate_target_offsets, fetch_source_offsets},
     errors::BridgeError,
 };
@@ -11,12 +11,12 @@ impl BridgeClient for KafkaBridgeClient {
 
     fn fetch_source_offsets_from_cluster(
         &self,
-        topics: &Option<Vec<String>>,
+        topics: impl IntoIterator<Item = String>,
         client_timeout: Duration,
     ) -> Result<OffsetSnapshot, BridgeError> {
         fetch_source_offsets::execute(
             self.config.bootstrap_server(),
-            self.config.optional_client_properties(),
+            self.config.properties(),
             topics,
             client_timeout,
         )
@@ -25,14 +25,14 @@ impl BridgeClient for KafkaBridgeClient {
 
     async fn calculate_target_offsets(
         &self,
-        legacy_offset_header: &str,
-        topics: &Option<Vec<String>>,
+        legacy_offset_header: impl Into<String>,
+        topics: impl IntoIterator<Item = String>,
         offset_snapshot: OffsetSnapshot,
     ) -> Result<OffsetSnapshot, BridgeError> {
         calculate_target_offsets::execute(
-            self.config.bootstrap_server(),
+            &self.config.bootstrap_server(),
             legacy_offset_header,
-            self.config.optional_client_properties(),
+            self.config.properties(),
             topics,
             offset_snapshot,
         )
@@ -42,13 +42,13 @@ impl BridgeClient for KafkaBridgeClient {
 
     async fn apply_target_offsets(
         &self,
-        topics: &Option<Vec<Topic>>,
+        topics: impl IntoIterator<Item = String>,
         offset_snapshot: OffsetSnapshot,
         confirmation_request: &dyn Fn(&OffsetSnapshot) -> bool,
     ) -> Result<(), BridgeError> {
         apply_target_offsets::execute(
-            self.config.bootstrap_server(),
-            self.config.optional_client_properties(),
+            &self.config.bootstrap_server(),
+            self.config.properties(),
             topics,
             offset_snapshot,
             &|offset_snapshot| confirmation_request(offset_snapshot),

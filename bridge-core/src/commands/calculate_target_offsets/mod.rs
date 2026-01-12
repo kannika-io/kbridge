@@ -1,9 +1,10 @@
 use crate::commands::calculate_target_offsets::errors::TransformationError;
 use crate::kafka::client_config::ConfigBuilder;
 use crate::kafka::consumer::setup_consumer_and_metadata;
-use crate::{OffsetRecord, OffsetSnapshot, Properties, TransformationRecord};
+use crate::{OffsetRecord, OffsetSnapshot, TransformationRecord};
 use log::trace;
 use rdkafka::ClientConfig;
+use std::collections::HashMap;
 use transform::get_target_offsets;
 
 pub mod errors;
@@ -11,34 +12,32 @@ mod transform;
 
 pub async fn execute(
     bootstrap_server: &str,
-    legacy_offset_header: &str,
-    optional_client_properties: &Option<Properties>,
-    topics: &Option<Vec<String>>,
+    legacy_offset_header: impl Into<String>,
+    properties: &HashMap<String, String>,
+    topics: impl IntoIterator<Item = String>,
     snapshot: OffsetSnapshot,
 ) -> Result<OffsetSnapshot, TransformationError> {
-    let snapshot = match topics {
-        Some(topics) => snapshot.filter_by_topic(topics),
-        None => snapshot,
-    };
-
     trace!("Initializing consumer and fetching metadata..");
+
+    let legacy_offset_header = legacy_offset_header.into();
+    let topics = topics.into_iter().collect::<Vec<String>>();
+
+    let snapshot = snapshot.filter_by_topics(&topics);
 
     let mut transformer_consumer_config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server)
         .set_reset_from_beginning()
-        .set_optional_properties(optional_client_properties)
+        .set_properties(properties)
         .disable_auto_commit();
-
-    let topics: Vec<&str> = snapshot.topics().into_iter().collect();
 
     // Initialize consumer
     let (consumer, metadata) =
-        setup_consumer_and_metadata(&topics, &mut transformer_consumer_config).await?;
+        setup_consumer_and_metadata(topics, &mut transformer_consumer_config).await?;
 
     trace!("Initialization completed.");
 
     let transformed_result =
-        get_target_offsets(legacy_offset_header, &snapshot, consumer, metadata).await?;
+        get_target_offsets(&legacy_offset_header, &snapshot, consumer, metadata).await?;
 
     let snapshot = OffsetSnapshot::from_iter(transformed_result.iter().flat_map(|o| {
         o.1.iter().map(|t: &TransformationRecord| OffsetRecord {

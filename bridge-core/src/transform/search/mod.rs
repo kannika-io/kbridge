@@ -23,6 +23,12 @@ impl OffsetSource {
     }
 }
 
+impl Default for OffsetSource {
+    fn default() -> Self {
+        OffsetSource::Header("offset".to_string())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExtractOffsetError {
     #[error("Header not found: {0}")]

@@ -3,21 +3,13 @@ use std::io::{self, stdin};
 use std::path::PathBuf;
 use std::{collections::HashMap, time::Duration};
 
-use bridge_core::{BridgeConfig, KafkaBridgeClient, Properties};
-use clap::{Parser, Subcommand, arg, builder::TypedValueParser, command};
+use bridge_core::kafka::properties::KafkaConsumerProperties;
+use bridge_core::{BridgeConfig, KafkaBridgeClient};
+use clap::{Parser, Subcommand, builder::TypedValueParser};
 
 impl From<KafkaConnection> for BridgeConfig {
-    fn from(value: KafkaConnection) -> Self {
-        let merged_properties = value.optional_client_properties.map(|props_vec| {
-            props_vec
-                .into_iter()
-                .fold(HashMap::new(), |mut acc, props| {
-                    acc.extend(props);
-                    acc
-                })
-        });
-
-        BridgeConfig::new(value.bootstrap_server).set_optional_client_properties(merged_properties)
+    fn from(conn: KafkaConnection) -> Self {
+        BridgeConfig::new(conn.bootstrap_server).set_properties(conn.properties)
     }
 }
 
@@ -95,7 +87,7 @@ impl TypedValueParser for DurationParser {
 struct PropertiesInputParser;
 
 impl TypedValueParser for PropertiesInputParser {
-    type Value = Properties;
+    type Value = HashMap<String, String>;
     fn parse_ref(
         &self,
         _cmd: &clap::Command,
@@ -137,11 +129,19 @@ pub struct KafkaConnection {
             value_parser = PropertiesInputParser,
             action = clap::ArgAction::Append,
         )]
-    pub optional_client_properties: Option<Vec<Properties>>,
+    pub properties: HashMap<String, String>,
 
     /// Specify topics. If no topics specified, all topics will be used.
     #[arg(short, long)]
-    pub topics: Option<Vec<String>>,
+    pub topics: Vec<String>,
+}
+
+impl KafkaConnection {
+    pub fn to_consumer_properties(&self) -> KafkaConsumerProperties {
+        let mut props = KafkaConsumerProperties::from_iter(self.properties.clone().into_iter());
+        props.insert("bootstrap.servers", self.bootstrap_server.clone());
+        props
+    }
 }
 
 #[derive(Debug, Subcommand)]

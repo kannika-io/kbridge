@@ -42,11 +42,19 @@ pub enum MigrationError {
 }
 
 impl ConsumerGroupMigrator {
-    pub fn new(consumer: Arc<RecordStreamConsumer>, offset_source: OffsetSource) -> Self {
+    pub fn new<T>(consumer: T) -> Self
+    where
+        T: Into<Arc<RecordStreamConsumer>>,
+    {
         ConsumerGroupMigrator {
-            consumer,
-            offset_source,
+            consumer: consumer.into(),
+            offset_source: OffsetSource::default(),
         }
+    }
+
+    pub fn search_offset_in_header(mut self, key: &str) -> Self {
+        self.offset_source = OffsetSource::from_header(key);
+        self
     }
 
     pub async fn migrate(
@@ -199,9 +207,7 @@ mod tests {
         .parse()
         .expect("failed to parse snapshot");
 
-        let offset_source = OffsetSource::Header("offset".to_string());
-
-        let migrator = ConsumerGroupMigrator::new(consumer, offset_source);
+        let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header("offset");
 
         let transformed = migrator.migrate(&snapshot).await?;
 

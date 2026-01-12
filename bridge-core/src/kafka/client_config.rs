@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use log::warn;
 use rdkafka::ClientConfig;
 
-use crate::Properties;
 
 pub const DEFAULT_GROUP_ID: &str = "bridge-consumer-group";
 pub const GROUP_ID_KEY: &str = "group.id";
@@ -13,7 +14,7 @@ pub trait ConfigBuilder {
 
     fn disable_auto_commit(self) -> Self;
 
-    fn set_optional_properties(self, properties: &Option<Properties>) -> Self;
+    fn set_properties(self, properties: &HashMap<String, String>) -> Self;
 }
 
 impl ConfigBuilder for ClientConfig {
@@ -32,15 +33,13 @@ impl ConfigBuilder for ClientConfig {
         self
     }
 
-    fn set_optional_properties(mut self, optional_properties: &Option<Properties>) -> Self {
+    fn set_properties(mut self, properties: &HashMap<String, String>) -> Self {
         let mut group_id_present = false;
-        if let Some(properties) = optional_properties {
-            for (key, value) in properties {
-                if key == "group.id" {
-                    group_id_present = true;
-                }
-                self.set(key, value);
+        for (key, value) in properties {
+            if key == "group.id" {
+                group_id_present = true;
             }
+            self.set(key, value);
         }
         if !group_id_present {
             warn!("property {GROUP_ID_KEY} is not set. Setting it to \"{DEFAULT_GROUP_ID}\"");

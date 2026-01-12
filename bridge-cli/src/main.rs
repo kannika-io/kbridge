@@ -1,6 +1,7 @@
 use args::{Args, Commands};
 use bridge_core::{
-    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, snapshot::csv::FromCsv,
+    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError,
+    kafka::source::RecordStreamConsumer, snapshot::csv::FromCsv, transform::ConsumerGroupMigrator,
 };
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot};
@@ -30,7 +31,7 @@ async fn main() -> Result<(), BridgeError> {
             kafka_connection,
             timeout,
         } => {
-            let topics = &kafka_connection.topics.clone();
+            let topics = kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
 
             let result = client.fetch_source_offsets_from_cluster(topics, timeout)?;
@@ -42,12 +43,24 @@ async fn main() -> Result<(), BridgeError> {
             kafka_connection,
             input,
         } => {
-            let topics = &kafka_connection.topics.clone();
-            let client: KafkaBridgeClient = kafka_connection.into();
-            let offset_snapshot = OffsetSnapshot::from_csv(input)?;
-            let result = client
-                .calculate_target_offsets(offset_header.as_str(), topics, offset_snapshot)
-                .await?;
+            let snapshot = {
+                let topics = &kafka_connection.topics.clone();
+                OffsetSnapshot::from_csv(input)?.filter_by_topics(topics)
+            };
+
+            let consumer = {
+                let properties = kafka_connection.to_consumer_properties();
+                let (consumer, task) = RecordStreamConsumer::new(properties)?;
+                tokio::spawn(task);
+                consumer
+            };
+
+            let result = {
+                let migrator =
+                    ConsumerGroupMigrator::new(consumer).search_offset_in_header(&offset_header);
+                migrator.migrate(&snapshot).await?
+            };
+
             print_offset_snapshot(&result);
             Ok(())
         }
@@ -56,7 +69,7 @@ async fn main() -> Result<(), BridgeError> {
             input,
             skip_confirmation,
         } => {
-            let topics = &kafka_connection.topics.clone();
+            let topics = kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
             trace!("applying target offsets");
             let snapshot = OffsetSnapshot::from_csv(input)?;

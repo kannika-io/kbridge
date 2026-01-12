@@ -19,9 +19,11 @@ pub struct Metadata {
 /// Fetches metadata from kafka cluster: All consumer groups and topic-partition combos
 pub fn fetch_metadata(
     consumer: BaseConsumer,
-    topics: &Option<Vec<String>>,
+    topics: impl IntoIterator<Item = String>,
     client_timeout: Duration,
 ) -> Result<Metadata, FetchMetadataError> {
+    let topics = topics.into_iter().collect::<Vec<String>>();
+
     let group_list = consumer.fetch_group_list(None, Timeout::After(client_timeout))?;
 
     let metadata = consumer.fetch_metadata(None, Timeout::After(client_timeout))?;
@@ -32,11 +34,7 @@ pub fn fetch_metadata(
         .topics()
         .iter()
         // Optimization: filter topics when fetching metadata
-        .filter(|mt| {
-            topics
-                .as_ref()
-                .is_none_or(|t| t.contains(&mt.name().to_string()))
-        })
+        .filter(|mt| topics.contains(&mt.name().to_string()))
         .for_each(|topic| {
             topic.partitions().iter().for_each(|part| {
                 topics_and_partitions
