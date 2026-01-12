@@ -6,10 +6,7 @@ use bridge_core::{
     kafka::{
         client_config::{ConfigBuilder, GROUP_ID_KEY},
         consumer::setup_consumer_and_metadata,
-        properties::KafkaConsumerProperties,
-        source::RecordStreamConsumer,
     },
-    transform::ConsumerGroupMigrator,
 };
 use init::{init_logging, setup_test_environment};
 use log::info;
@@ -24,8 +21,7 @@ use rdkafka::{
 };
 use stubs::{
     CONSUMER_GROUP_1, CONSUMER_GROUP_2, OFFSET_HEADER, ORDERS_1_TOPIC, SOURCE_BOOTSTRAP_SERVER,
-    TARGET_BOOTSTRAP_SERVER, get_expected_stub_offsets_filtered_by_topics,
-    get_expected_stub_target_offsets,
+    TARGET_BOOTSTRAP_SERVER, get_expected_stub_target_offsets,
 };
 
 use crate::{init, stubs};
@@ -112,10 +108,7 @@ async fn verify_consumer(
         .committed_offsets(tpl, Timeout::Never)?
         .to_topic_map();
 
-    let expected_targets = get_expected_stub_offsets_filtered_by_topics(
-        get_expected_stub_target_offsets().to_vec(),
-        topics.to_vec(),
-    );
+    let expected_targets = get_expected_stub_target_offsets().filter_by_topics(&topics);
 
     info!("{:#?}", committed_offsets);
     info!("{:#?}", expected_targets);

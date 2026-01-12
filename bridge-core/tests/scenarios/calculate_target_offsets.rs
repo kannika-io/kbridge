@@ -14,7 +14,6 @@ use crate::{
 };
 
 #[tokio::test]
-#[ignore]
 pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
@@ -34,23 +33,12 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
 
     let expected_offsets = get_expected_stub_target_offsets();
 
-    info!("{:#?}", target_offsets);
-    info!("{:#?}", expected_offsets);
-
-    assert!(target_offsets.iter().all(|t| {
-        expected_offsets.iter().any(|e| {
-            e.topic == t.topic
-                && e.offset == t.offset
-                && e.consumer_group == t.consumer_group
-                && e.partition == t.partition
-        })
-    }));
+    bridge_core::test::snapshot::assertions::assert_eq(target_offsets, expected_offsets);
 
     Ok(())
 }
 
 #[tokio::test]
-#[ignore]
 pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
@@ -72,10 +60,8 @@ pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets
         .calculate_target_offsets(OFFSET_HEADER, topics.clone(), result)
         .await?;
 
-    let expected_offsets = get_expected_stub_offsets_filtered_by_topics(
-        get_expected_stub_target_offsets().to_vec(),
-        topics,
-    );
+    let expected_offsets =
+        get_expected_stub_offsets_filtered_by_topics(get_expected_stub_target_offsets(), topics);
 
     info!("{:#?}", target_offsets);
     info!("{:#?}", expected_offsets);

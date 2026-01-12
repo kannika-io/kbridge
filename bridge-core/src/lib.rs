@@ -13,9 +13,12 @@ pub mod snapshot;
 pub mod transform;
 pub use prelude::*;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test {
+    pub mod snapshot;
     pub mod table;
+
+    #[cfg(test)]
     pub mod kafka {
         pub mod cluster;
     }

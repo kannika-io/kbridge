@@ -1,4 +1,4 @@
-use bridge_core::OffsetRecord;
+use bridge_core::prelude::*;
 
 pub const ORDERS_1_TOPIC: &str = "orders-1";
 pub const ORDERS_2_TOPIC: &str = "orders-2";
@@ -13,13 +13,10 @@ pub const SOURCE_BOOTSTRAP_SERVER: &str = "localhost:9092";
 pub const TARGET_BOOTSTRAP_SERVER: &str = "localhost:9093";
 
 pub fn get_expected_stub_offsets_filtered_by_topics(
-    source_offsets: Vec<OffsetRecord>,
+    source_offsets: OffsetSnapshot,
     topic_names: Vec<String>,
-) -> Vec<OffsetRecord> {
-    source_offsets
-        .into_iter()
-        .filter(|o| topic_names.contains(&o.topic))
-        .collect()
+) -> OffsetSnapshot {
+    source_offsets.filter_by_topics(&topic_names)
 }
 
 pub fn get_expected_offsets_filtered_by_topic(
@@ -74,8 +71,8 @@ pub fn get_expected_source_offsets() -> [OffsetRecord; 6] {
     ]
 }
 
-pub fn get_expected_stub_target_offsets() -> [OffsetRecord; 6] {
-    [
+pub fn get_expected_stub_target_offsets() -> OffsetSnapshot {
+    OffsetSnapshot::from(vec![
         OffsetRecord {
             topic: ORDERS_1_TOPIC.to_string(),
             partition: 0,
@@ -112,5 +109,5 @@ pub fn get_expected_stub_target_offsets() -> [OffsetRecord; 6] {
             offset: 879,
             consumer_group: CONSUMER_GROUP_1.to_string(),
         },
-    ]
+    ])
 }

@@ -332,6 +332,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "bridge-core",
  "csv",
  "env_logger",
  "futures",

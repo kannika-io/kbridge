@@ -163,7 +163,6 @@ mod tests {
 
     use crate::{
         prelude::*,
-        snapshot,
         test::kafka::cluster::ContainerizedCluster,
         transform::{ConsumerGroupMigrator, search::OffsetSource},
     };
@@ -225,7 +224,7 @@ mod tests {
         .parse()
         .expect("failed to parse snapshot");
 
-        snapshot::assertions::assert_eq(transformed, expected);
+        crate::test::snapshot::assertions::assert_eq(transformed, expected);
 
         Ok(())
     }

@@ -2,8 +2,6 @@
 //! An `OffsetSnapshot` contains multiple `OffsetRecord`s,
 //! each representing the offset of a specific consumer group for a given topic and partition.
 
-#[cfg(test)]
-pub mod assertions;
 pub mod csv;
 
 use std::{

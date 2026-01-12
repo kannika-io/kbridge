@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use log::info;
 use rdkafka::{
     ClientConfig,
     consumer::{Consumer, StreamConsumer},
