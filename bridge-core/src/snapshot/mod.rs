@@ -210,7 +210,7 @@ impl From<Vec<OffsetRecord>> for OffsetSnapshot {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl std::str::FromStr for OffsetSnapshot {
     type Err = crate::snapshot::csv::CsvSnapshotError;
 

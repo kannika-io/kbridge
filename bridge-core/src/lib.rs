@@ -13,7 +13,7 @@ pub mod test {
     pub mod snapshot;
     pub mod table;
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     pub mod kafka {
         pub mod cluster;
     }

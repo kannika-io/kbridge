@@ -106,6 +106,7 @@ pub trait MockClusterExt {
         Ok(())
     }
 
+    /// Produces messages with headers sequentially, ensuring message order is preserved.
     async fn produce_with_headers<F>(
         &self,
         topic: &str,
@@ -117,10 +118,6 @@ pub trait MockClusterExt {
         F: Fn(i64) -> HashMap<String, String> + Send,
     {
         let producer: FutureProducer = self.producer().await?;
-
-        // Send all messages by spawning tasks for parallel transmission
-        // Producer clone is cheap (Arc internally) and necessary for moving into tasks
-        let mut handles = Vec::with_capacity(amount as usize);
 
         for i in 0..amount {
             let i_as_string = i.to_string();
@@ -134,33 +131,23 @@ pub trait MockClusterExt {
                 });
             }
 
-            let producer = producer.clone();
-            let topic = topic.to_string();
+            let result = producer
+                .send(
+                    FutureRecord::to(topic)
+                        .partition(partition)
+                        .key(&i_as_string)
+                        .payload(&i_as_string)
+                        .headers(kafka_headers),
+                    Duration::from_secs(10),
+                )
+                .await;
 
-            let handle = tokio::spawn(async move {
-                producer
-                    .send(
-                        FutureRecord::to(&topic)
-                            .partition(partition)
-                            .key(&i_as_string)
-                            .payload(&i_as_string)
-                            .headers(kafka_headers),
-                        Duration::from_secs(10),
-                    )
-                    .await
-            });
-
-            handles.push(handle);
-        }
-
-        // Wait for all sends to complete
-        for handle in handles {
-            if let Ok(Err((e, _))) = handle.await {
-                eprintln!("Failed to send message: {}", e);
+            if let Err((e, _)) = result {
+                eprintln!("Failed to send message {}: {}", i, e);
+                return Err(MockClusterError::KafkaError(e));
             }
         }
 
-        // Flush to ensure all messages are delivered
         producer
             .flush(Duration::from_secs(30))
             .map_err(|e| MockClusterError::KafkaError(e))?;
