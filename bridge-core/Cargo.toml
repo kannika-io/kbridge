@@ -39,3 +39,4 @@ assert_matches = "1.5.0"
 tempfile = "3.23.0"
 env_logger = { workspace = true }
 testcontainers = { workspace = true }
+serial_test = "3"

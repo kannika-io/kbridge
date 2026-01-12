@@ -34,7 +34,39 @@ impl LogConsumer for StdoutLogConsumer {
 }
 
 impl ContainerizedCluster {
+    const MAX_START_RETRIES: u32 = 3;
+
     pub async fn start() -> Result<Self, TestcontainersError> {
+        let mut last_error = None;
+
+        for attempt in 1..=Self::MAX_START_RETRIES {
+            match Self::try_start().await {
+                Ok(cluster) => return Ok(cluster),
+                Err(e) => {
+                    let error_str = e.to_string();
+                    // Retry on port binding failures
+                    if error_str.contains("bind") || error_str.contains("address already in use") {
+                        eprintln!(
+                            "Container start attempt {}/{} failed (port conflict), retrying: {}",
+                            attempt,
+                            Self::MAX_START_RETRIES,
+                            error_str
+                        );
+                        last_error = Some(e);
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            TestcontainersError::Other("Failed to start container after retries".into())
+        }))
+    }
+
+    async fn try_start() -> Result<Self, TestcontainersError> {
         // Find an available port
         let kafka_port = Self::find_available_port()?;
 
@@ -85,18 +117,25 @@ impl ContainerizedCluster {
         config.set("bootstrap.servers", bootstrap);
         config.set("metadata.max.age.ms", "1000");
 
-        let timeout = Duration::from_secs(10);
+        // 60 second timeout to handle parallel test execution where multiple
+        // containers may be starting simultaneously
+        let timeout = Duration::from_secs(60);
         let start = std::time::Instant::now();
 
         loop {
             if start.elapsed() > timeout {
                 return Err(TestcontainersError::Other(
-                    "Timeout waiting for Redpanda broker to be ready".into(),
+                    format!(
+                        "Timeout waiting for Redpanda broker to be ready at {} after {:?}",
+                        bootstrap,
+                        start.elapsed()
+                    )
+                    .into(),
                 ));
             }
 
             match config.create::<BaseConsumer>() {
-                Ok(consumer) => match consumer.fetch_metadata(None, Duration::from_secs(1)) {
+                Ok(consumer) => match consumer.fetch_metadata(None, Duration::from_secs(2)) {
                     Ok(metadata) => {
                         if !metadata.brokers().is_empty() {
                             return Ok(());
@@ -107,7 +146,7 @@ impl ContainerizedCluster {
                 Err(_e) => {}
             }
 
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
     }
 
