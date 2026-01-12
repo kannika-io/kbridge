@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSnapshot};
-use log::info;
 
 use bridge_core::test;
 
@@ -14,7 +13,7 @@ use crate::{
     },
 };
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;
@@ -50,7 +49,7 @@ pub async fn calculate_target_offsets_should_return_expected_offsets() -> Result
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 pub async fn calculate_target_offsets_with_filter_should_return_expected_offsets() -> Result<()> {
     init_logging()?;
     setup_test_environment()?;

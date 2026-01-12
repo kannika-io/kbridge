@@ -423,7 +423,7 @@ impl SearchTask {
                 old_offset: self.old_offset,
                 new_offset: (m.new_offset - 1).max(0),
             })
-        } else if self.window.len() == 1 {
+        } else if self.window.len() <= 1 {
             // Window has been narrowed down to a single offset
             Some(OffsetMapping {
                 old_offset: self.old_offset,
