@@ -101,6 +101,11 @@ impl TypedValueParser for PropertiesInputParser {
             )
         })?;
 
+        // Handle empty default value
+        if value_str.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let mut properties = HashMap::new();
         if let Some((key, val)) = value_str.split_once('=') {
             properties.insert(key.to_string(), val.to_string());
@@ -128,6 +133,8 @@ pub struct KafkaConnection {
             long,
             value_parser = PropertiesInputParser,
             action = clap::ArgAction::Append,
+            required = false,
+            default_value = "",
         )]
     pub properties: HashMap<String, String>,
 
