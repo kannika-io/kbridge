@@ -12,23 +12,6 @@ pub const OFFSET_HEADER: &str = "Offset";
 pub const SOURCE_BOOTSTRAP_SERVER: &str = "localhost:9092";
 pub const TARGET_BOOTSTRAP_SERVER: &str = "localhost:9093";
 
-pub fn get_expected_stub_offsets_filtered_by_topics(
-    source_offsets: OffsetSnapshot,
-    topic_names: Vec<String>,
-) -> OffsetSnapshot {
-    source_offsets.filter_by_topics(&topic_names)
-}
-
-pub fn get_expected_offsets_filtered_by_topic(
-    source_offsets: Vec<OffsetRecord>,
-    topic_name: &str,
-) -> Vec<OffsetRecord> {
-    source_offsets
-        .into_iter()
-        .filter(|o| o.topic == topic_name)
-        .collect()
-}
-
 // TODO replace with insta snapshots
 pub fn get_expected_source_offsets() -> [OffsetRecord; 6] {
     [
