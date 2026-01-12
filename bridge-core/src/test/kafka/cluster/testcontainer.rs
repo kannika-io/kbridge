@@ -12,11 +12,13 @@ use testcontainers::core::logs::consumer::LogConsumer;
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt, TestcontainersError};
 
+#[allow(dead_code)]
 pub struct ContainerizedCluster {
     container: ContainerAsync<GenericImage>,
     kafka_port: u16,
 }
 
+#[allow(dead_code)]
 struct StdoutLogConsumer;
 
 impl LogConsumer for StdoutLogConsumer {
