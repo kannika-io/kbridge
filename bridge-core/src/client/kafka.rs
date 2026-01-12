@@ -71,8 +71,7 @@ impl BridgeClient for KafkaBridgeClient {
     ) -> Result<OffsetSnapshot, Self::Error> {
         let snapshot = {
             let topics: Vec<String> = topics.into_iter().collect();
-            snapshot.filter_by_topics(&topics);
-            snapshot
+            snapshot.filter_by_topics(&topics)
         };
 
         let props: KafkaConsumerProperties = self.config.as_ref().into();

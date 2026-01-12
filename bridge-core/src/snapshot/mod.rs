@@ -16,10 +16,12 @@ pub struct OffsetSnapshot {
 }
 
 impl OffsetSnapshot {
+    #[must_use]
     pub fn new() -> Self {
         OffsetSnapshot::default()
     }
 
+    #[must_use]
     pub fn with_capacity(len: usize) -> Self {
         OffsetSnapshot {
             records: Vec::with_capacity(len),
@@ -27,21 +29,25 @@ impl OffsetSnapshot {
     }
 
     /// Returns an iterator over references to the records
+    #[must_use]
     pub fn iter(&self) -> std::slice::Iter<'_, OffsetRecord> {
         self.records.iter()
     }
 
     /// Returns an iterator over mutable references to the records
+    #[must_use]
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, OffsetRecord> {
         self.records.iter_mut()
     }
 
     /// Returns the number of records
+    #[must_use]
     pub fn len(&self) -> usize {
         self.records.len()
     }
 
     /// Returns true if there are no records
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
     }
@@ -52,11 +58,13 @@ impl OffsetSnapshot {
         self.records.push(record);
     }
 
+    #[must_use]
     pub fn contains(&self, record: &OffsetRecord) -> bool {
         self.records.contains(record)
     }
 
     #[cfg(test)]
+    #[must_use]
     pub fn get_opt(
         &self,
         consumer_group: impl Into<String>,
@@ -74,11 +82,13 @@ impl OffsetSnapshot {
     }
 
     /// Returns a set of unique topic names in the snapshot
+    #[must_use]
     pub fn topics(&self) -> HashSet<&str> {
         self.records.iter().map(|r| r.topic.as_str()).collect()
     }
 
     /// Filters the snapshot based on a predicate function
+    #[must_use]
     pub fn filter<F>(&self, predicate: F) -> OffsetSnapshot
     where
         F: Fn(&OffsetRecord) -> bool,
@@ -95,6 +105,7 @@ impl OffsetSnapshot {
 
     /// Filters the snapshot to include only records with topics in the provided list.
     /// If the list is empty, returns the original snapshot.
+    #[must_use]
     pub fn filter_by_topics<S: AsRef<str>>(&self, topics: &[S]) -> OffsetSnapshot {
         if topics.is_empty() {
             return self.clone();
@@ -103,6 +114,7 @@ impl OffsetSnapshot {
         self.filter(|record| topic_set.contains(record.topic.as_str()))
     }
 
+    #[must_use]
     pub fn difference(&self, other: &OffsetSnapshot) -> OffsetSnapshot {
         OffsetSnapshot {
             records: self
