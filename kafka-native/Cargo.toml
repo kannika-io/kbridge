@@ -1,0 +1,45 @@
+[package]
+name = "kafka-native"
+version.workspace = true
+authors.workspace = true
+description = "Pure Rust Kafka client using rustls"
+edition.workspace = true
+
+[dependencies]
+# Protocol encoding/decoding
+kafka-protocol = "0.16"
+
+# Async runtime
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["codec"] }
+
+# TLS (rustls, no OpenSSL)
+tokio-rustls = "0.26"
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12"] }
+rustls-pemfile = "2"
+webpki-roots = "0.26"
+
+# Async traits and streams
+futures = { workspace = true }
+async-trait = { workspace = true }
+pin-project = { workspace = true }
+
+# Bytes handling
+bytes = "1"
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Collections
+ahash = { workspace = true }
+indexmap = "2"
+
+# Unique IDs
+ulid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+maplit = { workspace = true }

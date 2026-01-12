@@ -1,6 +1,6 @@
 [workspace]
 resolver="3"
-members=["bridge-cli", "bridge-core"]
+members=["bridge-cli", "bridge-core", "kafka-native"]
 
 [workspace.package]
 version = "0.1.0"
@@ -27,3 +27,4 @@ regex = "1"
 itertools = "0.14"
 testcontainers = "0.26"
 async-trait = "0.1"
+bytes = "1"
