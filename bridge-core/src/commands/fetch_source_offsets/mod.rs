@@ -1,9 +1,9 @@
 use super::errors::FetchSourceOffsetsError;
+use crate::OffsetSnapshot;
 use crate::commands::fetch_source_offsets::sources::client::{
     fetch_all_committed_consumer_group_offsets, fetch_metadata,
 };
 use crate::kafka::client_config::{ConfigBuilder, GROUP_ID_KEY};
-use crate::OffsetSnapshot;
 use rdkafka::ClientConfig;
 use rdkafka::consumer::BaseConsumer;
 use std::collections::HashMap;
