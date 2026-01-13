@@ -1,4 +1,3 @@
-# Copied from kannika-platform/core/Dockerfile
 ARG RUST_VERSION=1.87
 ARG ALPINE_VERSION=3.21
 ARG KNK_CORE_BUILD_MODE=release

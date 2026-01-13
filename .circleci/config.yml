@@ -3,7 +3,6 @@ version: 2.1
 # define this file as the setup phase of your dynamic configuration
 setup: false
 
-
 always: &always
   tags:
     only: /.*/
@@ -53,8 +52,8 @@ orbs:
 workflows:
   build:
     jobs:
-# =================
-# AMD build artifact
+      # =================
+      # AMD build artifact
       - orbert-downey-jr/docker_buildx:
           filters: *always
           executor: orbert-downey-jr/ubuntu_2204_medium
@@ -62,18 +61,18 @@ workflows:
           image: kannika-bridge-cli
           image_tag: <<pipeline.number>>-amd64
           directory: .
-          dockerfile: dockerfiles/bridge-cli.dockerfile
+          dockerfile: Dockerfile
           use_docker_buildkit: true
           extra_build_args: --ssh default
           # git_pull_submodules: true
-          push_gar: << pipeline.parameters.push >> 
+          push_gar: << pipeline.parameters.push >>
           cache: $CIRCLE_BRANCH #if invoked by tag var is empty and cache will be disabled
           cache_key: $CIRCLE_BRANCH/amd
           cache_repo: $CACHE_ARTIFACT_REGISTRY_URL/$CACHE_ARTIFACT_REGISTRY_PROJECT/$CACHE_ARTIFACT_REGISTRY_NAME
           persist_to_workspace: true
           context: *cache-context
-# =================
-# ARM build artifact
+      # =================
+      # ARM build artifact
       - orbert-downey-jr/docker_buildx:
           filters: *always
           executor: orbert-downey-jr/ubuntu_2204_medium_arm
@@ -81,19 +80,19 @@ workflows:
           image: kannika-bridge-cli
           image_tag: <<pipeline.number>>-arm64
           directory: .
-          dockerfile: dockerfiles/bridge-cli.dockerfile
+          dockerfile: Dockerfile
           use_docker_buildkit: true
           extra_build_args: --ssh default
           # git_pull_submodules: true
-          push_gar: << pipeline.parameters.push >> 
+          push_gar: << pipeline.parameters.push >>
           cache: $CIRCLE_BRANCH #if invoked by tag var is empty and cache will be disabled
           cache_key: $CIRCLE_BRANCH/arm
           cache_repo: $CACHE_ARTIFACT_REGISTRY_URL/$CACHE_ARTIFACT_REGISTRY_PROJECT/$CACHE_ARTIFACT_REGISTRY_NAME
-          enabled: << pipeline.parameters.arm >> 
+          enabled: << pipeline.parameters.arm >>
           persist_to_workspace: true
           context: *cache-context
-# =================
-# manifest
+      # =================
+      # manifest
       # create docker manifest and push images/manifest
       - orbert-downey-jr/docker_create_manifest_gar:
           filters: *main-master-release-branch-tag
@@ -103,7 +102,7 @@ workflows:
           requires:
             - docker_build_amd
             - docker_build_arm
-    # Tag pushed manifest in gar with $CIRCLE_SHA1 or $CIRCLE_TAG
+      # Tag pushed manifest in gar with $CIRCLE_SHA1 or $CIRCLE_TAG
       - orbert-downey-jr/docker_tag_gar:
           filters: *main-master-release-branch-tag
           name: tag_with_sha
@@ -113,7 +112,7 @@ workflows:
           requires:
             - orbert-downey-jr/docker_create_manifest_gar
           context: *docker-context
-    # Tag pushed manifest in gar with 0.0.0
+      # Tag pushed manifest in gar with 0.0.0
       - orbert-downey-jr/docker_tag_gar:
           filters: *main-master-release-branch-tag
           name: tag_with_0.0.0
@@ -123,9 +122,9 @@ workflows:
           requires:
             - orbert-downey-jr/docker_create_manifest_gar
           context: *docker-context
-# ================= 
-# sbom
-    # build sbom for rust code
+      # =================
+      # sbom
+      # build sbom for rust code
       - orbert-downey-jr/rust_sbom:
           filters: *main-master-release-branch-tag
           path: .
@@ -133,14 +132,14 @@ workflows:
           context:
             - slack-auth-token
             - dependency-tracker-api-key
-    # merge rust sbom folder
+      # merge rust sbom folder
       - orbert-downey-jr/cyclonedx_merge_folder:
           filters: *main-master-release-branch-tag
           requires:
             - orbert-downey-jr/rust_sbom
           context:
             - slack-auth-token
-    # build sbom for rust container
+      # build sbom for rust container
       - orbert-downey-jr/syft_sbom:
           filters: *main-master-release-branch-tag
           pre-steps: # steps to run before steps defined in the job bar
@@ -154,7 +153,7 @@ workflows:
           requires:
             - tag_with_0.0.0
           context: *docker-context
-    # merge container sbom with code sbom
+      # merge container sbom with code sbom
       - orbert-downey-jr/cyclonedx_merge:
           filters: *main-master-release-branch-tag
           requires:
@@ -162,7 +161,7 @@ workflows:
             - orbert-downey-jr/cyclonedx_merge_folder
           context:
             - slack-auth-token
-    # push sbom to deptrack
+      # push sbom to deptrack
       - orbert-downey-jr/push_sbom:
           filters: *main-master-release-branch-tag
           dt_project_name: kannika-bridge-cli
