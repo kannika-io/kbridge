@@ -1,8 +1,0 @@
-services:
-  bridge-cli:
-    image: bridge-cli
-    build:
-      context: .
-      dockerfile: ./dockerfiles/bridge-cli.dockerfile
-      platforms:
-        - linux/arm64
