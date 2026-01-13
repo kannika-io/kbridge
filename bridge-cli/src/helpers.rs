@@ -23,11 +23,16 @@ pub fn ask_for_confirmation(offset_snapshot: &OffsetSnapshot) -> bool {
     }
     println!("{table}");
 
-    // Read from /dev/tty to get user input even when stdin is piped
-    let tty = match File::open("/dev/tty") {
+    // Read from terminal directly to get user input even when stdin is piped
+    #[cfg(unix)]
+    let tty_path = "/dev/tty";
+    #[cfg(windows)]
+    let tty_path = "CONIN$";
+
+    let tty = match File::open(tty_path) {
         Ok(f) => f,
         Err(_) => {
-            eprintln!("Cannot open /dev/tty for confirmation. Use -y to skip confirmation.");
+            eprintln!("Cannot open terminal for confirmation. Use -y to skip confirmation.");
             return false;
         }
     };
