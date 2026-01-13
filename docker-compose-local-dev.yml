@@ -9,7 +9,7 @@ services:
         kafka:
           brokers: ["broker-source:29092"]
     ports:
-      - "8080:8080"
+      - "8180:8080"
     depends_on:
       broker-source:
         condition: service_healthy
@@ -23,7 +23,7 @@ services:
         kafka:
           brokers: ["broker-target:29092"]
     ports:
-      - "8081:8080"
+      - "8181:8080"
     depends_on:
       broker-target:
         condition: service_healthy
