@@ -25,7 +25,7 @@ pub enum MigrationError {
     #[error("Failed to read partition")]
     PartitionReadError,
 
-    #[error("Search error")]
+    #[error("Search error: {0}")]
     SearchError(SearchError<KafkaError>),
 
     #[error(

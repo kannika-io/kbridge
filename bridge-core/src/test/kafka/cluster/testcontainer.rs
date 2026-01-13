@@ -191,9 +191,46 @@ impl MockClusterExt for ContainerizedCluster {
             }
         }
 
+        // Wait for topic metadata to propagate
+        self.wait_for_topic(topic, partitions).await?;
+
         tracing::debug!("Created topic {}", topic);
 
         Ok(())
+    }
+}
+
+impl ContainerizedCluster {
+    async fn wait_for_topic(
+        &self,
+        topic: &str,
+        expected_partitions: i32,
+    ) -> Result<(), MockClusterError> {
+        let consumer: BaseConsumer = self.consumer_properties().await.into_base_consumer()?;
+        let timeout = Duration::from_secs(30);
+        let start = std::time::Instant::now();
+
+        loop {
+            if start.elapsed() > timeout {
+                return Err(MockClusterError::TestcontainerError(format!(
+                    "Timeout waiting for topic '{}' to be ready",
+                    topic
+                )));
+            }
+
+            match consumer.fetch_metadata(Some(topic), Duration::from_secs(5)) {
+                Ok(metadata) => {
+                    if let Some(topic_metadata) = metadata.topics().first() {
+                        if topic_metadata.partitions().len() == expected_partitions as usize {
+                            return Ok(());
+                        }
+                    }
+                }
+                Err(_) => {}
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
     }
 }
 
