@@ -14,6 +14,7 @@ mod logging;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    ignore_broken_pipes();
     let args = Args::parse();
 
     logging::init(args.verbose);
@@ -93,3 +94,15 @@ async fn run(args: Args) -> Result<(), BridgeError> {
         }
     }
 }
+
+/// Reset SIGPIPE to default behavior (terminate silently on broken pipe).
+/// This prevents noisy errors when output is piped to commands like `head`.
+#[cfg(unix)]
+fn ignore_broken_pipes() {
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn ignore_broken_pipes() {}
