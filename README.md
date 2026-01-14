@@ -60,35 +60,6 @@ my-consumer-group,orders,1,12346
 my-consumer-group,payments,0,5678
 ```
 
-## How does it work
-
-The restoration comes in 3 steps. 
-Each of these steps can be performed separately and the result can be checked before proceeding to the next step.
-
-```mermaid
-graph LR
-    A[Fetch]-->B[Calculate]-->C[Apply]
-```
-
-1. **Fetch** - Grabs all committed consumer group offsets from your source cluster and dumps them to CSV.
-
-2. **Calculate** - Takes a CSV of source offsets and figures out the equivalent offset on the target cluster. It does this by looking for messages that have the source offset stored in a header (offsets differ between clusters, but the header tells us which message is which). Outputs another CSV with the mapped target offsets.
-
-3. **Apply** - Takes the transformed CSV and commits those offsets to the target cluster so your consumers can resume right where they left off.
-
-### Use Cases
-
-- **Cluster Migration**: Move consumer groups from one Kafka cluster to another
-- **Disaster Recovery**: Restore consumer positions after cluster failures
-- **Environment Promotion**: Sync consumer states between dev/staging/production
-- **Data Replication**: Maintain consumer offset consistency across replicated clusters
-
-### Prerequisites
-
-- Kafka clusters must be accessible via bootstrap servers and credentials
-- Messages on target cluster must contain **source offset information** in headers (for transformation step) the name of the header is configurable
-- Appropriate permissions to read consumer group metadata and commit offsets
-
 ## Installation
 
 ### Using Cargo
@@ -128,6 +99,35 @@ cargo build --release
 # Binary will be in target/release/kbridge
 ```
 
+## How does it work
+
+The restoration comes in 3 steps. 
+Each of these steps can be performed separately and the result can be checked before proceeding to the next step.
+
+```mermaid
+graph LR
+    A[Fetch]-->B[Calculate]-->C[Apply]
+```
+
+1. **Fetch** - Grabs all committed consumer group offsets from your source cluster and dumps them to CSV.
+
+2. **Calculate** - Takes a CSV of source offsets and figures out the equivalent offset on the target cluster. It does this by looking for messages that have the source offset stored in a header (offsets differ between clusters, but the header tells us which message is which). Outputs another CSV with the mapped target offsets.
+
+3. **Apply** - Takes the transformed CSV and commits those offsets to the target cluster so your consumers can resume right where they left off.
+
+### Use Cases
+
+- **Cluster Migration**: Move consumer groups from one Kafka cluster to another
+- **Disaster Recovery**: Restore consumer positions after cluster failures
+- **Environment Promotion**: Sync consumer states between dev/staging/production
+- **Data Replication**: Maintain consumer offset consistency across replicated clusters
+
+### Prerequisites
+
+- Kafka clusters must be accessible via bootstrap servers and credentials
+- Messages on target cluster must contain **source offset information** in headers (for transformation step) the name of the header is configurable
+- Appropriate permissions to read consumer group metadata and commit offsets
+
 ## Advanced Options
 
 #### Filter by Topics
@@ -144,6 +144,17 @@ kbridge fetch -b localhost:9092 -t topic1 -t topic2 -t topic3
 kbridge calculate -b localhost:9093 -H CustomOffsetHeader -i offsets.csv
 ```
 
+### Dry Run
+
+To see what offsets would be applied without actually committing them,
+use the `--dry-run` flag.
+
+```bash
+# Calculate and review target offsets before applying
+kbridge fetch -b source:9092 | \
+kbridge calculate -b target:9093 -l Offset \
+kbridge apply -b target:9093 -i - --dry-run
+```
 
 #### SASL/SSL (Confluent Cloud)
 
@@ -198,27 +209,6 @@ kbridge fetch -b <bootstrap-url> \
 - Verify bootstrap server addresses are correct and accessible
 - Check network connectivity and firewall rules
 - Ensure Kafka cluster is running and healthy
-
-### Debug Mode
-
-Enable verbose logging for troubleshooting (see [Logging](#logging) for more options):
-
-```bash
-kbridge --verbose fetch -b localhost:9092
-```
-
-### Dry Run
-
-To see what offsets would be applied without actually committing them:
-
-```bash
-# Calculate and review target offsets before applying
-kbridge fetch -b source:9092 | \
-kbridge calculate -b target:9093 -l Offset
-
-# Review the CSV file, then apply if satisfied
-kbridge apply -b target:9093 -i review_offsets.csv
-```
 
 ## Logging
 
