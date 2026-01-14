@@ -41,7 +41,7 @@ impl ConfigBuilder for ClientConfig {
             self.set(key, value);
         }
         if !group_id_present {
-            warn!("property {GROUP_ID_KEY} is not set. Setting it to \"{DEFAULT_GROUP_ID}\"");
+            warn!("{GROUP_ID_KEY} not set, using \"{DEFAULT_GROUP_ID}\"");
             self.set(GROUP_ID_KEY, DEFAULT_GROUP_ID);
         }
         self
