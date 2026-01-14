@@ -1,7 +1,7 @@
 use std::fmt::Display;
-use std::io::{self, stdin};
+use std::io::{Cursor, Read, stdin};
 use std::path::PathBuf;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, io, time::Duration};
 
 use bridge_core::kafka::properties::KafkaConsumerProperties;
 use bridge_core::{KafkaBridgeClient, KafkaBridgeConfig};
@@ -217,13 +217,19 @@ pub enum CsvInput {
     File(PathBuf),
 }
 
-impl io::Read for CsvInput {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+impl CsvInput {
+    /// Returns a reader that reads all input into memory.
+    /// Blocks until EOF for stdin (handles piped input correctly).
+    pub fn into_reader(self) -> io::Result<Cursor<Vec<u8>>> {
         match self {
-            CsvInput::Stdin => stdin().read(buf),
-            CsvInput::File(file_path) => {
-                let mut file = std::fs::File::open(file_path)?;
-                file.read(buf)
+            CsvInput::Stdin => {
+                let mut buf = Vec::new();
+                stdin().lock().read_to_end(&mut buf)?;
+                Ok(Cursor::new(buf))
+            }
+            CsvInput::File(path) => {
+                let buf = std::fs::read(path)?;
+                Ok(Cursor::new(buf))
             }
         }
     }
@@ -231,6 +237,9 @@ impl io::Read for CsvInput {
 
 impl Display for CsvInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("{self:?}").as_str())
+        match self {
+            CsvInput::Stdin => f.write_str("stdin"),
+            CsvInput::File(path) => write!(f, "{}", path.display()),
+        }
     }
 }

@@ -1,6 +1,19 @@
 use tracing_subscriber::EnvFilter;
 
+/// Ignore SIGPIPE to prevent crashes when piped output is closed early
+#[cfg(unix)]
+pub fn ignore_broken_pipe() {
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_IGN);
+    }
+}
+
+#[cfg(not(unix))]
+pub fn ignore_broken_pipe() {}
+
 pub fn init(verbose: bool) {
+    ignore_broken_pipe();
+
     let default_filter = if verbose {
         "trace"
     } else {
@@ -10,7 +23,10 @@ pub fn init(verbose: bool) {
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_filter));
 
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
 }
 
 pub fn print_error(err: &dyn std::error::Error) {
