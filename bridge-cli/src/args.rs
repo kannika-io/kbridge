@@ -26,7 +26,7 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
 
-    #[arg(short, long, action)]
+    #[arg(short, long, global = true)]
     pub verbose: bool,
 }
 
