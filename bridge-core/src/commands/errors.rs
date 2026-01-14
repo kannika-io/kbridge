@@ -1,15 +1,29 @@
 use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
-use rdkafka::error::KafkaError;
+use crate::kafka::KafkaError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FetchSourceOffsetsError {
-    #[error("Kafka Error. Reason: {0}")]
+    #[error(transparent)]
     Kafka(#[from] KafkaError),
 
-    #[error("Error while fetching metadata. Reason: {0}")]
-    FetchMetadata(#[from] FetchMetadataError),
+    #[error("failed to fetch metadata")]
+    FetchMetadata(
+        #[from]
+        #[source]
+        FetchMetadataError,
+    ),
 
-    #[error("Error while importing offsets. Reason: {0}")]
-    ImportOffsets(#[from] ImportOffsetsError),
+    #[error("failed to import offsets")]
+    ImportOffsets(
+        #[from]
+        #[source]
+        ImportOffsetsError,
+    ),
+}
+
+impl From<rdkafka::error::KafkaError> for FetchSourceOffsetsError {
+    fn from(err: rdkafka::error::KafkaError) -> Self {
+        FetchSourceOffsetsError::Kafka(err.into())
+    }
 }

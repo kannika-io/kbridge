@@ -192,12 +192,10 @@ my-consumer-group,payments,0,5678
 
 ### Debug Mode
 
-Enable verbose logging for troubleshooting:
+Enable verbose logging for troubleshooting (see [Logging](#logging) for more options):
 
 ```bash
 kbridge --verbose fetch -b localhost:9092
-# or
-kbridge -v fetch -b localhost:9092
 ```
 
 ### Dry Run
@@ -212,6 +210,35 @@ kbridge calculate -b target:9093 -l Offset
 # Review the CSV file, then apply if satisfied
 kbridge apply -b target:9093 -i review_offsets.csv
 ```
+
+## Logging
+
+By default, kbridge logs at `info` level with internal Kafka client logs suppressed for cleaner output.
+
+### Verbose Mode
+
+Use `-v` or `--verbose` to enable detailed logging including Kafka client internals:
+
+```bash
+kbridge --verbose fetch -b localhost:9092
+```
+
+### Custom Log Levels
+
+Override logging via the `RUST_LOG` environment variable:
+
+```bash
+# Debug level for all components
+RUST_LOG=debug kbridge fetch -b localhost:9092
+
+# Info level with Kafka warnings visible
+RUST_LOG=info,rdkafka=warn kbridge fetch -b localhost:9092
+
+# Trace specific modules
+RUST_LOG=bridge_core::kafka=trace kbridge fetch -b localhost:9092
+```
+
+When `RUST_LOG` is set, it takes precedence over the `--verbose` flag.
 
 ## Contributing
 
