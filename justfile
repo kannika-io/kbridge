@@ -35,3 +35,6 @@ run-example:
 run-docs:
 	cargo doc --no-deps && \
 	docker compose -f docker-compose-docs.yml up --build
+
+generate-demo:
+	./scripts/generate-demo.sh
