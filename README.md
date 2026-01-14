@@ -8,6 +8,58 @@
 
 A powerful tool for migrating Kafka consumer group offsets between clusters, enabling seamless cluster migrations and disaster recovery scenarios.
 
+## Quick Start
+
+### Basic Commands
+
+```bash
+# Show help
+kbridge --help
+
+# Show help for specific command
+kbridge fetch --help
+kbridge calculate --help
+kbridge apply --help
+```
+
+### Simple Local Example
+
+Against local source (localhost:9092) and target (localhost:9093) clusters:
+
+```bash
+# Step 1: Fetch offsets from source cluster
+kbridge fetch -b localhost:9092 > source_offsets.csv
+
+# Step 2: Calculate target offsets
+kbridge calculate -b localhost:9093 -H Offset -i source_offsets.csv > target_offsets.csv
+
+# Step 3: Apply target offsets (with confirmation prompt)
+kbridge apply -b localhost:9093 -i target_offsets.csv
+```
+
+### Chained Pipeline
+
+All steps can be chained together for streamlined execution:
+
+```bash
+kbridge fetch -b localhost:9092 | \
+kbridge calculate -b localhost:9093 -H Offset | \
+kbridge apply -b localhost:9093
+```
+
+> ⚠️ **Safety First**: Before applying offsets, a confirmation prompt is shown to prevent accidental modifications. The prompt can be skipped by adding the '-y' flag to the apply step (See help section for more info).
+
+### CSV Format
+
+The tool uses CSV format for offset data with the following columns:
+
+```csv
+consumer_group,topic,partition,offset
+my-consumer-group,orders,0,12345
+my-consumer-group,orders,1,12346
+my-consumer-group,payments,0,5678
+```
+
 ## How does it work
 
 The restoration comes in 3 steps. 
@@ -15,12 +67,14 @@ Each of these steps can be performed separately and the result can be checked be
 
 ```mermaid
 graph LR
-    A[Fetch]-->B[Transform]-->C[Apply]
+    A[Fetch]-->B[Calculate]-->C[Apply]
 ```
 
-1. **Fetch** source offsets from the source cluster - retrieves committed consumer group offsets
-2. **Transform** offsets - maps source offsets to equivalent positions on the target cluster using message headers
-3. **Apply** transformed offsets to the target cluster - commits the calculated offsets for consumer groups
+1. **Fetch** - Grabs all committed consumer group offsets from your source cluster and dumps them to CSV.
+
+2. **Calculate** - Takes a CSV of source offsets and figures out the equivalent offset on the target cluster. It does this by looking for messages that have the source offset stored in a header (offsets differ between clusters, but the header tells us which message is which). Outputs another CSV with the mapped target offsets.
+
+3. **Apply** - Takes the transformed CSV and commits those offsets to the target cluster so your consumers can resume right where they left off.
 
 ### Use Cases
 
@@ -74,48 +128,22 @@ cargo build --release
 # Binary will be in target/release/kbridge
 ```
 
-## Usage
+## Advanced Options
 
-### Basic Commands
-
-```bash
-# Show help
-kbridge --help
-
-# Show help for specific command
-kbridge fetch --help
-kbridge calculate --help
-kbridge apply --help
-```
-
-### Simple Local Example
-
-Against local source (localhost:9092) and target (localhost:9093) clusters:
+#### Filter by Topics
 
 ```bash
-# Step 1: Fetch offsets from source cluster
-kbridge fetch -b localhost:9092 > source_offsets.csv
-
-# Step 2: Calculate target offsets
-kbridge calculate -b localhost:9093 -H Offset -i source_offsets.csv > target_offsets.csv
-
-# Step 3: Apply target offsets (with confirmation prompt)
-kbridge apply -b localhost:9093 -i target_offsets.csv
+# Only process specific topics
+kbridge fetch -b localhost:9092 -t topic1 -t topic2 -t topic3
 ```
 
-### Chained Pipeline
-
-All steps can be chained together for streamlined execution:
+#### Custom Header Key
 
 ```bash
-kbridge fetch -b localhost:9092 | \
-kbridge calculate -b localhost:9093 -H Offset | \
-kbridge apply -b localhost:9093
+# Use custom header key for offset mapping
+kbridge calculate -b localhost:9093 -H CustomOffsetHeader -i offsets.csv
 ```
 
-> ⚠️ **Safety First**: Before applying offsets, a confirmation prompt is shown to prevent accidental modifications. The prompt can be skipped by adding the '-y' flag to the apply step (See help section for more info).
-
-### Authentication Examples
 
 #### SASL/SSL (Confluent Cloud)
 
@@ -146,33 +174,6 @@ kbridge fetch -b <bootstrap-url> \
     -o ssl.ca.location=/path/to/ca-cert \
     -o ssl.certificate.location=/path/to/client-cert \
     -o ssl.key.location=/path/to/client-key
-```
-
-### Advanced Options
-
-#### Filter by Topics
-
-```bash
-# Only process specific topics
-kbridge fetch -b localhost:9092 -t topic1 -t topic2 -t topic3
-```
-
-#### Custom Header Key
-
-```bash
-# Use custom header key for offset mapping
-kbridge calculate -b localhost:9093 -H CustomOffsetHeader -i offsets.csv
-```
-
-### CSV Format
-
-The tool uses CSV format for offset data with the following columns:
-
-```csv
-consumer_group,topic,partition,offset
-my-consumer-group,orders,0,12345
-my-consumer-group,orders,1,12346
-my-consumer-group,payments,0,5678
 ```
 
 ## Troubleshooting
