@@ -33,7 +33,7 @@ kafka-console-consumer \
     --topic $TOPIC \
     --max-messages $NUM_MESSAGES \
     --from-beginning \
-| sed 's/^\([0-9]*\)\s/Offset:\1|/' | sed 's/\s/|/g' \
+| awk -F'[:\t]' -v OFS='|' '{print "Offset:"$2*2, $3, $4}' \
     > "$PIPE_FILE"
 
 wait $PRODUCER_ID
