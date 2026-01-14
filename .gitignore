@@ -24,3 +24,4 @@ target
 offsets.csv
 intermediary.csv
 .DS_Store
+*.csv
