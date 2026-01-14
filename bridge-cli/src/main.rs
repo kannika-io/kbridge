@@ -1,9 +1,20 @@
 use std::process::ExitCode;
 
-use args::{Args, Commands};
+use args::{Args, Commands, CsvInput};
 use bridge_core::{
     BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, snapshot::csv::FromCsv,
 };
+
+impl FromCsv<CsvInput> for OffsetSnapshot {
+    type Err = BridgeError;
+
+    fn from_csv(input: CsvInput) -> Result<Self, Self::Err> {
+        let reader = input
+            .into_reader()
+            .map_err(|e| BridgeError::Message(e.to_string()))?;
+        OffsetSnapshot::from_csv(reader).map_err(BridgeError::from)
+    }
+}
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot};
 use tracing::trace;
@@ -14,7 +25,6 @@ mod logging;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    ignore_broken_pipes();
     let args = Args::parse();
 
     logging::init(args.verbose);
@@ -94,15 +104,3 @@ async fn run(args: Args) -> Result<(), BridgeError> {
         }
     }
 }
-
-/// Reset SIGPIPE to default behavior (terminate silently on broken pipe).
-/// This prevents noisy errors when output is piped to commands like `head`.
-#[cfg(unix)]
-fn ignore_broken_pipes() {
-    unsafe {
-        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
-    }
-}
-
-#[cfg(not(unix))]
-fn ignore_broken_pipes() {}
