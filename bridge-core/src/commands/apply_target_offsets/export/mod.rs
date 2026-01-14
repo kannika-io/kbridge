@@ -1,9 +1,9 @@
-use log::trace;
 use rdkafka::{
     ClientConfig, Offset, TopicPartitionList,
     consumer::{BaseConsumer, CommitMode, Consumer},
 };
 use std::collections::HashMap;
+use tracing::trace;
 
 use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 use crate::{ApplicationRecord, ConsumerGroup};

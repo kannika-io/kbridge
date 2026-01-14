@@ -1,7 +1,8 @@
 use anyhow::Result;
-use log::warn;
 use std::process::Command;
 use std::sync::Once;
+use tracing::warn;
+use tracing_subscriber::EnvFilter;
 
 static INIT_TEST_ENV: Once = Once::new();
 static INIT_LOGGING: Once = Once::new();
@@ -29,9 +30,10 @@ pub fn setup_test_environment() -> Result<()> {
 
 pub fn init_logging() -> Result<()> {
     INIT_LOGGING.call_once(|| {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .init();
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::new("info"))
+            .try_init()
+            .ok();
     });
     Ok(())
 }

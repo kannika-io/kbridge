@@ -4,7 +4,8 @@ use bridge_core::{
 };
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot};
-use log::trace;
+use tracing::trace;
+use tracing_subscriber::EnvFilter;
 
 mod args;
 mod helpers;
@@ -13,15 +14,10 @@ mod helpers;
 async fn main() -> Result<(), BridgeError> {
     let args = Args::parse();
 
-    if args.verbose {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Trace)
-            .init();
-    } else {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .init();
-    }
+    let filter = if args.verbose { "trace" } else { "info" };
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::new(filter))
+        .init();
 
     trace!("Executing with following arguments: {:?}", args);
 

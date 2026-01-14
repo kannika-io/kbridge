@@ -10,7 +10,6 @@ test-utils = ["dep:testcontainers"]
 
 [dependencies]
 rdkafka = { git = "https://github.com/j-santander/rust-rdkafka.git", commit = "ffe40196781087d3b5a311cca166805eb37f8090", features = ["ssl", "gssapi", "sasl"] }
-log = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 csv = { workspace = true }
@@ -37,6 +36,6 @@ anyhow = "1"
 indoc = "2"
 assert_matches = "1.5.0"
 tempfile = "3.23.0"
-env_logger = { workspace = true }
+tracing-subscriber = { workspace = true }
 testcontainers = { workspace = true }
 serial_test = "3"

@@ -38,7 +38,7 @@ impl Drop for AssignmentGuard {
         if let Some(inner) = maybe_inner {
             tracing::debug!("Unassigning {:?}", inner.assignment);
             if let Err(err) = inner.consumer.incremental_unassign(&inner.assignment) {
-                log::error!(
+                tracing::error!(
                     "Couldn't unassign partitions {:?}. Error: {}",
                     inner.assignment,
                     err
