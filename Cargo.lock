@@ -1227,6 +1227,7 @@ dependencies = [
  "bridge-core",
  "clap",
  "comfy-table",
+ "libc",
  "thiserror",
  "tokio",
  "tracing",
