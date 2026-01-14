@@ -35,6 +35,12 @@ graph LR
 
 ## Installation
 
+### Using Cargo
+
+```bash
+cargo install --git https://github.com/cymo-eu/kannika-bridge.git kbridge
+```
+
 ### From Releases
 
 1. Download the latest binary for your platform from the [releases page](https://github.com/cymo-eu/kannika-bridge/releases)
