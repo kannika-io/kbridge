@@ -13,7 +13,7 @@ use crate::prelude::*;
 
 #[derive(Clone, Debug, thiserror::Error, strum::IntoStaticStr)]
 pub enum KafkaError {
-    #[error("generic Kafka error: {0}")]
+    #[error("{0}")]
     Generic(String),
     #[error("topic `{0}` could not be found on the remote server")]
     TopicNotFound(Topic),
@@ -33,36 +33,47 @@ impl From<rdkafka::error::KafkaError> for KafkaError {
     fn from(err: rdkafka::error::KafkaError) -> Self {
         use rdkafka::error::KafkaError as RDKafkaError;
         match err {
-            RDKafkaError::AdminOp(err) => KafkaError::Generic(err.to_string()),
+            RDKafkaError::AdminOp(err) => KafkaError::Generic(format_rdkafka_code(err)),
             RDKafkaError::AdminOpCreation(ref err) => KafkaError::Generic(err.to_string()),
             RDKafkaError::Canceled => KafkaError::Generic(err.to_string()),
             RDKafkaError::ClientConfig(_, ref desc, ref key, ref value) => {
-                KafkaError::Generic(format!("Invalid client config: {} {} {}", desc, key, value))
+                KafkaError::Generic(format!("invalid client config: {} {} {}", desc, key, value))
             }
             RDKafkaError::ClientCreation(ref err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::ConsumerCommit(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::Flush(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::Global(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::GroupListFetch(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::MessageConsumption(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::MessageProduction(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::MetadataFetch(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::NoMessageReceived => KafkaError::Generic(err.to_string()),
+            RDKafkaError::ConsumerCommit(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::Flush(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::Global(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::GroupListFetch(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::MessageConsumption(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::MessageProduction(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::MetadataFetch(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::NoMessageReceived => KafkaError::Generic("no message received".into()),
             RDKafkaError::Nul(_) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::OffsetFetch(err) => KafkaError::Generic(err.to_string()),
+            RDKafkaError::OffsetFetch(err) => KafkaError::Generic(format_rdkafka_code(err)),
             RDKafkaError::PartitionEOF(part_n) => {
-                KafkaError::Generic(format!("Partition {} EOF", part_n))
+                KafkaError::Generic(format!("partition {} EOF", part_n))
             }
             RDKafkaError::PauseResume(ref err) => KafkaError::Generic(err.to_string()),
             RDKafkaError::Seek(_) => KafkaError::InvalidSeek,
-            RDKafkaError::SetPartitionOffset(err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::StoreOffset(err) => KafkaError::Generic(err.to_string()),
+            RDKafkaError::SetPartitionOffset(err) => KafkaError::Generic(format_rdkafka_code(err)),
+            RDKafkaError::StoreOffset(err) => KafkaError::Generic(format_rdkafka_code(err)),
             RDKafkaError::Subscription(ref err) => KafkaError::Generic(err.to_string()),
             RDKafkaError::Transaction(err) => KafkaError::Generic(err.to_string()),
             _ => {
                 panic!("Unhandled KafkaError");
             }
         }
+    }
+}
+
+/// Format rdkafka error codes into human-readable messages
+fn format_rdkafka_code(code: rdkafka::types::RDKafkaErrorCode) -> String {
+    use rdkafka::types::RDKafkaErrorCode::*;
+    match code {
+        OperationTimedOut => "operation timed out".into(),
+        BrokerTransportFailure => "broker unavailable".into(),
+        UnknownTopicOrPartition => "unknown topic or partition".into(),
+        other => format!("{:?}", other),
     }
 }
 
@@ -106,5 +117,51 @@ where
                 .find(|h| h.key == key)
                 .and_then(|h| h.value.map(|v| v.to_vec()))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rdkafka::types::RDKafkaErrorCode;
+
+    #[test]
+    fn test_format_rdkafka_code_timeout() {
+        assert_eq!(
+            format_rdkafka_code(RDKafkaErrorCode::OperationTimedOut),
+            "operation timed out"
+        );
+    }
+
+    #[test]
+    fn test_format_rdkafka_code_broker_unavailable() {
+        assert_eq!(
+            format_rdkafka_code(RDKafkaErrorCode::BrokerTransportFailure),
+            "broker unavailable"
+        );
+    }
+
+    #[test]
+    fn test_format_rdkafka_code_unknown_topic() {
+        assert_eq!(
+            format_rdkafka_code(RDKafkaErrorCode::UnknownTopicOrPartition),
+            "unknown topic or partition"
+        );
+    }
+
+    #[test]
+    fn test_kafka_error_from_rdkafka_group_list_fetch() {
+        let rdkafka_err =
+            rdkafka::error::KafkaError::GroupListFetch(RDKafkaErrorCode::OperationTimedOut);
+        let err: KafkaError = rdkafka_err.into();
+        assert_eq!(err.to_string(), "operation timed out");
+    }
+
+    #[test]
+    fn test_kafka_error_from_rdkafka_metadata_fetch() {
+        let rdkafka_err =
+            rdkafka::error::KafkaError::MetadataFetch(RDKafkaErrorCode::BrokerTransportFailure);
+        let err: KafkaError = rdkafka_err.into();
+        assert_eq!(err.to_string(), "broker unavailable");
     }
 }

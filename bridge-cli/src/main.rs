@@ -1,3 +1,5 @@
+use std::process::ExitCode;
+
 use args::{Args, Commands};
 use bridge_core::{
     BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, snapshot::csv::FromCsv,
@@ -5,23 +7,34 @@ use bridge_core::{
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot};
 use tracing::trace;
-use tracing_subscriber::EnvFilter;
 
 mod args;
 mod helpers;
+mod logging;
 
 #[tokio::main]
-async fn main() -> Result<(), BridgeError> {
+async fn main() -> ExitCode {
     let args = Args::parse();
 
-    let filter = if args.verbose { "trace" } else { "info" };
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(filter))
-        .init();
+    logging::init(args.verbose);
 
     trace!("Executing with following arguments: {:?}", args);
 
-    let result: Result<(), BridgeError> = match args.command {
+    let result = run(args).await;
+
+    trace!("Execution finished.");
+
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            logging::print_error(&err);
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run(args: Args) -> Result<(), BridgeError> {
+    match args.command {
         Commands::Fetch {
             kafka_connection,
             timeout,
@@ -78,7 +91,5 @@ async fn main() -> Result<(), BridgeError> {
                 client.apply_target_offsets(topics, snapshot, false).await
             }
         }
-    };
-    trace!("Execution finished.");
-    result
+    }
 }

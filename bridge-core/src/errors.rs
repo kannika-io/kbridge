@@ -12,18 +12,42 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum BridgeError {
-    #[error("Failed while parsing CSV snapshot. Reason: {0}")]
-    CsvSnapshot(#[from] CsvSnapshotError),
-    #[error("Failed during offset transformation. Reason: {0}")]
-    ApplyOffsets(#[from] ApplyOffsetsError),
-    #[error("Failed during offset import. Reason: {0}")]
-    ImportOffsets(#[from] ImportOffsetsError),
-    #[error("Failed during offset import. Reason: {0}")]
-    FetchSourceOffsetsError(#[from] FetchSourceOffsetsError),
-    #[error("Kafka error: {0}")]
-    KafkaError(#[from] KafkaError),
-    #[error("Migration error: {0}")]
-    MigrationError(#[from] MigrationError),
+    #[error("Failed to parse CSV snapshot")]
+    CsvSnapshot(
+        #[from]
+        #[source]
+        CsvSnapshotError,
+    ),
+    #[error("Failed to apply offsets")]
+    ApplyOffsets(
+        #[from]
+        #[source]
+        ApplyOffsetsError,
+    ),
+    #[error("Failed to import offsets")]
+    ImportOffsets(
+        #[from]
+        #[source]
+        ImportOffsetsError,
+    ),
+    #[error("Failed to fetch source offsets")]
+    FetchSourceOffsetsError(
+        #[from]
+        #[source]
+        FetchSourceOffsetsError,
+    ),
+    #[error("Kafka error")]
+    KafkaError(
+        #[from]
+        #[source]
+        KafkaError,
+    ),
+    #[error("Migration error")]
+    MigrationError(
+        #[from]
+        #[source]
+        MigrationError,
+    ),
     #[error("{0}")]
     Message(String),
 }
