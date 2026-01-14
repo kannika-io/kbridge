@@ -41,7 +41,7 @@ impl RecordStreamConsumer {
     pub fn new(
         properties: KafkaConsumerProperties,
     ) -> Result<(Self, RecordStreamConsumerTask), KafkaError> {
-        tracing::info!("Instantiating consumer - properties {:?}", properties);
+        tracing::debug!("instantiating consumer - {:?}", properties);
         let context = CustomConsumerContext::default();
         let consumer = properties.into_stream_consumer_with_context(context)?;
         let consumer = Arc::new(consumer);
