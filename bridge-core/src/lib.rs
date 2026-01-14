@@ -1,5 +1,5 @@
 pub mod client;
-mod commands;
+pub mod commands;
 pub mod errors;
 pub mod kafka;
 pub mod partition;

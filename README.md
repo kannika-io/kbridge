@@ -101,7 +101,7 @@ All steps can be chained together for streamlined execution:
 
 ```bash
 kbridge fetch -b localhost:9092 | \
-kbridge calculate -b localhost:9093 -l Offset | \
+kbridge calculate -b localhost:9093 -H Offset | \
 kbridge apply -b localhost:9093
 ```
 

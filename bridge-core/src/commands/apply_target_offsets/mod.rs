@@ -40,6 +40,10 @@ pub async fn execute(
                 .or_insert(vec![value.clone()]);
         });
 
+    if mapped_intermediary_result.is_empty() {
+        return Err(ApplyOffsetsError::NoOffsetsToApply);
+    }
+
     if !dry_run {
         apply_target_offsets(&mut exporter_base_config, &mapped_intermediary_result).await?;
     }

@@ -84,23 +84,35 @@ async fn run(args: Args) -> Result<(), BridgeError> {
         } => {
             let topics = kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
-            trace!("applying target offsets");
-            let snapshot = OffsetSnapshot::from_csv(input)?;
 
-            // Handle confirmation in CLI before calling the core library
-            if !dry_run && !skip_confirmation && !ask_for_confirmation(&snapshot) {
-                return Err(BridgeError::Message(
-                    "Operation cancelled by user".to_string(),
+            let snapshot = {
+                let snapshot = OffsetSnapshot::from_csv(input)?;
+                snapshot.filter_by_topics(&topics)
+            };
+
+            if snapshot.is_empty() {
+                // TODO decouple from command error
+                return Err(BridgeError::ApplyOffsets(
+                    bridge_core::commands::apply_target_offsets::errors::ApplyOffsetsError::NoOffsetsToApply,
                 ));
             }
 
-            if dry_run {
-                println!("DRY RUN: Would apply the following offsets:");
-                print_offset_snapshot(&snapshot);
-                Ok(())
-            } else {
-                client.apply_target_offsets(topics, snapshot, false).await
+            // Only show confirmation/dry-run output if snapshot has data
+            // (core library validates if offsets remain after topic filtering)
+            if !snapshot.is_empty() {
+                if !dry_run && !skip_confirmation && !ask_for_confirmation(&snapshot) {
+                    return Err(BridgeError::Message(
+                        "Operation cancelled by user".to_string(),
+                    ));
+                }
+
+                if dry_run {
+                    eprintln!("DRY RUN: Would apply the following offsets:");
+                    print_offset_snapshot(&snapshot);
+                }
             }
+
+            client.apply_target_offsets(topics, snapshot, dry_run).await
         }
     }
 }
