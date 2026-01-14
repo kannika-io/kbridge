@@ -5,7 +5,7 @@
 pub mod csv;
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt::{self, Debug, Display, Formatter},
     io::{self, Write},
 };
@@ -129,6 +129,18 @@ impl OffsetSnapshot {
     /// Writes the snapshot in CSV format to the provided writer
     pub fn print_csv<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write!(writer, "{}", self)
+    }
+
+    /// Groups records by consumer group
+    pub fn group_by_consumer(&self) -> impl Iterator<Item = (String, OffsetSnapshot)> {
+        let mut grouped: HashMap<String, OffsetSnapshot> = HashMap::new();
+        for record in &self.records {
+            grouped
+                .entry(record.consumer_group.clone())
+                .or_default()
+                .push(record.clone());
+        }
+        grouped.into_iter()
     }
 }
 
