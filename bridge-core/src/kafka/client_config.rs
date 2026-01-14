@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use log::warn;
 use rdkafka::ClientConfig;
+use tracing::warn;
 
 pub const DEFAULT_GROUP_ID: &str = "bridge-consumer-group";
 pub const GROUP_ID_KEY: &str = "group.id";

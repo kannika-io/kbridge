@@ -71,7 +71,7 @@ impl ConsumerGroupMigrator {
                 KafkaPartition::open(self.consumer.clone(), &batch.topic, batch.partition)
                     .await
                     .map_err(|e| {
-                        eprintln!("Error obtaining consumer for partition: {}", e);
+                        tracing::error!("Error obtaining consumer for partition: {}", e);
                         MigrationError::PartitionReadError
                     })?;
 

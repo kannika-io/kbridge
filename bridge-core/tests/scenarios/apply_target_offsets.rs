@@ -9,7 +9,6 @@ use bridge_core::{
     },
 };
 use init::{init_logging, setup_test_environment};
-use log::info;
 use rdkafka::{
     ClientConfig, TopicPartitionList,
     admin::{AdminClient, AdminOptions},
@@ -23,6 +22,7 @@ use stubs::{
     CONSUMER_GROUP_1, CONSUMER_GROUP_2, OFFSET_HEADER, ORDERS_1_TOPIC, SOURCE_BOOTSTRAP_SERVER,
     TARGET_BOOTSTRAP_SERVER, get_expected_stub_target_offsets,
 };
+use tracing::info;
 
 use crate::{init, stubs};
 

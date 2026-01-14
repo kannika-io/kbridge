@@ -41,7 +41,7 @@ impl RecordStreamConsumer {
     pub fn new(
         properties: KafkaConsumerProperties,
     ) -> Result<(Self, RecordStreamConsumerTask), KafkaError> {
-        log::info!("Instantiating consumer - properties {:?}", properties);
+        tracing::info!("Instantiating consumer - properties {:?}", properties);
         let context = CustomConsumerContext::default();
         let consumer = properties.into_stream_consumer_with_context(context)?;
         let consumer = Arc::new(consumer);
@@ -95,12 +95,12 @@ impl RecordStreamConsumer {
             .map_err(|err| KafkaError::Generic(err.to_string()))?;
 
         let Some(metadata) = metadata.topics().first() else {
-            log::error!("Configured topic `{topic}` can not be accessed on the remote server.");
+            tracing::error!("Configured topic `{topic}` can not be accessed on the remote server.");
             return Err(KafkaError::TopicNotFound(topic));
         };
 
         if metadata.partitions().is_empty() {
-            log::error!("Configured topic `{topic}` can not be accessed on the remote server.");
+            tracing::error!("Configured topic `{topic}` can not be accessed on the remote server.");
             return Err(KafkaError::PartitionNotFound(topic, partition));
         }
 

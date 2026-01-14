@@ -1,6 +1,5 @@
 use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
 use crate::{OffsetRecord, OffsetSnapshot};
-use log::{trace, warn};
 use rdkafka::{
     TopicPartitionList,
     consumer::{BaseConsumer, Consumer},
@@ -8,6 +7,7 @@ use rdkafka::{
 };
 use std::collections::HashMap;
 use std::time::Duration;
+use tracing::{trace, warn};
 
 const NO_OFFSET: i64 = -1001;
 

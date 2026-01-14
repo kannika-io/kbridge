@@ -2,9 +2,9 @@ use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 use crate::commands::apply_target_offsets::export::apply_target_offsets;
 use crate::kafka::client_config::ConfigBuilder;
 use crate::{ApplicationRecord, ConsumerGroup, OffsetSnapshot};
-use log::trace;
 use rdkafka::ClientConfig;
 use std::collections::HashMap;
+use tracing::trace;
 
 pub mod errors;
 mod export;
