@@ -27,6 +27,8 @@ pub enum KafkaError {
     ClientCreationError(#[source] rdkafka::error::KafkaError),
     #[error("Failed to fetch metadata: {0}")]
     MetadataFetchFailed(#[source] rdkafka::error::KafkaError),
+    #[error("Unknown Kafka error: {0}")]
+    Unknown(String),
 }
 
 impl From<rdkafka::error::KafkaError> for KafkaError {
@@ -59,9 +61,7 @@ impl From<rdkafka::error::KafkaError> for KafkaError {
             RDKafkaError::StoreOffset(err) => KafkaError::Generic(format_rdkafka_code(err)),
             RDKafkaError::Subscription(ref err) => KafkaError::Generic(err.to_string()),
             RDKafkaError::Transaction(err) => KafkaError::Generic(err.to_string()),
-            _ => {
-                panic!("Unhandled KafkaError");
-            }
+            other => KafkaError::Unknown(format!("{:?}", other)),
         }
     }
 }
