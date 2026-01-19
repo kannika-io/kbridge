@@ -164,4 +164,14 @@ mod tests {
         let err: KafkaError = rdkafka_err.into();
         assert_eq!(err.to_string(), "broker unavailable");
     }
+
+    #[test]
+    fn test_kafka_error_from_unhandled_variant() {
+        // MockCluster is not explicitly handled, so it should fall through to Unknown
+        let rdkafka_err =
+            rdkafka::error::KafkaError::MockCluster(RDKafkaErrorCode::OperationTimedOut);
+        let err: KafkaError = rdkafka_err.into();
+        assert!(matches!(err, KafkaError::Unknown(_)));
+        assert!(err.to_string().contains("Unknown Kafka error"));
+    }
 }
