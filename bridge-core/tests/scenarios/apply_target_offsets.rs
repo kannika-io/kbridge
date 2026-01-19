@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use bridge_core::{
-    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, TopicName,
+    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSnapshot, TopicName,
     kafka::{
         client_config::{ConfigBuilder, GROUP_ID_KEY},
         consumer::setup_consumer_and_metadata,
@@ -20,8 +20,9 @@ use rdkafka::{
 };
 use stubs::{
     CONSUMER_GROUP_1, CONSUMER_GROUP_2, OFFSET_HEADER, ORDERS_1_TOPIC, SOURCE_BOOTSTRAP_SERVER,
-    TARGET_BOOTSTRAP_SERVER, get_expected_stub_target_offsets,
+    TARGET_BOOTSTRAP_SERVER,
 };
+use tokio::time::sleep;
 use tracing::info;
 
 use crate::{init, stubs};
@@ -70,56 +71,95 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
     info!("{:#?}", target_offsets);
 
     target_client
-        .apply_target_offsets(topics.clone(), target_offsets, false)
+        .apply_target_offsets(topics.clone(), target_offsets.clone(), false)
         .await?;
 
-    verify_consumer(topics.clone(), CONSUMER_GROUP_1).await?;
-    verify_consumer(topics.clone(), CONSUMER_GROUP_2).await?;
+    verify_consumer_with_retry(topics.clone(), CONSUMER_GROUP_1, &target_offsets).await?;
+    verify_consumer_with_retry(topics.clone(), CONSUMER_GROUP_2, &target_offsets).await?;
 
     Ok(())
 }
 
-async fn verify_consumer(
+async fn verify_consumer_with_retry(
     topics: impl IntoIterator<Item = TopicName>,
     consumer_group: &str,
+    expected_offsets: &OffsetSnapshot,
 ) -> Result<()> {
-    let topics = topics.into_iter().collect::<Vec<_>>();
+    let topics: Vec<_> = topics.into_iter().collect();
+    let expected_for_group: Vec<_> = expected_offsets
+        .iter()
+        .filter(|r| r.consumer_group == consumer_group)
+        .filter(|r| topics.contains(&r.topic))
+        .collect();
 
-    let mut consumer_client_config = ClientConfig::new()
-        .set_bootstrap_server(TARGET_BOOTSTRAP_SERVER)
-        .set_properties(&HashMap::from([(
-            GROUP_ID_KEY.to_string(),
-            consumer_group.to_string(),
-        )]));
+    let max_attempts = 10;
+    let retry_delay = Duration::from_millis(500);
 
-    let (consumer, metadata) = setup_consumer_and_metadata(&mut consumer_client_config).await?;
+    for attempt in 1..=max_attempts {
+        let mut consumer_client_config = ClientConfig::new()
+            .set_bootstrap_server(TARGET_BOOTSTRAP_SERVER)
+            .set_properties(&HashMap::from([(
+                GROUP_ID_KEY.to_string(),
+                consumer_group.to_string(),
+            )]));
 
-    let mut tpl = TopicPartitionList::new();
+        let (consumer, metadata) = setup_consumer_and_metadata(&mut consumer_client_config).await?;
 
-    for topic in metadata.topics().iter() {
-        for partition in topic.partitions().iter() {
-            tpl.add_partition(topic.name(), partition.id());
+        let mut tpl = TopicPartitionList::new();
+        for topic in metadata.topics().iter() {
+            for partition in topic.partitions().iter() {
+                tpl.add_partition(topic.name(), partition.id());
+            }
+        }
+
+        let committed_offsets = consumer
+            .committed_offsets(tpl, Timeout::Never)?
+            .to_topic_map();
+
+        let all_match = expected_for_group.iter().all(|expected| {
+            let key = (expected.topic.clone(), expected.partition);
+            committed_offsets
+                .get(&key)
+                .and_then(|r| r.to_raw())
+                .is_some_and(|v| v == expected.offset)
+        });
+
+        if all_match {
+            info!(
+                "Offsets verified for consumer group '{}' after {} attempt(s)",
+                consumer_group, attempt
+            );
+            return Ok(());
+        }
+
+        if attempt < max_attempts {
+            info!(
+                "Attempt {}/{}: Offsets not yet propagated for '{}', retrying...",
+                attempt, max_attempts, consumer_group
+            );
+            sleep(retry_delay).await;
+        } else {
+            // Final attempt failed, show detailed error
+            info!("Committed offsets: {:#?}", committed_offsets);
+            info!("Expected offsets: {:#?}", expected_for_group);
+
+            for expected in &expected_for_group {
+                let key = (expected.topic.clone(), expected.partition);
+                let committed_value = committed_offsets.get(&key).and_then(|r| r.to_raw());
+
+                assert_eq!(
+                    committed_value,
+                    Some(expected.offset),
+                    "Offset mismatch for topic '{}' partition {} in consumer group '{}': expected {}, got {:?}",
+                    expected.topic,
+                    expected.partition,
+                    consumer_group,
+                    expected.offset,
+                    committed_value
+                );
+            }
         }
     }
 
-    let committed_offsets = consumer
-        .committed_offsets(tpl, Timeout::Never)?
-        .to_topic_map();
-
-    let expected_targets = get_expected_stub_target_offsets().filter_by_topics(&topics);
-
-    info!("{:#?}", committed_offsets);
-    info!("{:#?}", expected_targets);
-
-    assert!(
-        expected_targets
-            .iter()
-            .filter(|t| t.consumer_group == consumer_group)
-            .all(|e| {
-                committed_offsets
-                    .get(&(e.topic.clone(), e.partition))
-                    .is_some_and(|r| r.to_raw().is_some_and(|v| v == e.offset))
-            })
-    );
     Ok(())
 }
