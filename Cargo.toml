@@ -3,8 +3,8 @@ resolver="3"
 members=["bridge-cli", "bridge-core"]
 
 [workspace.package]
-version = "0.1.0"
-authors = ["Willem Serruys"]
+version = "0.1.1"
+authors = ["Willem Serruys", "Tom Verelst"]
 description = "A tool to restore consumer group offsets"
 edition = "2024"
 
