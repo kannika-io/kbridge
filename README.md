@@ -267,10 +267,6 @@ cargo test
 cargo run -- fetch -b localhost:9092
 ```
 
-## License
-
-TODO
-
 ## Support
 
 - 🐛 [Issue Tracker](https://github.com/cymo-eu/kannika-bridge/issues)
