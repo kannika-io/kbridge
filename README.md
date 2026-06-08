@@ -1,4 +1,21 @@
-# Kannika Bridge 🌉
+# kbridge — Kafka Consumer Offset Migration Tool by Kannika.io
+
+[![CI](https://github.com/kannika-io/kbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/kannika-io/kbridge/actions/workflows/ci.yml)
+
+![Demo](examples/demo.gif)
+
+> Migrate and restore Kafka consumer group offsets between clusters — for cluster migrations, disaster recovery, and environment promotion.  
+> Developed and maintained by [Kannika.io](https://kannika.io) — the Kafka reliability platform.
+
+`kbridge` is an open-source CLI tool built in Rust that makes Kafka consumer offset migration safe, predictable, and scriptable. Whether you're moving to Confluent Cloud, recovering from a cluster failure, or syncing consumer state between environments, kbridge gives you full control with a simple three-step pipeline.
+
+## What is Kannika.io?
+
+[Kannika.io](https://kannika.io) builds open-source and commercial tools for Kafka reliability, observability, and operations. `kbridge` is part of our toolchain for teams running Kafka in production.
+
+---
+
+## How it works
 
 [![CI](https://github.com/cymo-eu/kannika-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/cymo-eu/kannika-bridge/actions/workflows/ci.yml)
 
