@@ -15,16 +15,6 @@
 
 ---
 
-## How it works
-
-[![CI](https://github.com/cymo-eu/kannika-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/cymo-eu/kannika-bridge/actions/workflows/ci.yml)
-
-![Demo](examples/demo.gif)
-
-> ✉️ 🚀 Restore consumer offsets on kafka cluster.
-
-A powerful tool for migrating Kafka consumer group offsets between clusters, enabling seamless cluster migrations and disaster recovery scenarios.
-
 ## Quick Start
 
 ### Basic Commands
