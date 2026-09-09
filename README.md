@@ -142,8 +142,6 @@ It never produces records, creates topics, or uses the admin API.
 | `calculate` | target | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
 | `apply` | target | `FindCoordinator`, `OffsetCommit` | `Read` on each Group and on the input topics |
 
-`--dry-run` does not contact the cluster and requires no permissions.
-
 ## Advanced Options
 
 #### Filter by Topics
