@@ -1,6 +1,10 @@
 teardown:
 	docker compose down -v
 
+prepare-release version:
+	gh workflow run prepare-release.yml -f version={{version}}
+	@echo "Dispatched. Follow with: gh run watch"
+
 setup-ci:
 	docker compose up -d
 	for topic_count in "orders-1 2000" "orders-2 3000" "orders-3 1000"; do \
