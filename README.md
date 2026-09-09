@@ -131,17 +131,6 @@ graph LR
 - Messages on target cluster must contain **source offset information** in headers (for transformation step) the name of the header is configurable
 - Appropriate permissions to read consumer group metadata and commit offsets (see [Required Kafka Permissions](#required-kafka-permissions))
 
-## Required Kafka Permissions
-
-`kbridge` only reads records and commits consumer group offsets.
-It never produces records, creates topics, or uses the admin API.
-
-| Command | Cluster | Kafka APIs called | Required ACLs |
-|---------|---------|-------------------|---------------|
-| `fetch` | source | `Metadata`, `ListGroups`, `DescribeGroups`, `FindCoordinator`, `OffsetFetch` | `Describe` on Cluster, all Groups, and all Topics |
-| `calculate` | target | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
-| `apply` | target | `FindCoordinator`, `OffsetCommit` | `Read` on each Group and on the input topics |
-
 ## Advanced Options
 
 #### Filter by Topics
@@ -200,6 +189,17 @@ kbridge fetch -b <bootstrap-url> \
     -o ssl.certificate.location=/path/to/client-cert \
     -o ssl.key.location=/path/to/client-key
 ```
+
+## Required Kafka Permissions
+
+`kbridge` only reads records and commits consumer group offsets.
+It never produces records, creates topics, or uses the admin API.
+
+| Command | Cluster | Kafka APIs called | Required ACLs |
+|---------|---------|-------------------|---------------|
+| `fetch` | source | `Metadata`, `ListGroups`, `DescribeGroups`, `FindCoordinator`, `OffsetFetch` | `Describe` on Cluster, all Groups, and all Topics |
+| `calculate` | target | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
+| `apply` | target | `FindCoordinator`, `OffsetCommit` | `Read` on each Group and on the input topics |
 
 ## Troubleshooting
 
