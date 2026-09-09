@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use bridge_core::{
-    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSnapshot, TopicName,
+    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSnapshot, OffsetSource, TopicName,
     kafka::{
         client_config::{ConfigBuilder, GROUP_ID_KEY},
         consumer::setup_consumer_and_metadata,
@@ -57,7 +57,11 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
 
     info!("Fetching source offsets");
     let result = source_client
-        .fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5))
+        .fetch_offsets(
+            topics.clone(),
+            Duration::from_secs(5),
+            OffsetSource::GroupCoordinator,
+        )
         .await?;
 
     let target_config: KafkaBridgeConfig =

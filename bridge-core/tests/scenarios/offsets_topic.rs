@@ -5,7 +5,9 @@ use bridge_core::test::consumer_offsets::{
     ConsumerOffsetsProducer, GroupMetadata, OffsetCommit, Tombstone,
 };
 use bridge_core::test::kafka::cluster::{ContainerizedCluster, MockClusterExt};
-use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSnapshot, test};
+use bridge_core::{
+    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSnapshot, OffsetSource, test,
+};
 use serial_test::serial;
 
 const OFFSETS_TOPIC: &str = "consumer-offsets-restored";
@@ -87,10 +89,10 @@ pub async fn fetch_from_offsets_topic_should_return_last_committed_offsets() -> 
     let client: KafkaBridgeClient = config.into();
 
     let result = client
-        .fetch_source_offsets_from_offsets_topic(
-            OFFSETS_TOPIC,
+        .fetch_offsets(
             Vec::<String>::new(),
             Duration::from_secs(10),
+            OffsetSource::Topic(OFFSETS_TOPIC.to_string()),
         )
         .await?;
 
@@ -121,10 +123,10 @@ pub async fn fetch_from_offsets_topic_with_topic_filter_should_only_include_filt
     let client: KafkaBridgeClient = config.into();
 
     let result = client
-        .fetch_source_offsets_from_offsets_topic(
-            OFFSETS_TOPIC,
+        .fetch_offsets(
             vec!["payments".to_string()],
             Duration::from_secs(10),
+            OffsetSource::Topic(OFFSETS_TOPIC.to_string()),
         )
         .await?;
 
@@ -151,10 +153,10 @@ pub async fn fetch_from_offsets_topic_when_topic_missing_should_return_error() -
     let client: KafkaBridgeClient = config.into();
 
     let result = client
-        .fetch_source_offsets_from_offsets_topic(
-            "does-not-exist",
+        .fetch_offsets(
             Vec::<String>::new(),
             Duration::from_secs(10),
+            OffsetSource::Topic("does-not-exist".to_string()),
         )
         .await;
 

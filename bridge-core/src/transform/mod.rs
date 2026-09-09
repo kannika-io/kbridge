@@ -5,6 +5,8 @@ use std::{cmp::Ordering, num::NonZeroUsize, sync::Arc};
 
 use batch::*;
 use search::*;
+// Shadows the client-level `OffsetSource` re-exported by the prelude.
+use search::OffsetSource;
 
 use crate::{
     kafka::{partition::KafkaPartition, source::RecordStreamConsumer},

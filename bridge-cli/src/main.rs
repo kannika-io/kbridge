@@ -2,7 +2,8 @@ use std::process::ExitCode;
 
 use args::{Args, Commands, CsvInput};
 use bridge_core::{
-    BridgeClient, KafkaBridgeClient, OffsetSnapshot, errors::BridgeError, snapshot::csv::FromCsv,
+    BridgeClient, KafkaBridgeClient, OffsetSnapshot, OffsetSource, errors::BridgeError,
+    snapshot::csv::FromCsv,
 };
 
 impl FromCsv<CsvInput> for OffsetSnapshot {
@@ -54,18 +55,12 @@ async fn run(args: Args) -> Result<(), BridgeError> {
             let topics = kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
 
-            let result = match offsets_topic {
-                Some(offsets_topic) => {
-                    client
-                        .fetch_source_offsets_from_offsets_topic(offsets_topic, topics, timeout)
-                        .await?
-                }
-                None => {
-                    client
-                        .fetch_source_offsets_from_cluster(topics, timeout)
-                        .await?
-                }
+            let source = match offsets_topic {
+                Some(offsets_topic) => OffsetSource::Topic(offsets_topic),
+                None => OffsetSource::GroupCoordinator,
             };
+
+            let result = client.fetch_offsets(topics, timeout, source).await?;
             print_offset_snapshot(&result);
             Ok(())
         }

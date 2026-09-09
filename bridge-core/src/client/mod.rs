@@ -6,6 +6,16 @@ use std::time::Duration;
 
 pub mod kafka;
 
+/// The source to read consumer group offsets from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OffsetSource {
+    /// Query the committed consumer group offsets from the cluster itself.
+    GroupCoordinator,
+    /// Read offsets from a restored copy of the internal `__consumer_offsets`
+    /// topic with the given name.
+    Topic(String),
+}
+
 /// A trait for bridging Kafka consumer group offsets between different clusters or topics.
 ///
 /// This trait provides the core functionality for migrating consumer group offsets from a source
@@ -22,7 +32,7 @@ pub mod kafka;
 /// # Example
 ///
 /// ```rust,no_run
-/// # use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig};
+/// # use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSource};
 /// # use std::time::Duration;
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = KafkaBridgeConfig::new("localhost:9092".to_string());
@@ -30,7 +40,7 @@ pub mod kafka;
 ///
 /// // Fetch current offsets from source cluster
 /// let topics = vec!["orders".to_string(), "payments".to_string()];
-/// let source_offsets = client.fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5)).await?;
+/// let source_offsets = client.fetch_offsets(topics.clone(), Duration::from_secs(5), OffsetSource::GroupCoordinator).await?;
 ///
 /// // Calculate target offsets based on message headers
 /// let target_offsets = client.calculate_target_offsets("source-offset", topics.clone(), source_offsets).await?;
@@ -45,10 +55,23 @@ pub trait BridgeClient {
     /// The error type returned by operations on this client.
     type Error;
 
-    /// Fetches the current consumer group offsets from the Kafka cluster.
+    /// Fetches the current consumer group offsets from the given source.
     ///
-    /// This method retrieves the committed offsets for all consumer groups and their
-    /// associated topic-partition combinations from the source Kafka cluster.
+    /// With [`OffsetSource::GroupCoordinator`], this retrieves the committed offsets
+    /// for all consumer groups and their associated topic-partition combinations
+    /// from the source Kafka cluster.
+    ///
+    /// With [`OffsetSource::Topic`], this instead reads every record of the given
+    /// topic up to the log-end offsets captured at start, decodes the
+    /// `OffsetCommitKey`/`OffsetCommitValue` wire format, and keeps the last
+    /// commit per [group, topic, partition]. Use this when the internal
+    /// `__consumer_offsets` topic of the source cluster has been backed up and
+    /// restored to a regular topic.
+    ///
+    /// # Parameters
+    ///
+    /// * `topics` - If non-empty, only offsets for these topics are returned
+    /// * `source` - Where to read the offsets from
     ///
     /// # Returns
     ///
@@ -61,38 +84,12 @@ pub trait BridgeClient {
     /// - The Kafka cluster is unreachable
     /// - Authentication or authorization fails
     /// - There are issues reading consumer group metadata
-    async fn fetch_source_offsets_from_cluster(
+    /// - The offsets topic does not exist, or reading it times out
+    async fn fetch_offsets(
         &self,
         topics: impl IntoIterator<Item = String> + Send,
         client_timeout: Duration,
-    ) -> Result<OffsetSnapshot, Self::Error>;
-
-    /// Fetches consumer group offsets from a restored copy of the internal
-    /// `__consumer_offsets` topic.
-    ///
-    /// Instead of querying consumer groups, this reads every record of the given
-    /// topic up to the log-end offsets captured at start, decodes the
-    /// `OffsetCommitKey`/`OffsetCommitValue` wire format, and keeps the last
-    /// commit per [group, topic, partition]. Use this when the internal
-    /// `__consumer_offsets` topic of the source cluster has been backed up and
-    /// restored to a regular topic.
-    ///
-    /// # Parameters
-    ///
-    /// * `offsets_topic` - The topic holding the restored `__consumer_offsets` records
-    /// * `topics` - If non-empty, only offsets for these (decoded) topics are returned
-    ///
-    /// # Errors
-    ///
-    /// This method will return an error if:
-    /// - The Kafka cluster is unreachable
-    /// - The offsets topic does not exist
-    /// - Reading the topic times out
-    async fn fetch_source_offsets_from_offsets_topic(
-        &self,
-        offsets_topic: impl Into<String> + Send,
-        topics: impl IntoIterator<Item = String> + Send,
-        client_timeout: Duration,
+        source: OffsetSource,
     ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.

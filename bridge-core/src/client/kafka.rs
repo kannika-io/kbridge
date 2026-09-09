@@ -32,34 +32,29 @@ impl AsRef<KafkaBridgeConfig> for KafkaBridgeConfig {
 impl BridgeClient for KafkaBridgeClient {
     type Error = BridgeError;
 
-    async fn fetch_source_offsets_from_cluster(
+    async fn fetch_offsets(
         &self,
         topics: impl IntoIterator<Item = String> + Send,
         client_timeout: Duration,
+        source: OffsetSource,
     ) -> Result<OffsetSnapshot, BridgeError> {
-        fetch_source_offsets::execute(
-            self.config.bootstrap_server(),
-            self.config.properties(),
-            topics,
-            client_timeout,
-        )
-        .map_err(|err| err.into())
-    }
-
-    async fn fetch_source_offsets_from_offsets_topic(
-        &self,
-        offsets_topic: impl Into<String> + Send,
-        topics: impl IntoIterator<Item = String> + Send,
-        client_timeout: Duration,
-    ) -> Result<OffsetSnapshot, BridgeError> {
-        fetch_source_offsets::execute_from_offsets_topic(
-            self.config.bootstrap_server(),
-            self.config.properties(),
-            offsets_topic.into(),
-            topics,
-            client_timeout,
-        )
-        .map_err(|err| err.into())
+        match source {
+            OffsetSource::GroupCoordinator => fetch_source_offsets::execute(
+                self.config.bootstrap_server(),
+                self.config.properties(),
+                topics,
+                client_timeout,
+            )
+            .map_err(|err| err.into()),
+            OffsetSource::Topic(offsets_topic) => fetch_source_offsets::execute_from_offsets_topic(
+                self.config.bootstrap_server(),
+                self.config.properties(),
+                offsets_topic,
+                topics,
+                client_timeout,
+            )
+            .map_err(|err| err.into()),
+        }
     }
 
     async fn apply_target_offsets(

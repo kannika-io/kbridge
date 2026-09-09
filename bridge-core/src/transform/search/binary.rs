@@ -3,6 +3,8 @@ use std::{collections::BTreeMap, num::NonZeroUsize};
 use futures::StreamExt;
 
 use crate::{partition::*, prelude::*, transform::search::*};
+// Shadows the client-level `OffsetSource` re-exported by the prelude.
+use crate::transform::search::OffsetSource;
 
 /// Trait for performing binary searches.
 pub trait BinarySearch {

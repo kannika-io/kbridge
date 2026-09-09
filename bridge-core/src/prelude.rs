@@ -8,8 +8,8 @@ pub type ConsumerGroupRecord = (ConsumerGroup, Topic, PartitionNumber, Offset);
 pub type TransformationRecord = (Topic, PartitionNumber, Offset, Offset);
 pub type Properties = std::collections::HashMap<String, String>;
 
-pub use crate::client::BridgeClient;
 pub use crate::client::kafka::{KafkaBridgeClient, KafkaBridgeConfig};
+pub use crate::client::{BridgeClient, OffsetSource};
 pub use crate::errors::BridgeError;
 pub use crate::snapshot::{OffsetRecord, OffsetSnapshot};
 

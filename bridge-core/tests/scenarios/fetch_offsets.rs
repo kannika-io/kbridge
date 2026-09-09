@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use assert_matches::assert_matches;
-use bridge_core::{BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, errors::BridgeError};
+use bridge_core::{
+    BridgeClient, KafkaBridgeClient, KafkaBridgeConfig, OffsetSource, errors::BridgeError,
+};
 use init::{init_logging, setup_test_environment};
 use stubs::get_expected_source_offsets;
 
@@ -16,7 +18,11 @@ pub async fn fetch_source_offsets_when_invalid_broker_url_should_return_error() 
     let source_config: KafkaBridgeConfig = KafkaBridgeConfig::new("".to_string());
     let source_client: KafkaBridgeClient = source_config.into();
     let invalid_broker_address = source_client
-        .fetch_source_offsets_from_cluster(Vec::<String>::new(), Duration::from_secs(5))
+        .fetch_offsets(
+            Vec::<String>::new(),
+            Duration::from_secs(5),
+            OffsetSource::GroupCoordinator,
+        )
         .await;
 
     assert_matches!(
@@ -37,9 +43,10 @@ pub async fn fetch_source_offsets_with_multiple_topics_filter() -> Result<()> {
     let client: KafkaBridgeClient = config.into();
 
     let result = client
-        .fetch_source_offsets_from_cluster(
+        .fetch_offsets(
             vec!["orders-1".to_string(), "orders-2".to_string()],
             Duration::from_secs(5),
+            OffsetSource::GroupCoordinator,
         )
         .await?;
 
@@ -69,9 +76,10 @@ pub async fn fetch_source_offsets_should_return_correct_offsets() -> Result<()> 
     let config: KafkaBridgeConfig = KafkaBridgeConfig::new(SOURCE_BOOTSTRAP_SERVER.to_string());
     let client: KafkaBridgeClient = config.into();
     let result = client
-        .fetch_source_offsets_from_cluster(
+        .fetch_offsets(
             vec!["orders-1".to_string(), "orders-2".to_string()],
             Duration::from_secs(5),
+            OffsetSource::GroupCoordinator,
         )
         .await?;
 
