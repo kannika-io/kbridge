@@ -1,4 +1,6 @@
-use crate::commands::fetch_source_offsets::errors::{FetchMetadataError, ImportOffsetsError};
+use crate::commands::fetch_source_offsets::errors::{
+    FetchMetadataError, ImportOffsetsError, ReadOffsetsTopicError,
+};
 use crate::kafka::KafkaError;
 use thiserror::Error;
 
@@ -19,6 +21,13 @@ pub enum FetchSourceOffsetsError {
         #[from]
         #[source]
         ImportOffsetsError,
+    ),
+
+    #[error("failed to read offsets topic")]
+    ReadOffsetsTopic(
+        #[from]
+        #[source]
+        ReadOffsetsTopicError,
     ),
 }
 

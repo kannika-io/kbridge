@@ -17,6 +17,24 @@ impl From<rdkafka::error::KafkaError> for ImportOffsetsError {
 }
 
 #[derive(Debug, Error)]
+pub enum ReadOffsetsTopicError {
+    #[error(transparent)]
+    KafkaError(#[from] KafkaError),
+
+    #[error("offsets topic `{0}` could not be found on the remote server")]
+    TopicNotFound(String),
+
+    #[error("timed out reading offsets topic `{0}`")]
+    ReadTimeout(String),
+}
+
+impl From<rdkafka::error::KafkaError> for ReadOffsetsTopicError {
+    fn from(err: rdkafka::error::KafkaError) -> Self {
+        ReadOffsetsTopicError::KafkaError(err.into())
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum FetchMetadataError {
     #[error(transparent)]
     KafkaError(#[from] KafkaError),
