@@ -38,4 +38,4 @@ assert_matches = "1.5.0"
 tempfile = "3.23.0"
 tracing-subscriber = { workspace = true }
 testcontainers = { workspace = true }
-serial_test = "3"
+serial_test = "4"
