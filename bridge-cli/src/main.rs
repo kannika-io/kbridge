@@ -49,13 +49,23 @@ async fn run(args: Args) -> Result<(), BridgeError> {
         Commands::Fetch {
             kafka_connection,
             timeout,
+            offsets_topic,
         } => {
             let topics = kafka_connection.topics.clone();
             let client: KafkaBridgeClient = kafka_connection.into();
 
-            let result = client
-                .fetch_source_offsets_from_cluster(topics, timeout)
-                .await?;
+            let result = match offsets_topic {
+                Some(offsets_topic) => {
+                    client
+                        .fetch_source_offsets_from_offsets_topic(offsets_topic, topics, timeout)
+                        .await?
+                }
+                None => {
+                    client
+                        .fetch_source_offsets_from_cluster(topics, timeout)
+                        .await?
+                }
+            };
             print_offset_snapshot(&result);
             Ok(())
         }

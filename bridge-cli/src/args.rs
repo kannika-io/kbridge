@@ -161,6 +161,11 @@ pub enum Commands {
         /// Timeout for api requests to kafka server, in seconds
         #[arg(short = 'T', long, value_parser = DurationParser, default_value = "5")]
         timeout: Duration,
+
+        /// Read committed offsets from a restored copy of the __consumer_offsets
+        /// topic instead of querying consumer groups
+        #[arg(long, value_name = "TOPIC")]
+        offsets_topic: Option<String>,
     },
     /// Calculates target offsets based on message header in target cluster
     Calculate {

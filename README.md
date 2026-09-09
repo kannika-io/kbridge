@@ -140,6 +140,15 @@ graph LR
 kbridge fetch -b localhost:9092 -t topic1 -t topic2 -t topic3
 ```
 
+#### Fetch from a Restored __consumer_offsets Topic
+
+If the internal `__consumer_offsets` topic was backed up and restored to a regular topic,
+`fetch` can decode the committed offsets directly from it:
+
+```bash
+kbridge fetch -b localhost:9092 --offsets-topic consumer-offsets-restored > source_offsets.csv
+```
+
 #### Custom Header Key
 
 ```bash
@@ -198,6 +207,7 @@ It never produces records, creates topics, or uses the admin API.
 | Command | Cluster | Kafka APIs called | Required ACLs |
 |---------|---------|-------------------|---------------|
 | `fetch` | source | `Metadata`, `ListGroups`, `DescribeGroups`, `FindCoordinator`, `OffsetFetch` | `Describe` on Cluster, all Groups, and all Topics |
+| `fetch --offsets-topic` | source | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the offsets topic |
 | `calculate` | target | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
 | `apply` | target | `FindCoordinator`, `OffsetCommit` | `Read` on each Group and on the input topics |
 

@@ -10,6 +10,7 @@ pub use prelude::*;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test {
+    pub mod consumer_offsets;
     pub mod snapshot;
     pub mod table;
 
