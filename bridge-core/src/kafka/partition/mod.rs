@@ -13,7 +13,7 @@ pub struct KafkaPartition {
     partition: PartitionRecordStreamConsumer,
 }
 
-impl<'a> KafkaPartition {
+impl KafkaPartition {
     /// Opens a seekable partition for the given topic and partition ID.
     /// Assignment is not done until a stream is created using `stream()`.
     pub async fn open(
@@ -26,7 +26,7 @@ impl<'a> KafkaPartition {
             .await?;
         Ok(Self {
             // consumer: consumer.clone(),
-            partition: partition,
+            partition,
         })
     }
 }
@@ -39,21 +39,17 @@ impl Partition for KafkaPartition {
     /// Creates a stream for consuming messages from the partition.
     /// This will assign the partition to the consumer.
     /// If the partition is already assigned, this will return an error.
-    fn stream(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Self::Stream, Self::Error>> + Send {
-        async move { self.partition.create_stream().await }
+    async fn stream(&mut self) -> Result<Self::Stream, Self::Error> {
+        self.partition.create_stream().await
     }
 }
 
 impl SeekablePartition for KafkaPartition {
     // Seek to the specified offset.
-    fn seek_from_offset(&mut self, offset: i64) -> impl Future<Output = Result<(), Self::Error>> {
-        async move {
-            let Ok(_tpl) = self.partition.seek_offset(offset).await else {
-                return Err(KafkaError::InvalidSeek);
-            };
-            Ok(())
-        }
+    async fn seek_from_offset(&mut self, offset: i64) -> Result<(), Self::Error> {
+        let Ok(_tpl) = self.partition.seek_offset(offset).await else {
+            return Err(KafkaError::InvalidSeek);
+        };
+        Ok(())
     }
 }

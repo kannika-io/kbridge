@@ -29,13 +29,11 @@ impl OffsetSnapshot {
     }
 
     /// Returns an iterator over references to the records
-    #[must_use]
     pub fn iter(&self) -> std::slice::Iter<'_, OffsetRecord> {
         self.records.iter()
     }
 
     /// Returns an iterator over mutable references to the records
-    #[must_use]
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, OffsetRecord> {
         self.records.iter_mut()
     }

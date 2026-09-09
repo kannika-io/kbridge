@@ -3,7 +3,7 @@
 /// A window representing a range of offsets.
 /// Used to limit the search space during offset transformations.
 use std::{
-    fmt, i64,
+    fmt,
     num::{NonZero, NonZeroUsize},
 };
 
@@ -44,7 +44,7 @@ impl Window {
 
     // Returns a window centered around the mid-point with the given range.
     // Stays within the current window bounds.
-    pub fn from_mid(&self, range: NonZeroUsize) -> Self {
+    pub fn around_mid(&self, range: NonZeroUsize) -> Self {
         let range = range.get() as i64;
         let mid = self.mid();
         let half_range = range / 2;
@@ -178,8 +178,6 @@ impl fmt::Display for Window {
 #[cfg(test)]
 mod tests {
 
-    use std::usize;
-
     use super::*;
 
     #[test]
@@ -190,42 +188,42 @@ mod tests {
         assert_eq!(new_cursor, 250);
     }
 
-    mod from_mid {
+    mod around_mid {
 
         use super::*;
 
         #[test]
-        fn test_from_mid_within_bounds() {
+        fn test_around_mid_within_bounds() {
             let window = Window::new(0, 100);
-            let new_window = window.from_mid(NonZeroUsize::new(20).unwrap());
+            let new_window = window.around_mid(NonZeroUsize::new(20).unwrap());
             assert_eq!(new_window, (40, 60).into());
         }
 
         #[test]
-        fn test_from_mid_at_bounds() {
+        fn test_around_mid_at_bounds() {
             let window = Window::new(0, 50);
-            let new_window = window.from_mid(NonZeroUsize::new(100).unwrap());
+            let new_window = window.around_mid(NonZeroUsize::new(100).unwrap());
             assert_eq!(new_window, (0, 50).into());
         }
 
         #[test]
-        fn test_from_mid_out_of_bounds() {
+        fn test_around_mid_out_of_bounds() {
             let window = Window::new(30, 70);
-            let new_window = window.from_mid(NonZeroUsize::new(100).unwrap());
+            let new_window = window.around_mid(NonZeroUsize::new(100).unwrap());
             assert_eq!(new_window, (30, 70).into());
         }
 
         #[test]
-        fn test_from_mid_one() {
+        fn test_around_mid_one() {
             let window = Window::new(30, 70);
-            let new_window = window.from_mid(NonZeroUsize::new(1).unwrap());
+            let new_window = window.around_mid(NonZeroUsize::new(1).unwrap());
             assert_eq!(new_window, (50, 50).into());
         }
 
         #[test]
-        fn test_from_mid_bounds() {
+        fn test_around_mid_bounds() {
             let window = Window::new(0, 1);
-            let new_window = window.from_mid(NonZeroUsize::new(usize::MAX).unwrap());
+            let new_window = window.around_mid(NonZeroUsize::new(usize::MAX).unwrap());
             assert_eq!(new_window, (0, 0).into());
         }
     }

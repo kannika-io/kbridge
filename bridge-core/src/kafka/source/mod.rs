@@ -78,7 +78,7 @@ impl RecordStreamConsumer {
     ) -> Result<(i64, i64), KafkaError> {
         self.consumer
             .fetch_watermarks(topic, partition, Duration::from_secs(30))
-            .map_err(|e| KafkaError::from(e))
+            .map_err(KafkaError::from)
     }
 
     /// Creates a consumer for a specific topic.
@@ -177,8 +177,6 @@ impl futures::Stream for PartitionRecordStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         use futures::StreamExt;
-        self.msgstream
-            .poll_next_unpin(cx)
-            .map_err(|err| KafkaError::from(err))
+        self.msgstream.poll_next_unpin(cx).map_err(KafkaError::from)
     }
 }
