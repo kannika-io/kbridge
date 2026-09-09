@@ -1,0 +1,6 @@
+# Configuration for GitHub's "Generate release notes".
+# Release preparation PRs are excluded so they do not list themselves.
+changelog:
+  exclude:
+    labels:
+      - release

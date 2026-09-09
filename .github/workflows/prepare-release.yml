@@ -1,0 +1,61 @@
+name: Prepare release
+
+# Bumps the workspace version, replaces CHANGELOG.md with the git-cliff notes
+# for the new version only, and opens a release PR. After merging, create the
+# release on GitHub with tag v<version>; the tagged commit then already
+# contains the changelog.
+#
+# See RELEASING.md. PRs opened with the default GITHUB_TOKEN do not trigger the CI workflow.
+# Add a RELEASE_TOKEN secret (a PAT with repo scope) to get CI on release PRs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release without "v" prefix, for example 0.2.0
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    name: Open release PR for ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          fetch-depth: 0
+
+      - name: Bump version
+        run: |
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+          cargo update --workspace
+          grep -q "^version = \"${VERSION}\"" Cargo.toml
+
+      - name: Generate CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag v${{ inputs.version }} --unreleased --output CHANGELOG.md
+
+      - name: Open pull request
+        run: |
+          branch="release/${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit -m "chore(release): prepare ${VERSION}"
+          git push -u origin "$branch"
+          gh label create release --description "Release preparation" --color 0E8A16 --force
+          gh pr create \
+            --title "chore(release): prepare ${VERSION}" \
+            --label release \
+            --body "$(printf 'Bumps the version to %s and updates CHANGELOG.md.\n\nAfter merging, create the GitHub release with tag `v%s` targeting `main`.' "$VERSION" "$VERSION")"
