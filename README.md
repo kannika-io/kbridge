@@ -136,11 +136,11 @@ graph LR
 `kbridge` only reads records and commits consumer group offsets.
 It never produces records, creates topics, or uses the admin API.
 
-| Command | Cluster | Required ACLs |
-|---------|---------|---------------|
-| `fetch` | source | `Describe` on Cluster, all Groups, and all Topics |
-| `calculate` | target | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
-| `apply` | target | `Read` on each Group and on the input topics (`OffsetCommit`) |
+| Command | Cluster | Kafka APIs called | Required ACLs |
+|---------|---------|-------------------|---------------|
+| `fetch` | source | `Metadata`, `ListGroups`, `DescribeGroups`, `FindCoordinator`, `OffsetFetch` | `Describe` on Cluster, all Groups, and all Topics |
+| `calculate` | target | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
+| `apply` | target | `FindCoordinator`, `OffsetCommit` | `Read` on each Group and on the input topics |
 
 `--dry-run` does not contact the cluster and requires no permissions.
 
