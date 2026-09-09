@@ -134,62 +134,15 @@ graph LR
 ## Required Kafka Permissions
 
 `kbridge` only reads records and commits consumer group offsets.
-It never produces records,
-never creates or deletes topics,
-and never uses the Kafka admin API.
+It never produces records, creates topics, or uses the admin API.
 
-Each step requires a different set of ACLs on the cluster it connects to.
-The tables below list the minimal ACLs per step,
-using the standard Kafka operation and resource type terminology.
+| Command | Cluster | Required ACLs |
+|---------|---------|---------------|
+| `fetch` | source | `Describe` on Cluster, all Groups, and all Topics |
+| `calculate` | target | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
+| `apply` | target | `Read` on each Group and on the input topics (`OffsetCommit`) |
 
-### Fetch (source cluster)
-
-`fetch` lists all consumer groups and topics on the source cluster,
-and reads the committed offsets of every group.
-
-| Operation | Resource | Used for |
-|-----------|----------|----------|
-| Describe  | Cluster | Listing all consumer groups (`ListGroups`) |
-| Describe  | Group: all groups | Describing groups and reading their committed offsets (`DescribeGroups`, `OffsetFetch`) |
-| Describe  | Topic: all topics | Fetching cluster metadata (`Metadata`) |
-
-Topic filters (`-t`) are applied client-side,
-so `fetch` requests metadata and offsets for **all** topics even when filters are set.
-
-### Calculate (target cluster)
-
-`calculate` consumes records from the target topics to find the offsets that match the source offsets.
-It assigns partitions manually and never joins a consumer group,
-so it does not require any Group ACLs.
-
-| Operation | Resource | Used for |
-|-----------|----------|----------|
-| Describe  | Topic: topics in the input CSV | Fetching topic metadata and watermarks (`Metadata`, `ListOffsets`) |
-| Read      | Topic: topics in the input CSV | Consuming records to inspect the offset header (`Fetch`) |
-
-### Apply (target cluster)
-
-`apply` commits the calculated offsets on behalf of each consumer group in the input CSV.
-
-| Operation | Resource | Used for |
-|-----------|----------|----------|
-| Read      | Group: each group in the input CSV | Committing offsets (`OffsetCommit`) |
-| Read      | Topic: topics in the input CSV | Authorizing the topics whose offsets are committed (`OffsetCommit`) |
-
-With `--dry-run`, `apply` does not contact the cluster and requires no permissions.
-
-### Notes
-
-- Offsets are committed through the regular consumer protocol,
-  not through the admin API,
-  so no `Alter` ACLs are needed.
-- `fetch` connects with the group id `bridge-consumer-group` unless `group.id` is overridden with `-p`.
-- `calculate` connects with the group id `kbridge`,
-  but never commits offsets with it,
-  so it does not appear as an active group on the cluster.
-- If the brokers allow automatic topic creation for metadata requests,
-  a typo in a topic name can create an unwanted topic.
-  Granting only `Describe` (and not `Create`) prevents this.
+`--dry-run` does not contact the cluster and requires no permissions.
 
 ## Advanced Options
 
