@@ -93,10 +93,6 @@ sudo mv kbridge /usr/local/bin/
 
 No installation possible. In a later release, installation via Docker will be added.
 
-### Windows
-
-Download the Windows executable from the releases page and add it to your PATH variable.
-
 ### Build from Source
 
 ```bash
