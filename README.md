@@ -298,7 +298,7 @@ cargo run -- fetch -b localhost:9092
 
 ## License
 
-TODO
+Licensed under the [Business Source License 1.1](LICENSE) (BUSL-1.1). Production use is permitted for non-commercial purposes or entities with less than $1M USD in annual gross revenue; other commercial use requires a license from Cymo NV. Converts to Apache 2.0 on January 1, 2030.
 
 ## Support
 
