@@ -218,15 +218,11 @@ impl ContainerizedCluster {
                 )));
             }
 
-            match consumer.fetch_metadata(Some(topic), Duration::from_secs(5)) {
-                Ok(metadata) => {
-                    if let Some(topic_metadata) = metadata.topics().first() {
-                        if topic_metadata.partitions().len() == expected_partitions as usize {
-                            return Ok(());
-                        }
-                    }
-                }
-                Err(_) => {}
+            if let Ok(metadata) = consumer.fetch_metadata(Some(topic), Duration::from_secs(5))
+                && let Some(topic_metadata) = metadata.topics().first()
+                && topic_metadata.partitions().len() == expected_partitions as usize
+            {
+                return Ok(());
             }
 
             tokio::time::sleep(Duration::from_millis(100)).await;

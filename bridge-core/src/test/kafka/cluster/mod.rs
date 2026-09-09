@@ -36,7 +36,7 @@ pub trait MockClusterExt {
 
         properties
             .into_stream_consumer()
-            .map_err(|err| MockClusterError::KafkaError(err))
+            .map_err(MockClusterError::KafkaError)
     }
 
     async fn record_consumer(
@@ -55,7 +55,7 @@ pub trait MockClusterExt {
         self.producer_properties()
             .await
             .into_future_producer()
-            .map_err(|err| MockClusterError::KafkaError(err))
+            .map_err(MockClusterError::KafkaError)
     }
 
     async fn produce(
@@ -101,7 +101,7 @@ pub trait MockClusterExt {
         // Flush to ensure all messages are delivered
         producer
             .flush(Duration::from_secs(30))
-            .map_err(|e| MockClusterError::KafkaError(e))?;
+            .map_err(MockClusterError::KafkaError)?;
 
         Ok(())
     }
@@ -150,7 +150,7 @@ pub trait MockClusterExt {
 
         producer
             .flush(Duration::from_secs(30))
-            .map_err(|e| MockClusterError::KafkaError(e))?;
+            .map_err(MockClusterError::KafkaError)?;
 
         Ok(())
     }

@@ -145,7 +145,7 @@ pub struct KafkaConnection {
 
 impl KafkaConnection {
     pub fn to_consumer_properties(&self) -> KafkaConsumerProperties {
-        let mut props = KafkaConsumerProperties::from_iter(self.properties.clone().into_iter());
+        let mut props = KafkaConsumerProperties::from_iter(self.properties.clone());
         props.insert("bootstrap.servers", self.bootstrap_server.clone());
         props
     }

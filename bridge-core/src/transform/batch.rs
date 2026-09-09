@@ -28,7 +28,7 @@ impl From<&OffsetSnapshot> for Vec<PartitionBatch> {
         for record in snapshot {
             partition_map
                 .entry((record.topic.clone(), record.partition))
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((record.consumer_group.clone(), record.offset));
         }
 

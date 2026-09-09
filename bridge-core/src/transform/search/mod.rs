@@ -68,11 +68,11 @@ impl OffsetSource {
 #[derive(Debug, thiserror::Error)]
 pub enum SearchError<E> {
     #[error("Seek error: {0}")]
-    SeekError(E),
+    Seek(E),
     #[error("Stream error: {0}")]
-    StreamError(E),
+    Stream(E),
     #[error("Extract offset error: {0}")]
-    ExtractError(#[from] ExtractOffsetError),
+    Extract(#[from] ExtractOffsetError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

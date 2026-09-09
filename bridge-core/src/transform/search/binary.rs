@@ -165,10 +165,7 @@ where
             return Ok(PartitionScan::default());
         }
 
-        let stream = self
-            .stream()
-            .await
-            .map_err(|e| SearchError::StreamError(e))?;
+        let stream = self.stream().await.map_err(SearchError::Stream)?;
 
         let window = opts.search_window.unwrap_or_default();
         let work = SearchTaskQueue::new(offsets, window);
@@ -222,7 +219,7 @@ where
 
     fn register(&mut self, mapping: &OffsetMapping) {
         if self.work.contains(&mapping.old_offset) {
-            self.results.push(mapping.clone());
+            self.results.push(*mapping);
             self.work.remove(&mapping.old_offset);
         }
     }
@@ -237,7 +234,7 @@ where
         self.partition
             .seek_from_offset(scan.window.low)
             .await
-            .map_err(|e| SearchError::SeekError(e))?;
+            .map_err(SearchError::Seek)?;
 
         // Drain old messages from the previous seek
         self.drain_check().await?;
@@ -246,7 +243,7 @@ where
         // TODO track avg msg size?
         // TODO Should we allow messages where no offset can be extracted?
         while let Some(evt) = self.stream.next().await {
-            let evt = evt.map_err(|e| SearchError::StreamError(e))?;
+            let evt = evt.map_err(SearchError::Stream)?;
 
             let msg = evt
                 .as_message()
@@ -272,7 +269,7 @@ where
             .stream
             .drain_until_seeked()
             .await
-            .map_err(|e| SearchError::StreamError(e))?;
+            .map_err(SearchError::Stream)?;
 
         let mappings = {
             let mut mappings = Vec::with_capacity(drained.len());

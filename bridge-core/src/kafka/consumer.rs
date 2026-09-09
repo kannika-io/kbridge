@@ -15,7 +15,7 @@ pub async fn setup_consumer_and_metadata(
 
     let metadata = consumer
         .fetch_metadata(None, Duration::from_secs(5))
-        .map_err(|e| KafkaError::MetadataFetchFailed(e))?;
+        .map_err(KafkaError::MetadataFetchFailed)?;
 
     Ok((consumer, metadata))
 }
@@ -25,5 +25,5 @@ pub fn initialize_consumer(
 ) -> Result<StreamConsumer, KafkaError> {
     transformer_consumer_config
         .create()
-        .map_err(|kafka_error| KafkaError::ClientCreationError(kafka_error))
+        .map_err(KafkaError::ClientCreationError)
 }
