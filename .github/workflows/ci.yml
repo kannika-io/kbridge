@@ -20,8 +20,8 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        components: rustfmt
-    
+        components: rustfmt, clippy
+
     - name: Cache cargo registry
       uses: actions/cache@v3
       with:
@@ -38,7 +38,10 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libsasl2-dev just
-    
+
+    - name: Run clippy
+      run: cargo clippy --all-targets --workspace -- -D warnings
+
     - name: Run tests
       run: cargo test --verbose
 
