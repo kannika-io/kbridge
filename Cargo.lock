@@ -298,7 +298,7 @@ dependencies = [
 
 [[package]]
 name = "bridge-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1295,7 +1295,7 @@ dependencies = [
 
 [[package]]
 name = "kbridge"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bridge-core",
  "clap",
