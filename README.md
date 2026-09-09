@@ -201,6 +201,11 @@ It never produces records, creates topics, or uses the admin API.
 | `calculate` | target | `Metadata`, `ListOffsets`, `Fetch` | `Describe` and `Read` on the input topics (no Group ACLs; partitions are assigned manually) |
 | `apply` | target | `FindCoordinator`, `OffsetCommit` | `Read` on each Group and on the input topics |
 
+To run all commands with a single principal, grant:
+
+- `Describe` on Cluster, all Groups, and all Topics
+- `Read` on the migrated Topics and Groups
+
 ## Troubleshooting
 
 ### Common Issues
