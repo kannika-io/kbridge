@@ -265,7 +265,8 @@ pub fn read_offsets_from_topic(
 mod tests {
     use super::*;
     use crate::test::consumer_offsets::{
-        encode_group_metadata_key, encode_offset_commit_key, encode_offset_commit_value,
+        ConsumerOffsetsRecord, GroupMetadata, OffsetCommit, Tombstone, encode_group_metadata_key,
+        encode_offset_commit_key, encode_offset_commit_value,
     };
 
     #[test]
@@ -372,25 +373,41 @@ mod tests {
         );
     }
 
-    fn apply_commit(
-        accumulator: &mut OffsetAccumulator,
-        group: &str,
-        topic: &str,
-        partition: i32,
-        offset: i64,
-    ) {
-        accumulator.apply(
-            Some(&encode_offset_commit_key(1, group, topic, partition)),
-            Some(&encode_offset_commit_value(offset)),
-        );
+    fn apply(accumulator: &mut OffsetAccumulator, record: impl Into<ConsumerOffsetsRecord>) {
+        let record = record.into();
+        accumulator.apply(Some(&record.key), record.value.as_deref());
     }
 
     #[test]
     fn accumulator_keeps_last_commit_per_key() {
         let mut accumulator = OffsetAccumulator::new(vec![]);
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 10);
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 25);
-        apply_commit(&mut accumulator, "group-a", "orders", 1, 5);
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 10,
+            },
+        );
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 25,
+            },
+        );
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 1,
+                offset: 5,
+            },
+        );
 
         let expected: OffsetSnapshot = "group-a,orders,0,25\ngroup-a,orders,1,5\n".parse().unwrap();
         crate::test::snapshot::assert_eq(accumulator.into_snapshot(), expected);
@@ -399,11 +416,31 @@ mod tests {
     #[test]
     fn accumulator_tombstone_drops_key() {
         let mut accumulator = OffsetAccumulator::new(vec![]);
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 10);
-        apply_commit(&mut accumulator, "group-b", "orders", 0, 20);
-        accumulator.apply(
-            Some(&encode_offset_commit_key(1, "group-a", "orders", 0)),
-            None,
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 10,
+            },
+        );
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-b",
+                topic: "orders",
+                partition: 0,
+                offset: 20,
+            },
+        );
+        apply(
+            &mut accumulator,
+            Tombstone {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+            },
         );
 
         let expected: OffsetSnapshot = "group-b,orders,0,20\n".parse().unwrap();
@@ -413,12 +450,32 @@ mod tests {
     #[test]
     fn accumulator_commit_after_tombstone_restores_key() {
         let mut accumulator = OffsetAccumulator::new(vec![]);
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 10);
-        accumulator.apply(
-            Some(&encode_offset_commit_key(1, "group-a", "orders", 0)),
-            None,
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 10,
+            },
         );
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 30);
+        apply(
+            &mut accumulator,
+            Tombstone {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+            },
+        );
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 30,
+            },
+        );
 
         let expected: OffsetSnapshot = "group-a,orders,0,30\n".parse().unwrap();
         crate::test::snapshot::assert_eq(accumulator.into_snapshot(), expected);
@@ -427,11 +484,16 @@ mod tests {
     #[test]
     fn accumulator_skips_group_metadata_records() {
         let mut accumulator = OffsetAccumulator::new(vec![]);
-        accumulator.apply(
-            Some(&encode_group_metadata_key("group-a")),
-            Some(&[1, 2, 3]),
+        apply(&mut accumulator, GroupMetadata { group: "group-a" });
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 10,
+            },
         );
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 10);
 
         let expected: OffsetSnapshot = "group-a,orders,0,10\n".parse().unwrap();
         crate::test::snapshot::assert_eq(accumulator.into_snapshot(), expected);
@@ -440,8 +502,24 @@ mod tests {
     #[test]
     fn accumulator_filters_on_decoded_topic() {
         let mut accumulator = OffsetAccumulator::new(vec!["orders".to_string()]);
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 10);
-        apply_commit(&mut accumulator, "group-a", "payments", 0, 20);
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 10,
+            },
+        );
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "payments",
+                partition: 0,
+                offset: 20,
+            },
+        );
 
         let expected: OffsetSnapshot = "group-a,orders,0,10\n".parse().unwrap();
         crate::test::snapshot::assert_eq(accumulator.into_snapshot(), expected);
@@ -456,7 +534,15 @@ mod tests {
             Some(&[0xff]),
         );
         accumulator.apply(None, Some(&encode_offset_commit_value(10)));
-        apply_commit(&mut accumulator, "group-a", "orders", 0, 42);
+        apply(
+            &mut accumulator,
+            OffsetCommit {
+                group: "group-a",
+                topic: "orders",
+                partition: 0,
+                offset: 42,
+            },
+        );
 
         let expected: OffsetSnapshot = "group-a,orders,0,42\n".parse().unwrap();
         crate::test::snapshot::assert_eq(accumulator.into_snapshot(), expected);
