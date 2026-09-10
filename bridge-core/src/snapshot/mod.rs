@@ -87,26 +87,20 @@ impl OffsetSnapshot {
 
     /// Filters the snapshot based on a predicate function
     #[must_use]
-    pub fn filter<F>(&self, predicate: F) -> OffsetSnapshot
+    pub fn filter<F>(mut self, predicate: F) -> OffsetSnapshot
     where
         F: Fn(&OffsetRecord) -> bool,
     {
-        OffsetSnapshot {
-            records: self
-                .records
-                .iter()
-                .filter(|r| predicate(r))
-                .cloned()
-                .collect(),
-        }
+        self.records.retain(|r| predicate(r));
+        self
     }
 
     /// Filters the snapshot to include only records with topics in the provided list.
     /// If the list is empty, returns the original snapshot.
     #[must_use]
-    pub fn filter_by_topics<S: AsRef<str>>(&self, topics: &[S]) -> OffsetSnapshot {
+    pub fn filter_by_topics<S: AsRef<str>>(self, topics: &[S]) -> OffsetSnapshot {
         if topics.is_empty() {
-            return self.clone();
+            return self;
         }
         let topic_set: HashSet<&str> = topics.iter().map(|s| s.as_ref()).collect();
         self.filter(|record| topic_set.contains(record.topic.as_str()))
@@ -130,13 +124,13 @@ impl OffsetSnapshot {
     }
 
     /// Groups records by consumer group
-    pub fn group_by_consumer(&self) -> impl Iterator<Item = (String, OffsetSnapshot)> {
+    pub fn group_by_consumer(self) -> impl Iterator<Item = (String, OffsetSnapshot)> {
         let mut grouped: HashMap<String, OffsetSnapshot> = HashMap::new();
-        for record in &self.records {
+        for record in self.records {
             grouped
                 .entry(record.consumer_group.clone())
                 .or_default()
-                .push(record.clone());
+                .push(record);
         }
         grouped.into_iter()
     }

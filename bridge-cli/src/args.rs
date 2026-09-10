@@ -1,5 +1,6 @@
 use std::fmt::Display;
-use std::io::{Cursor, Read, stdin};
+use std::fs::File;
+use std::io::{BufReader, Read, stdin};
 use std::path::PathBuf;
 use std::{collections::HashMap, io, time::Duration};
 
@@ -223,19 +224,11 @@ pub enum CsvInput {
 }
 
 impl CsvInput {
-    /// Returns a reader that reads all input into memory.
-    /// Blocks until EOF for stdin (handles piped input correctly).
-    pub fn into_reader(self) -> io::Result<Cursor<Vec<u8>>> {
+    /// Returns a streaming reader over the input.
+    pub fn into_reader(self) -> io::Result<Box<dyn Read>> {
         match self {
-            CsvInput::Stdin => {
-                let mut buf = Vec::new();
-                stdin().lock().read_to_end(&mut buf)?;
-                Ok(Cursor::new(buf))
-            }
-            CsvInput::File(path) => {
-                let buf = std::fs::read(path)?;
-                Ok(Cursor::new(buf))
-            }
+            CsvInput::Stdin => Ok(Box::new(stdin().lock())),
+            CsvInput::File(path) => Ok(Box::new(BufReader::new(File::open(path)?))),
         }
     }
 }

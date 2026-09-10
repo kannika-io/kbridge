@@ -32,7 +32,7 @@ pub async fn execute(
             .set_reset_from_beginning()
             .disable_auto_commit();
 
-        apply_target_offsets(&mut config, &filtered).await?;
+        apply_target_offsets(&mut config, filtered).await?;
     }
 
     Ok(())
