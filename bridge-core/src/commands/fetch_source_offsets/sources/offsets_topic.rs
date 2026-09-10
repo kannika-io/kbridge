@@ -9,8 +9,8 @@ use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::util::Timeout;
 use rdkafka::{Message, TopicPartitionList};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::time::Duration;
-use tracing::{trace, warn};
+use std::time::{Duration, Instant};
+use tracing::{info, trace, warn};
 
 /// A decoded key of a record on the `__consumer_offsets` topic.
 #[derive(Debug, PartialEq, Eq)]
@@ -168,6 +168,11 @@ impl OffsetAccumulator {
         }
     }
 
+    /// Returns the number of accumulated [group, topic, partition] keys.
+    pub fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
     /// Returns the accumulated offsets, ordered by consumer group, topic and partition.
     pub fn into_snapshot(self) -> OffsetSnapshot {
         self.offsets
@@ -186,11 +191,16 @@ impl OffsetAccumulator {
 
 /// Reads all records of `offsets_topic` up to the log-end offsets captured at start,
 /// and returns the last committed offset per [group, topic, partition].
+///
+/// `progress` is called as `progress(read, total)` after each consumed record,
+/// where `total` is an upper bound derived from the watermarks (compaction gaps
+/// and transaction markers may keep `read` below it).
 pub fn read_offsets_from_topic(
     consumer: &BaseConsumer,
     offsets_topic: &str,
     topics: impl IntoIterator<Item = TopicName>,
     client_timeout: Duration,
+    mut progress: impl FnMut(u64, u64),
 ) -> Result<OffsetSnapshot, ReadOffsetsTopicError> {
     let metadata = consumer.fetch_metadata(Some(offsets_topic), Timeout::After(client_timeout))?;
 
@@ -210,6 +220,7 @@ pub fn read_offsets_from_topic(
     // Capture the log-end offsets up front so the end condition is deterministic
     let mut assignment = TopicPartitionList::new();
     let mut end_offsets: HashMap<PartitionNumber, Offset> = HashMap::new();
+    let mut total: u64 = 0;
     for partition in partitions {
         let (low, high) =
             consumer.fetch_watermarks(offsets_topic, partition, Timeout::After(client_timeout))?;
@@ -220,6 +231,7 @@ pub fn read_offsets_from_topic(
         }
         assignment.add_partition_offset(offsets_topic, partition, rdkafka::Offset::Beginning)?;
         end_offsets.insert(partition, high);
+        total += (high - low) as u64;
     }
 
     let mut accumulator = OffsetAccumulator::new(topics);
@@ -230,6 +242,9 @@ pub fn read_offsets_from_topic(
     }
 
     consumer.assign(&assignment)?;
+
+    let started = Instant::now();
+    let mut read: u64 = 0;
 
     while !remaining.is_empty() {
         match consumer.poll(Timeout::After(client_timeout)) {
@@ -245,6 +260,8 @@ pub fn read_offsets_from_topic(
             }
             Some(Err(err)) => return Err(err.into()),
             Some(Ok(message)) => {
+                read += 1;
+                progress(read, total);
                 let partition = message.partition();
                 if !remaining.contains(&partition) {
                     // Already past the log-end offset captured at start
@@ -257,6 +274,12 @@ pub fn read_offsets_from_topic(
             }
         }
     }
+
+    info!(
+        "Read {read} records from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
+        started.elapsed(),
+        accumulator.len(),
+    );
 
     Ok(accumulator.into_snapshot())
 }

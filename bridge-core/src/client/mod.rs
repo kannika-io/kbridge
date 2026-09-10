@@ -81,6 +81,8 @@ pub trait BridgeClient {
     ///
     /// * `offsets_topic` - The topic holding the restored `__consumer_offsets` records
     /// * `topics` - If non-empty, only offsets for these (decoded) topics are returned
+    /// * `progress` - Called as `progress(read, total)` after each consumed record,
+    ///   where `total` is an upper bound derived from the topic watermarks
     ///
     /// # Errors
     ///
@@ -93,6 +95,7 @@ pub trait BridgeClient {
         offsets_topic: impl Into<String> + Send,
         topics: impl IntoIterator<Item = String> + Send,
         client_timeout: Duration,
+        progress: impl FnMut(u64, u64) + Send,
     ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Calculates target offsets by reading messages and extracting source offsets from headers.
