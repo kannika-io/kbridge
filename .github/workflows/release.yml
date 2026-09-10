@@ -101,15 +101,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Git tags carry a "v" prefix; image tags do not (v0.2.0 -> 0.2.0, 0.2, 0).
+      # Prereleases only get the full version tag (v0.3.0-rc1 -> 0.3.0-rc1), no major/minor/latest.
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.GHCR_IMAGE }}
           tags: |
-            type=match,pattern=v(\d+\.\d+\.\d+),group=1
-            type=match,pattern=v(\d+\.\d+),group=1
-            type=match,pattern=v(\d+),group=1
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
@@ -158,9 +159,9 @@ jobs:
         with:
           images: ${{ env.QUAY_IMAGE }}
           tags: |
-            type=match,pattern=v(\d+\.\d+\.\d+),group=1
-            type=match,pattern=v(\d+\.\d+),group=1
-            type=match,pattern=v(\d+),group=1
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
 
       - name: Copy manifest list from GHCR to Quay
         run: |
