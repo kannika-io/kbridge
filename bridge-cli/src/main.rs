@@ -16,7 +16,8 @@ impl FromCsv<CsvInput> for OffsetSnapshot {
     }
 }
 use clap::Parser;
-use helpers::{ask_for_confirmation, print_offset_snapshot};
+use helpers::{ask_for_confirmation, print_offset_snapshot, print_snapshot_summary};
+use std::io::IsTerminal;
 use tracing::trace;
 
 mod args;
@@ -107,17 +108,17 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                 ));
             }
 
-            // Only show confirmation/dry-run output if snapshot has data
-            // (core library validates if offsets remain after topic filtering)
-            if !snapshot.is_empty() {
-                if !dry_run && !skip_confirmation && !ask_for_confirmation(&snapshot) {
-                    return Err(BridgeError::Message(
-                        "Operation cancelled by user".to_string(),
-                    ));
-                }
+            if !dry_run && !skip_confirmation && !ask_for_confirmation(&snapshot) {
+                return Err(BridgeError::Message(
+                    "Operation cancelled by user".to_string(),
+                ));
+            }
 
-                if dry_run {
-                    eprintln!("DRY RUN: Would apply the following offsets:");
+            if dry_run {
+                eprintln!("DRY RUN: Would apply the following offsets:");
+                if std::io::stdout().is_terminal() {
+                    print_snapshot_summary(&snapshot);
+                } else {
                     print_offset_snapshot(&snapshot);
                 }
             }

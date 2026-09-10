@@ -1,5 +1,6 @@
 //! Module for reading and writing CSV consumer group offset snapshots.
 use crate::prelude::*;
+use std::collections::BTreeMap;
 use std::io;
 
 // A trait for types that can be created from CSV data.
@@ -28,18 +29,30 @@ where
         let mut csv_reader = ::csv::ReaderBuilder::new().from_reader(reader);
         csv_reader.set_headers(::csv::StringRecord::from(CSV_HEADERS.to_vec()));
 
-        let snapshot: OffsetSnapshot = csv_reader
-            .deserialize::<OffsetRecord>()
-            .map(|record_result| {
-                record_result.map_err(|error| {
-                    let line = error.position().map(|p| p.line()).unwrap_or(0);
-                    CsvSnapshotError::MalformedRecord(line, error.to_string())
-                })
-            })
-            // Short-circuit collecting on first error
-            .collect::<Result<_, _>>()?;
+        // Deduplicate on (consumer_group, topic, partition), latest offset wins
+        let mut offsets: BTreeMap<(String, String, i32), i64> = BTreeMap::new();
+        for record_result in csv_reader.deserialize::<OffsetRecord>() {
+            let record = record_result.map_err(|error| {
+                let line = error.position().map(|p| p.line()).unwrap_or(0);
+                CsvSnapshotError::MalformedRecord(line, error.to_string())
+            })?;
+            offsets.insert(
+                (record.consumer_group, record.topic, record.partition),
+                record.offset,
+            );
+        }
 
-        Ok(snapshot)
+        Ok(offsets
+            .into_iter()
+            .map(
+                |((consumer_group, topic, partition), offset)| OffsetRecord {
+                    consumer_group,
+                    topic,
+                    partition,
+                    offset,
+                },
+            )
+            .collect())
     }
 }
 
@@ -66,6 +79,45 @@ mod tests {
             snapshot
                 .get_opt("group2", "topic2", 1)
                 .is_some_and(|r| r.offset == 200)
+        );
+    }
+
+    #[test]
+    fn test_snapshot_from_csv_deduplicates_latest_wins() {
+        let csv_data = indoc::indoc! {r#"
+            group1,topic1,0,100
+            group2,topic2,1,200
+            group1,topic1,0,300
+        "#};
+
+        let snapshot = OffsetSnapshot::from_csv(csv_data.as_bytes()).unwrap();
+
+        assert_eq!(snapshot.len(), 2);
+        assert!(
+            snapshot
+                .get_opt("group1", "topic1", 0)
+                .is_some_and(|r| r.offset == 300)
+        );
+    }
+
+    #[test]
+    fn test_snapshot_from_csv_sorts_records() {
+        let csv_data = indoc::indoc! {r#"
+            group2,topic2,1,200
+            group1,topic1,1,150
+            group1,topic1,0,100
+        "#};
+
+        let snapshot = OffsetSnapshot::from_csv(csv_data.as_bytes()).unwrap();
+
+        let records: Vec<String> = snapshot.iter().map(ToString::to_string).collect();
+        assert_eq!(
+            records,
+            vec![
+                "group1,topic1,0,100",
+                "group1,topic1,1,150",
+                "group2,topic2,1,200",
+            ]
         );
     }
 

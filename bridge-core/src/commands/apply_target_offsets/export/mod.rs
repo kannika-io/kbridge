@@ -9,7 +9,7 @@ use crate::commands::apply_target_offsets::errors::ApplyOffsetsError;
 
 pub async fn apply_target_offsets(
     consumer_config: &mut ClientConfig,
-    offset_snapshot: &OffsetSnapshot,
+    offset_snapshot: OffsetSnapshot,
 ) -> Result<(), ApplyOffsetsError> {
     for (group, snapshot) in offset_snapshot.group_by_consumer() {
         consumer_config.set("group.id", &group);
