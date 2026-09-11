@@ -184,12 +184,77 @@ impl OffsetAccumulator {
     }
 }
 
+/// Read progress through the offsets topic, measured in offset positions per
+/// partition rather than delivered records, so compaction gaps and transaction
+/// markers advance it instead of stalling it below 100%.
+struct ReadProgress {
+    partitions: HashMap<PartitionNumber, PartitionProgress>,
+    read: u64,
+    total: u64,
+}
+
+/// Progress within a single partition of the offsets topic.
+struct PartitionProgress {
+    low: Offset,
+    span: u64,
+    consumed: u64,
+}
+
+impl ReadProgress {
+    fn new() -> Self {
+        ReadProgress {
+            partitions: HashMap::new(),
+            read: 0,
+            total: 0,
+        }
+    }
+
+    /// Registers a partition's watermark range.
+    fn add_partition(&mut self, partition: PartitionNumber, low: Offset, high: Offset) {
+        let span = (high - low) as u64;
+        self.total += span;
+        self.partitions.insert(
+            partition,
+            PartitionProgress {
+                low,
+                span,
+                consumed: 0,
+            },
+        );
+    }
+
+    /// Records that `offset` was consumed on `partition`.
+    fn record(&mut self, partition: PartitionNumber, offset: Offset) {
+        if let Some(p) = self.partitions.get_mut(&partition) {
+            let consumed = ((offset - p.low + 1) as u64).min(p.span);
+            self.read += consumed.saturating_sub(p.consumed);
+            p.consumed = consumed;
+        }
+    }
+
+    /// Marks a partition fully read, counting any trailing gap or markers.
+    fn finish(&mut self, partition: PartitionNumber) {
+        if let Some(p) = self.partitions.get_mut(&partition) {
+            self.read += p.span - p.consumed;
+            p.consumed = p.span;
+        }
+    }
+
+    fn read(&self) -> u64 {
+        self.read
+    }
+
+    fn total(&self) -> u64 {
+        self.total
+    }
+}
+
 /// Reads all records of `offsets_topic` up to the log-end offsets captured at start,
 /// and returns the last committed offset per [group, topic, partition].
 ///
-/// `progress` is called as `progress(read, total)` after each consumed record,
-/// where `total` is an upper bound derived from the watermarks (compaction gaps
-/// and transaction markers may keep `read` below it).
+/// `progress` is called as `progress(read, total)` as the read advances, where
+/// both are measured in offset positions derived from the watermarks; `read`
+/// reaches `total` when every partition is drained.
 pub fn read_offsets_from_topic(
     consumer: &BaseConsumer,
     offsets_topic: &str,
@@ -215,7 +280,7 @@ pub fn read_offsets_from_topic(
     // Capture the log-end offsets up front so the end condition is deterministic
     let mut assignment = TopicPartitionList::new();
     let mut end_offsets: HashMap<PartitionNumber, Offset> = HashMap::new();
-    let mut total: u64 = 0;
+    let mut tracker = ReadProgress::new();
     for partition in partitions {
         let (low, high) =
             consumer.fetch_watermarks(offsets_topic, partition, Timeout::After(client_timeout))?;
@@ -226,7 +291,7 @@ pub fn read_offsets_from_topic(
         }
         assignment.add_partition_offset(offsets_topic, partition, rdkafka::Offset::Beginning)?;
         end_offsets.insert(partition, high);
-        total += (high - low) as u64;
+        tracker.add_partition(partition, low, high);
     }
 
     let mut accumulator = OffsetAccumulator::new(topics);
@@ -237,8 +302,6 @@ pub fn read_offsets_from_topic(
     }
 
     consumer.assign(&assignment)?;
-
-    let mut read: u64 = 0;
 
     while !remaining.is_empty() {
         match consumer.poll(Timeout::After(client_timeout)) {
@@ -251,20 +314,23 @@ pub fn read_offsets_from_topic(
                 // The tail of a compacted partition may hold no consumable records
                 // (e.g. transaction markers), so EOF also completes a partition
                 remaining.remove(&partition);
+                tracker.finish(partition);
+                progress(tracker.read(), tracker.total());
             }
             Some(Err(err)) => return Err(err.into()),
             Some(Ok(message)) => {
-                read += 1;
-                progress(read, total);
                 let partition = message.partition();
                 if !remaining.contains(&partition) {
                     // Already past the log-end offset captured at start
                     continue;
                 }
                 accumulator.apply(message.key(), message.payload());
+                tracker.record(partition, message.offset());
                 if message.offset() + 1 >= end_offsets[&partition] {
                     remaining.remove(&partition);
+                    tracker.finish(partition);
                 }
+                progress(tracker.read(), tracker.total());
             }
         }
     }

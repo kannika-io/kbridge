@@ -68,7 +68,7 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                         )
                         .expect("invalid progress bar template"),
                     )
-                    .with_message("Reading offsets topic");
+                    .with_message("Scanning offsets topic");
                     let result = client
                         .fetch_source_offsets_from_offsets_topic(
                             &offsets_topic,
@@ -85,7 +85,7 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                     progress.finish_and_clear();
                     let result = result?;
                     info!(
-                        "Read {} records from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
+                        "Scanned {} offsets from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
                         progress.position(),
                         progress.elapsed(),
                         result.len(),
