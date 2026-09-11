@@ -46,12 +46,15 @@ pub fn execute(
 
 /// Fetches committed consumer group offsets by decoding a restored copy of the
 /// internal `__consumer_offsets` topic instead of querying consumer groups.
+///
+/// `progress` is called as `progress(read, total)` after each consumed record.
 pub fn execute_from_offsets_topic(
     bootstrap_server: impl AsRef<str>,
     properties: &HashMap<String, String>,
     offsets_topic: impl AsRef<str>,
     topics: impl IntoIterator<Item = String>,
     client_timeout: Duration,
+    progress: impl FnMut(u64, u64),
 ) -> Result<OffsetSnapshot, FetchSourceOffsetsError> {
     let mut config = ClientConfig::new()
         .set_bootstrap_server(bootstrap_server.as_ref())
@@ -68,5 +71,6 @@ pub fn execute_from_offsets_topic(
         offsets_topic.as_ref(),
         topics,
         client_timeout,
+        progress,
     )?)
 }

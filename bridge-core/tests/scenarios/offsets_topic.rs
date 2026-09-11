@@ -91,6 +91,7 @@ pub async fn fetch_from_offsets_topic_should_return_last_committed_offsets() -> 
             OFFSETS_TOPIC,
             Vec::<String>::new(),
             Duration::from_secs(10),
+            |_, _| {},
         )
         .await?;
 
@@ -125,6 +126,7 @@ pub async fn fetch_from_offsets_topic_with_topic_filter_should_only_include_filt
             OFFSETS_TOPIC,
             vec!["payments".to_string()],
             Duration::from_secs(10),
+            |_, _| {},
         )
         .await?;
 
@@ -155,6 +157,7 @@ pub async fn fetch_from_offsets_topic_when_topic_missing_should_return_error() -
             "does-not-exist",
             Vec::<String>::new(),
             Duration::from_secs(10),
+            |_, _| {},
         )
         .await;
 

@@ -17,8 +17,9 @@ impl FromCsv<CsvInput> for OffsetSnapshot {
 }
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot, print_snapshot_summary};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use std::io::IsTerminal;
-use tracing::trace;
+use tracing::{info, trace};
 
 mod args;
 mod helpers;
@@ -57,9 +58,39 @@ async fn run(args: Args) -> Result<(), BridgeError> {
 
             let result = match offsets_topic {
                 Some(offsets_topic) => {
-                    client
-                        .fetch_source_offsets_from_offsets_topic(offsets_topic, topics, timeout)
-                        .await?
+                    let progress = ProgressBar::with_draw_target(
+                        None,
+                        ProgressDrawTarget::stderr(),
+                    )
+                    .with_style(
+                        ProgressStyle::with_template(
+                            "{msg} [{bar:40}] {pos}/{len} ({percent}%) {per_sec}, ETA {eta}",
+                        )
+                        .expect("invalid progress bar template"),
+                    )
+                    .with_message("Scanning offsets topic");
+                    let result = client
+                        .fetch_source_offsets_from_offsets_topic(
+                            &offsets_topic,
+                            topics,
+                            timeout,
+                            |read, total| {
+                                progress.set_length(total);
+                                progress.set_position(read);
+                            },
+                        )
+                        .await;
+                    // Clear the bar before logging: both write to stderr, and a log
+                    // emitted while the bar is drawing corrupts the display
+                    progress.finish_and_clear();
+                    let result = result?;
+                    info!(
+                        "Scanned {} offsets from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
+                        progress.position(),
+                        progress.elapsed(),
+                        result.len(),
+                    );
+                    result
                 }
                 None => {
                     client

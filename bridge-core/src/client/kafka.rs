@@ -51,6 +51,7 @@ impl BridgeClient for KafkaBridgeClient {
         offsets_topic: impl Into<String> + Send,
         topics: impl IntoIterator<Item = String> + Send,
         client_timeout: Duration,
+        progress: impl FnMut(u64, u64) + Send,
     ) -> Result<OffsetSnapshot, BridgeError> {
         fetch_source_offsets::execute_from_offsets_topic(
             self.config.bootstrap_server(),
@@ -58,6 +59,7 @@ impl BridgeClient for KafkaBridgeClient {
             offsets_topic.into(),
             topics,
             client_timeout,
+            progress,
         )
         .map_err(|err| err.into())
     }
