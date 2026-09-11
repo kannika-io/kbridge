@@ -42,3 +42,6 @@ run-docs:
 
 generate-demo:
 	./scripts/generate-demo.sh
+
+generate-offsets-topic broker="localhost:9092" topic="consumer-offsets-big" partitions="12" per_partition="1000000":
+	./scripts/generate_offsets_topic.sh {{broker}} {{topic}} {{partitions}} {{per_partition}}
