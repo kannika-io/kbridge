@@ -19,7 +19,7 @@ use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot, print_snapshot_summary};
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use std::io::IsTerminal;
-use tracing::trace;
+use tracing::{info, trace};
 
 mod args;
 mod helpers;
@@ -71,7 +71,7 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                     .with_message("Reading offsets topic");
                     let result = client
                         .fetch_source_offsets_from_offsets_topic(
-                            offsets_topic,
+                            &offsets_topic,
                             topics,
                             timeout,
                             |read, total| {
@@ -80,8 +80,17 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                             },
                         )
                         .await;
+                    // Clear the bar before logging: both write to stderr, and a log
+                    // emitted while the bar is drawing corrupts the display
                     progress.finish_and_clear();
-                    result?
+                    let result = result?;
+                    info!(
+                        "Read {} records from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
+                        progress.position(),
+                        progress.elapsed(),
+                        result.len(),
+                    );
+                    result
                 }
                 None => {
                     client

@@ -9,8 +9,8 @@ use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::util::Timeout;
 use rdkafka::{Message, TopicPartitionList};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::time::{Duration, Instant};
-use tracing::{info, trace, warn};
+use std::time::Duration;
+use tracing::{trace, warn};
 
 /// A decoded key of a record on the `__consumer_offsets` topic.
 #[derive(Debug, PartialEq, Eq)]
@@ -168,11 +168,6 @@ impl OffsetAccumulator {
         }
     }
 
-    /// Returns the number of accumulated [group, topic, partition] keys.
-    pub fn len(&self) -> usize {
-        self.offsets.len()
-    }
-
     /// Returns the accumulated offsets, ordered by consumer group, topic and partition.
     pub fn into_snapshot(self) -> OffsetSnapshot {
         self.offsets
@@ -243,7 +238,6 @@ pub fn read_offsets_from_topic(
 
     consumer.assign(&assignment)?;
 
-    let started = Instant::now();
     let mut read: u64 = 0;
 
     while !remaining.is_empty() {
@@ -274,12 +268,6 @@ pub fn read_offsets_from_topic(
             }
         }
     }
-
-    info!(
-        "Read {read} records from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
-        started.elapsed(),
-        accumulator.len(),
-    );
 
     Ok(accumulator.into_snapshot())
 }
