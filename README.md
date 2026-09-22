@@ -283,7 +283,7 @@ When `RUST_LOG` is set, it takes precedence over the `--verbose` flag.
 ```bash
 # Clone the repository
 git clone https://github.com/kannika-io/kbridge.git
-cd kannika-bridge
+cd kbridge
 
 # Install Rust (if not already installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
