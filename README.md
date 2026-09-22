@@ -9,7 +9,7 @@
 
 `kbridge` is an CLI tool built in Rust that makes Kafka consumer offset migration safe, predictable, and scriptable. Whether you're moving to Confluent Cloud, recovering from a cluster failure, or syncing consumer state between environments, kbridge gives you full control with a simple three-step pipeline.
 
-`kbridge` is part of Kannika's [open source and source-available Kafka tools](https://www.kannika.io/kannika-guides/open-source-kafka-tools/)
+`kbridge` is part of Kannika's [open source and source-available Kafka tools]
 
 ## What is Kannika.io?
 
@@ -282,7 +282,7 @@ When `RUST_LOG` is set, it takes precedence over the `--verbose` flag.
 
 ```bash
 # Clone the repository
-git clone https://github.com/kannike-io/kbridge.git
+git clone https://github.com/kannika-io/kbridge.git
 cd kannika-bridge
 
 # Install Rust (if not already installed)
