@@ -306,4 +306,4 @@ Other commercial use requires a license from Cymo NV.
 
 ## Support
 
-- 🐛 [Issue Tracker](https://github.com/cymo-eu/kannika-bridge/issues)
+- 🐛 [Issue Tracker](https://github.com/kannika-io/kbridge/issues)
