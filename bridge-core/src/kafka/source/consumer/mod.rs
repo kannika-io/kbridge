@@ -1,6 +1,7 @@
 use crate::partition::{PartitionEvent, PartitionRecord};
 use crate::prelude::*;
 
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -13,7 +14,7 @@ use rdkafka::consumer::Consumer;
 use rdkafka::error::KafkaError;
 use rdkafka::{Message, TopicPartitionList};
 
-use ahash::{HashMap, HashSet};
+use ahash::HashMap;
 
 mod assignment;
 use assignment::AssignmentGuard;
@@ -204,33 +205,243 @@ impl PartitionSubscriber {
     }
 }
 
+type Event = Result<SubscriberEvent, KafkaError>;
+type TopicPartition = (TopicName, PartitionNumber);
+
 struct Subscriber {
     _assign_guard: AssignmentGuard,
-    events: mpsc::Sender<Result<SubscriberEvent, KafkaError>>,
+    events: mpsc::Sender<Event>,
+    // Events waiting for room in `events`, in delivery order.
+    // The partition is paused while events are waiting, so this stays small.
+    outbox: VecDeque<Event>,
+    paused: bool,
 }
 
-type TopicPartition = (TopicName, PartitionNumber);
-type Subscribers = HashMap<TopicPartition, Subscriber>;
+impl Subscriber {
+    /// Moves events from the outbox into the channel until it is full.
+    /// Returns false when the receiving side is gone.
+    fn flush(&mut self) -> bool {
+        while let Some(event) = self.outbox.pop_front() {
+            if let Err(err) = self.events.try_send(event) {
+                if err.is_disconnected() {
+                    return false;
+                }
+                self.outbox.push_front(err.into_inner());
+                break;
+            }
+        }
+        true
+    }
+}
+
+/// Dispatches commands and Kafka records to partition subscribers.
+///
+/// Never waits for room in a subscriber's channel: a subscriber waiting for a seek
+/// does not read its stream, so waiting would deadlock the consumer task.
+/// Events that do not fit wait in the subscriber's outbox instead.
+struct Dispatcher {
+    kafka_consumer: Arc<StreamConsumer>,
+    subscriptions: HashMap<TopicPartition, Subscriber>,
+}
+
+impl Dispatcher {
+    fn handle_command(&mut self, cmd: SubscriberCommand) {
+        match cmd {
+            SubscriberCommand::Subscribe(request) => self.subscribe(request),
+            SubscriberCommand::Seek(request) => self.seek(request),
+        }
+    }
+
+    fn subscribe(&mut self, request: SubscriptionRequest) {
+        let SubscriptionRequest {
+            topic,
+            partition,
+            consumer,
+        } = request;
+
+        let assignment = {
+            let mut tpl = TopicPartitionList::new();
+            tpl.add_partition(&topic, partition);
+            tpl
+        };
+
+        // Attempt to assign new partition. This will fail if an assignment already exists for that partition.
+        tracing::debug!(%topic, %partition, ?assignment, "New assignment: {assignment:?}");
+        if let Err(err) = self.kafka_consumer.incremental_assign(&assignment) {
+            tracing::debug!(%err, %topic, %partition, ?assignment, "Failed to add assignment: {err}");
+            consumer.send(Err(err)).ok();
+            return;
+        }
+
+        // This clears the assignment as soon as one of its clone is dropped.
+        // We give one copy to the sending part of the subscriber's queue (our copy), and another
+        // to the receiving part of the queue (the migration job's copy).
+        let assignment_guard = AssignmentGuard::new(Arc::clone(&self.kafka_consumer), assignment);
+
+        let (tx, rx) = mpsc::channel(4);
+
+        let record_consumer = PartitionConsumer {
+            _assign_guard: assignment_guard.clone(),
+            buffered: None,
+            receiver: rx,
+        };
+
+        if consumer.send(Ok(record_consumer)).is_ok() {
+            self.subscriptions.insert(
+                (topic, partition),
+                Subscriber {
+                    _assign_guard: assignment_guard,
+                    events: tx,
+                    outbox: VecDeque::new(),
+                    paused: false,
+                },
+            );
+        }
+    }
+
+    fn seek(&mut self, request: SeekRequest) {
+        let SeekRequest {
+            topic,
+            partition,
+            offset,
+            response,
+        } = request;
+
+        let key = (topic, partition);
+        if !self.subscriptions.contains_key(&key) {
+            let err = format!("No subscriber for topic partition `{}:{}`", key.0, key.1);
+            response.send(Err(KafkaError::Subscription(err))).ok();
+            return;
+        }
+
+        let seek_result = {
+            let mut tpl = TopicPartitionList::new();
+            let _ = tpl.add_partition_offset(&key.0, partition, rdkafka::Offset::Offset(offset));
+
+            self.kafka_consumer
+                .seek_partitions(tpl, std::time::Duration::from_secs(5))
+        };
+
+        response.send(seek_result).ok();
+
+        // Records fetched before the seek are still delivered, ahead of this event.
+        self.deliver(&key, Ok(SubscriberEvent::PartitionSeeked));
+    }
+
+    fn deliver_records(&mut self, records: Vec<(TopicPartition, Vec<PartitionRecord>)>) {
+        for (key, records) in records {
+            if !self.subscriptions.contains_key(&key) {
+                tracing::debug!("No subscriber for topic partition `{}:{}`", key.0, key.1);
+                continue;
+            }
+
+            let num_records = records.len();
+            self.deliver(&key, Ok(SubscriberEvent::Batch { records }));
+            tracing::trace!("Fed {num_records} records to topic queue `{}`", key.0);
+        }
+    }
+
+    fn deliver(&mut self, key: &TopicPartition, event: Event) {
+        if let Some(subscriber) = self.subscriptions.get_mut(key) {
+            subscriber.outbox.push_back(event);
+            self.flush(key);
+        }
+    }
+
+    /// Flushes a subscriber's outbox.
+    /// The partition is paused while events are waiting, and resumed once the outbox is empty.
+    fn flush(&mut self, key: &TopicPartition) {
+        let Some(subscriber) = self.subscriptions.get_mut(key) else {
+            return;
+        };
+
+        if !subscriber.flush() {
+            tracing::debug!(topic = %key.0, partition = %key.1, "Subscriber gone.");
+            if subscriber.paused {
+                self.set_paused(key, false).ok();
+            }
+            self.subscriptions.remove(key);
+            return;
+        }
+
+        let waiting = !subscriber.outbox.is_empty();
+        if waiting != subscriber.paused {
+            match self.set_paused(key, waiting) {
+                Ok(()) => {
+                    if let Some(subscriber) = self.subscriptions.get_mut(key) {
+                        subscriber.paused = waiting;
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!(%err, topic = %key.0, partition = %key.1, "Failed to pause or resume partition");
+                }
+            }
+        }
+    }
+
+    fn set_paused(&self, key: &TopicPartition, paused: bool) -> Result<(), KafkaError> {
+        let mut tpl = TopicPartitionList::new();
+        tpl.add_partition(&key.0, key.1);
+        if paused {
+            self.kafka_consumer.pause(&tpl)
+        } else {
+            self.kafka_consumer.resume(&tpl)
+        }
+    }
+
+    /// Ready with the subscribers whose outbox can make progress: their channel has room or is closed.
+    fn poll_outboxes(&mut self, cx: &mut Context<'_>) -> Poll<Vec<TopicPartition>> {
+        let ready: Vec<TopicPartition> = self
+            .subscriptions
+            .iter_mut()
+            .filter_map(|(key, subscriber)| {
+                let ready =
+                    !subscriber.outbox.is_empty() && subscriber.events.poll_ready(cx).is_ready();
+                ready.then(|| key.clone())
+            })
+            .collect();
+
+        if ready.is_empty() {
+            Poll::Pending
+        } else {
+            Poll::Ready(ready)
+        }
+    }
+
+    /// Forwards a Kafka error to all subscribers and drops them.
+    async fn fail_all(&mut self, err: KafkaError) {
+        tracing::error!(%err, "Kafka consumer error");
+        for subscriber in self.subscriptions.values_mut() {
+            subscriber.events.feed(Err(err.clone())).await.ok();
+            subscriber.events.close().await.ok();
+        }
+        self.subscriptions.clear();
+    }
+}
 
 async fn consumer_loop(
     kafka_consumer: Arc<StreamConsumer>,
     mut commands: mpsc::Receiver<SubscriberCommand>,
 ) {
-    let mut subscriptions: Subscribers = Subscribers::default();
-    let mut consumers_gone = HashSet::default();
-
     let mut kafka_stream = kafka_consumer.stream().try_ready_chunks(128);
 
-    loop {
-        if !consumers_gone.is_empty() {
-            subscriptions.retain(|_, consumer| !consumer.events.is_closed());
-            consumers_gone.clear();
-        }
+    let mut dispatcher = Dispatcher {
+        kafka_consumer: Arc::clone(&kafka_consumer),
+        subscriptions: HashMap::default(),
+    };
 
+    loop {
         futures::select_biased! {
             // Handle new commands
             cmd = commands.select_next_some() => {
-                handle_command(&kafka_consumer, &mut subscriptions, cmd).await;
+                dispatcher.handle_command(cmd);
+            }
+
+            // Deliver events waiting for room in a subscriber's channel
+            ready = futures::future::poll_fn(|cx| dispatcher.poll_outboxes(cx)).fuse() => {
+                for key in ready {
+                    dispatcher.flush(&key);
+                }
             }
 
             // Handle new Kafka messages
@@ -258,196 +469,12 @@ async fn consumer_loop(
                     ((topic,partition), records)
                 }).collect();
 
-                // Partitions seeked while delivering this chunk. Their remaining records predate the seek.
-                let mut seeked = HashSet::default();
-
-                // Finally, send records as batches downstream
-                for (key, records) in grouped_records {
-                    if seeked.contains(&key) {
-                        tracing::trace!(topic = %key.0, partition = %key.1, "Dropping records fetched before seek");
-                        continue;
-                    }
-
-                    let num_records = records.len();
-                    let (topic, partition) = key.clone();
-
-                    match deliver_batch(&kafka_consumer, &mut subscriptions, &mut commands, &mut seeked, key, records).await {
-                        Delivery::Sent => {
-                            tracing::trace!("Fed {num_records} records to topic queue `{topic}`");
-                        }
-                        Delivery::Seeked => {
-                            tracing::trace!(%topic, %partition, "Dropping records fetched before seek");
-                        }
-                        Delivery::NoSubscriber => {
-                            tracing::debug!("No subscriber for topic partition `{topic}:{partition}`");
-                            consumers_gone.insert(topic);
-                        }
-                        Delivery::Gone => {
-                            tracing::debug!(%topic, %partition, "Subcriber gone.");
-                            consumers_gone.insert(topic);
-                        }
-                    }
-                }
+                dispatcher.deliver_records(grouped_records);
 
                 // When an error is encountered, the error is propagated to all subscribed consumers
                 if let Some(err) = err {
-                    tracing::error!(%err, "Kafka consumer error");
-                    // Forward the error to all clients and cleanup
-                    for subscriber in subscriptions.values_mut() {
-                        subscriber.events.feed(Err(err.clone())).await.ok();
-                        subscriber.events.close().await.ok();
-                    }
-                    subscriptions.clear();
+                    dispatcher.fail_all(err).await;
                 }
-            }
-        }
-    }
-}
-
-/// Handles a subscriber command.
-/// Returns the topic partition that was seeked, if any.
-async fn handle_command(
-    kafka_consumer: &Arc<StreamConsumer>,
-    subscriptions: &mut Subscribers,
-    cmd: SubscriberCommand,
-) -> Option<TopicPartition> {
-    match cmd {
-        SubscriberCommand::Subscribe(SubscriptionRequest {
-            topic,
-            partition,
-            consumer,
-        }) => {
-            let assignment = {
-                let mut tpl = TopicPartitionList::new();
-                tpl.add_partition(&topic, partition);
-                tpl
-            };
-
-            // Attempt to assign new partition. This will fail if an assignment already exists for that partition.
-            tracing::debug!(%topic, %partition, ?assignment, "New assignment: {assignment:?}");
-            if let Err(err) = kafka_consumer.incremental_assign(&assignment) {
-                tracing::debug!(%err, %topic, %partition, ?assignment, "Failed to add assignment: {err}");
-                consumer.send(Err(err)).ok();
-                return None;
-            }
-
-            // This clears the assignment as soon as one of its clone is dropped.
-            // We give one copy to the sending part of the subscriber's queue (our copy), and another
-            // to the receiving part of the queue (the migration job's copy).
-            let assignment_guard = AssignmentGuard::new(Arc::clone(kafka_consumer), assignment);
-
-            let (tx, rx) = mpsc::channel(4);
-
-            let record_consumer = PartitionConsumer {
-                _assign_guard: assignment_guard.clone(),
-                buffered: None,
-                receiver: rx,
-            };
-
-            if consumer.send(Ok(record_consumer)).is_ok() {
-                subscriptions.insert(
-                    (topic, partition),
-                    Subscriber {
-                        _assign_guard: assignment_guard,
-                        events: tx,
-                    },
-                );
-            }
-
-            None
-        }
-        SubscriberCommand::Seek(SeekRequest {
-            topic,
-            partition,
-            offset,
-            response,
-        }) => {
-            // Find the subscriber
-            let key = (topic, partition);
-            let Some(subscriber) = subscriptions.get_mut(&key) else {
-                let err = format!("No subscriber for topic partition `{}:{}`", key.0, key.1);
-                response.send(Err(KafkaError::Subscription(err))).ok();
-                return None;
-            };
-
-            let seek_result = {
-                let mut tpl = TopicPartitionList::new();
-                let _ =
-                    tpl.add_partition_offset(&key.0, partition, rdkafka::Offset::Offset(offset));
-
-                kafka_consumer.seek_partitions(tpl, std::time::Duration::from_secs(5))
-            };
-
-            // Respond before emitting the Seeked event: the subscriber only reads its stream
-            // again once the seek has completed, so the event may wait for channel capacity.
-            let _ = response.send(seek_result);
-
-            let _ = subscriber
-                .events
-                .feed(Ok(SubscriberEvent::PartitionSeeked))
-                .await;
-
-            let _ = subscriber.events.flush().await;
-
-            Some(key)
-        }
-    }
-}
-
-enum Delivery {
-    Sent,
-    // The partition was seeked before the batch could be delivered; the batch was dropped.
-    Seeked,
-    NoSubscriber,
-    Gone,
-}
-
-/// Delivers a batch of records to a subscriber, handling commands while its channel is full.
-///
-/// Waiting for channel capacity without handling commands deadlocks:
-/// a subscriber stops reading its stream while it waits for a seek to complete.
-/// Partitions seeked meanwhile are added to `seeked`; a batch for a seeked partition is dropped.
-async fn deliver_batch(
-    kafka_consumer: &Arc<StreamConsumer>,
-    subscriptions: &mut Subscribers,
-    commands: &mut mpsc::Receiver<SubscriberCommand>,
-    seeked: &mut HashSet<TopicPartition>,
-    key: TopicPartition,
-    records: Vec<PartitionRecord>,
-) -> Delivery {
-    loop {
-        let outcome = {
-            let Some(subscriber) = subscriptions.get_mut(&key) else {
-                return Delivery::NoSubscriber;
-            };
-
-            futures::select_biased! {
-                cmd = commands.select_next_some() => Err(cmd),
-                ready = futures::future::poll_fn(|cx| subscriber.events.poll_ready(cx)).fuse() => Ok(ready),
-            }
-        };
-
-        match outcome {
-            Err(cmd) => {
-                if let Some(seeked_key) = handle_command(kafka_consumer, subscriptions, cmd).await {
-                    seeked.insert(seeked_key);
-                }
-                if seeked.contains(&key) {
-                    return Delivery::Seeked;
-                }
-            }
-            Ok(Err(_)) => return Delivery::Gone,
-            Ok(Ok(())) => {
-                let Some(subscriber) = subscriptions.get_mut(&key) else {
-                    return Delivery::NoSubscriber;
-                };
-                return match subscriber
-                    .events
-                    .start_send(Ok(SubscriberEvent::Batch { records }))
-                {
-                    Ok(()) => Delivery::Sent,
-                    Err(_) => Delivery::Gone,
-                };
             }
         }
     }
