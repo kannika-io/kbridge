@@ -102,8 +102,8 @@ fn halvings(window: &Window) -> f64 {
 
 struct Scan {
     window: Window,
+    // Messages in the order the consumer delivered them
     seen: Vec<OffsetMapping>,
-    low_high: Option<(OffsetMapping, OffsetMapping)>,
 }
 
 impl Scan {
@@ -111,57 +111,37 @@ impl Scan {
         Self {
             window,
             seen: vec![],
-            low_high: None,
         }
     }
 
     // Registers the next message of the scan. A scan reads consecutive
-    // messages, so the offset in the header must not decrease.
-    fn register(&mut self, mapping: OffsetMapping) -> Result<(), NonIncreasingOffsets> {
+    // messages, so the partition offset must increase and the offset in the
+    // header must not decrease.
+    fn register<E>(&mut self, mapping: OffsetMapping) -> Result<(), SearchError<E>> {
         if let Some(&last) = self.seen.last() {
+            OutOfOrderPartitionOffsets::check(last, mapping)?;
             NonIncreasingOffsets::check(last, mapping)?;
         }
         self.seen.push(mapping);
-
-        // Optimization: avoid calculating lowest/highest in each task update
-        let low_high = self.low_high.get_or_insert((mapping, mapping));
-        if mapping.old_offset < low_high.0.old_offset {
-            low_high.0 = mapping;
-        }
-        if mapping.old_offset > low_high.1.old_offset {
-            low_high.1 = mapping;
-        }
         Ok(())
     }
 
-    // returns the lowest and the highest
-    fn low_high(&self) -> Option<&(OffsetMapping, OffsetMapping)> {
-        self.low_high.as_ref()
+    // Returns the messages with the lowest and the highest header offset,
+    // which `register` guarantees are the first and the last
+    fn low_high(&self) -> Option<(OffsetMapping, OffsetMapping)> {
+        Some((*self.seen.first()?, *self.seen.last()?))
     }
 
     // Builds a scan from consecutive messages
-    fn try_from_mappings(
-        iter: impl IntoIterator<Item = OffsetMapping>,
-    ) -> Result<Self, NonIncreasingOffsets> {
-        let mut mappings = Vec::new();
-        let mut min_offset = i64::MAX;
-        let mut max_offset = i64::MIN;
-
-        for mapping in iter {
-            min_offset = min_offset.min(mapping.new_offset);
-            max_offset = max_offset.max(mapping.new_offset);
-            mappings.push(mapping);
-        }
-
-        let window = if mappings.is_empty() {
-            Window::empty()
-        } else {
-            Window::from_range(min_offset..=max_offset)
-        };
-
-        let mut scan = Scan::new(window);
+    fn try_from_mappings<E>(
+        mappings: impl IntoIterator<Item = OffsetMapping>,
+    ) -> Result<Self, SearchError<E>> {
+        let mut scan = Scan::new(Window::empty());
         for mapping in mappings {
             scan.register(mapping)?;
+        }
+        if let Some((first, last)) = scan.low_high() {
+            scan.window = Window::from_range(first.new_offset..=last.new_offset);
         }
         Ok(scan)
     }
@@ -176,7 +156,7 @@ struct Observations(BTreeMap<Offset, Offset>);
 
 impl Observations {
     fn observe(&mut self, scan: &Scan) -> Result<(), NonIncreasingOffsets> {
-        if let (Some(&first), Some(&last)) = (scan.seen.first(), scan.seen.last()) {
+        if let Some((first, last)) = scan.low_high() {
             self.insert(first)?;
             self.insert(last)?;
         }
@@ -615,11 +595,11 @@ mod tests {
         }
 
         fn headers(&self) -> HashMap<String, Vec<u8>> {
-            HashMap::from([("offset".to_owned(), self.legacy.to_string().into_bytes())])
+            HashMap::from_iter(self.header("offset").map(|v| ("offset".to_owned(), v)))
         }
 
         fn header(&self, key: impl Into<String>) -> Option<Vec<u8>> {
-            self.headers().remove(&key.into())
+            (key.into() == "offset").then(|| self.legacy.to_string().into_bytes())
         }
     }
 
@@ -702,6 +682,22 @@ mod tests {
     #[tokio::test]
     async fn binary_search_fails_on_decrease_within_a_scan() {
         assert_non_increasing(search(restored_three_times(10), [1, 6], 1000).await);
+    }
+
+    #[test]
+    fn scan_blames_the_consumer_for_out_of_order_partition_offsets() {
+        // Header offsets decrease too, but only because the messages arrived
+        // out of order, which the data can't be blamed for
+        let delivered = [(10, 5), (9, 4)].map(OffsetMapping::from);
+
+        let err = Scan::try_from_mappings::<Infallible>(delivered)
+            .map(|_| ())
+            .expect_err("out of order partition offsets must fail the scan");
+
+        let SearchError::OutOfOrderPartitionOffsets(err) = err else {
+            panic!("unexpected error: {err}");
+        };
+        assert_eq!((err.previous, err.next), (delivered[0], delivered[1]));
     }
 
     #[tokio::test]
