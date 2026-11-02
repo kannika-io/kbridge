@@ -30,7 +30,7 @@ calculate-offsets:
 apply-offsets:
 	cargo run -- fetch -b localhost:9092 \
 	| cargo run -- calculate --bootstrap-server localhost:9093 -H Offset -i - \
-	| cargo run -- apply -b localhost:9093 --from-stdin
+	| cargo run -- apply -b localhost:9093 -i -
 
 run-example:
 	just setup-ci && \
