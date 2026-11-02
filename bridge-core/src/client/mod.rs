@@ -33,7 +33,7 @@ pub mod kafka;
 /// let source_offsets = client.fetch_source_offsets_from_cluster(topics.clone(), Duration::from_secs(5)).await?;
 ///
 /// // Calculate target offsets based on message headers
-/// let target_offsets = client.calculate_target_offsets("source-offset", topics.clone(), source_offsets).await?;
+/// let target_offsets = client.calculate_target_offsets("source-offset", topics.clone(), source_offsets, |_, _| {}).await?;
 ///
 /// // Apply offsets to target cluster (dry_run = false to actually apply)
 /// client.apply_target_offsets(topics, target_offsets, false).await?;
@@ -109,6 +109,8 @@ pub trait BridgeClient {
     ///
     /// * `legacy_offset_header` - The name of the message header that contains the source offset
     /// * `offset_snapshot` - The current consumer group offsets from the source cluster
+    /// * `progress` - Called as `progress(done, total)` in partitions: once with `done = 0`
+    ///   before the first partition, then after each partition is mapped
     ///
     /// # Returns
     ///
@@ -127,6 +129,7 @@ pub trait BridgeClient {
         legacy_offset_header: impl Into<String> + Send,
         topics: impl IntoIterator<Item = String> + Send,
         offset_snapshot: OffsetSnapshot,
+        progress: impl FnMut(u64, u64) + Send,
     ) -> Result<OffsetSnapshot, Self::Error>;
 
     /// Applies the calculated target offsets to consumer groups on the target cluster.

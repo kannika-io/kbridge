@@ -58,17 +58,10 @@ async fn run(args: Args) -> Result<(), BridgeError> {
 
             let result = match offsets_topic {
                 Some(offsets_topic) => {
-                    let progress = ProgressBar::with_draw_target(
-                        None,
-                        ProgressDrawTarget::stderr(),
-                    )
-                    .with_style(
-                        ProgressStyle::with_template(
-                            "{msg} [{bar:40}] {pos}/{len} ({percent}%) {per_sec}, ETA {eta}",
-                        )
-                        .expect("invalid progress bar template"),
-                    )
-                    .with_message("Scanning offsets topic");
+                    let progress = progress_bar(
+                        "Scanning offsets topic",
+                        "{msg} [{bar:40}] {pos}/{len} ({percent}%) {per_sec}, ETA {eta}",
+                    );
                     let result = client
                         .fetch_source_offsets_from_offsets_topic(
                             &offsets_topic,
@@ -80,9 +73,7 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                             },
                         )
                         .await;
-                    // Clear the bar before logging: both write to stderr, and a log
-                    // emitted while the bar is drawing corrupts the display
-                    progress.finish_and_clear();
+                    clear_progress_bar(&progress);
                     let result = result?;
                     info!(
                         "Scanned {} offsets from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
@@ -111,9 +102,24 @@ async fn run(args: Args) -> Result<(), BridgeError> {
 
             let snapshot = OffsetSnapshot::from_csv(input)?;
 
+            let progress = progress_bar(
+                "Mapping partitions",
+                "{msg} [{bar:40}] {pos}/{len} ({percent}%), ETA {eta}",
+            );
             let result = client
-                .calculate_target_offsets(offset_header, topics, snapshot)
-                .await?;
+                .calculate_target_offsets(offset_header, topics, snapshot, |done, total| {
+                    progress.set_length(total);
+                    progress.set_position(done);
+                })
+                .await;
+            clear_progress_bar(&progress);
+            let result = result?;
+            info!(
+                "Mapped {} partitions in {:.2?}, calculated {} offsets",
+                progress.position(),
+                progress.elapsed(),
+                result.len(),
+            );
 
             print_offset_snapshot(&result);
             Ok(())
@@ -157,4 +163,21 @@ async fn run(args: Args) -> Result<(), BridgeError> {
             client.apply_target_offsets(topics, snapshot, dry_run).await
         }
     }
+}
+
+/// Creates a progress bar on stderr and registers it with the logger, so log
+/// lines emitted while it is drawn don't corrupt it. Hidden when stderr is not
+/// a terminal.
+fn progress_bar(message: &'static str, template: &str) -> ProgressBar {
+    let bar = ProgressBar::with_draw_target(None, ProgressDrawTarget::stderr())
+        .with_style(ProgressStyle::with_template(template).expect("invalid progress bar template"))
+        .with_message(message);
+    logging::set_active_progress(Some(bar.clone()));
+    bar
+}
+
+/// Clears `bar` from stderr and unregisters it from the logger.
+fn clear_progress_bar(bar: &ProgressBar) {
+    bar.finish_and_clear();
+    logging::set_active_progress(None);
 }

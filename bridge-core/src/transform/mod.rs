@@ -57,15 +57,22 @@ impl ConsumerGroupMigrator {
         self
     }
 
+    /// Maps every offset in `snapshot` to its position in the target partitions.
+    ///
+    /// `progress` is called as `progress(done, total)` in partitions: once with
+    /// `done = 0` before the first partition, then after each partition is mapped.
     pub async fn migrate(
         &self,
         snapshot: &OffsetSnapshot,
+        mut progress: impl FnMut(u64, u64),
     ) -> Result<OffsetSnapshot, MigrationError> {
         let batches: Vec<PartitionBatch> = snapshot.into();
+        let total = batches.len() as u64;
+        progress(0, total);
 
         let mut transformed = OffsetSnapshot::with_capacity(snapshot.len());
 
-        for batch in batches {
+        for (done, batch) in (1..).zip(batches) {
             tracing::debug!("Processing batch: {:?}", batch);
 
             let watermarks = self
@@ -94,6 +101,7 @@ impl ConsumerGroupMigrator {
                         offset: window.high,
                     });
                 }
+                progress(done, total);
                 continue;
             }
 
@@ -133,6 +141,7 @@ impl ConsumerGroupMigrator {
 
                 transformed.push(record);
             }
+            progress(done, total);
         }
 
         Ok(transformed)
@@ -226,7 +235,13 @@ mod tests {
 
         let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header("offset");
 
-        let transformed = migrator.migrate(&snapshot).await?;
+        let mut progress = Vec::new();
+        let transformed = migrator
+            .migrate(&snapshot, |done, total| progress.push((done, total)))
+            .await?;
+
+        // One step per partition: three of migration.events, one of help.events
+        assert_eq!(progress, vec![(0, 4), (1, 4), (2, 4), (3, 4), (4, 4)]);
 
         let expected: OffsetSnapshot = indoc::indoc! {
             r#"
@@ -280,7 +295,13 @@ mod tests {
 
         let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header("offset");
 
-        let transformed = migrator.migrate(&snapshot).await?;
+        let mut progress = Vec::new();
+        let transformed = migrator
+            .migrate(&snapshot, |done, total| progress.push((done, total)))
+            .await?;
+
+        // Empty partitions are skipped without a search, but still count as mapped
+        assert_eq!(progress, vec![(0, 2), (1, 2), (2, 2)]);
 
         let expected: OffsetSnapshot = indoc::indoc! {
             r#"
