@@ -215,6 +215,8 @@ struct Subscriber {
     // The partition is paused while events are waiting, so this stays small.
     outbox: VecDeque<Event>,
     paused: bool,
+    // Set after a Kafka error: the channel is closed once the outbox is empty.
+    closing: bool,
 }
 
 impl Subscriber {
@@ -294,6 +296,7 @@ impl Dispatcher {
                     events: tx,
                     outbox: VecDeque::new(),
                     paused: false,
+                    closing: false,
                 },
             );
         }
@@ -308,7 +311,7 @@ impl Dispatcher {
         } = request;
 
         let key = (topic, partition);
-        if !self.subscriptions.contains_key(&key) {
+        if !self.is_open(&key) {
             let err = format!("No subscriber for topic partition `{}:{}`", key.0, key.1);
             response.send(Err(KafkaError::Subscription(err))).ok();
             return;
@@ -330,7 +333,7 @@ impl Dispatcher {
 
     fn deliver_records(&mut self, records: Vec<(TopicPartition, Vec<PartitionRecord>)>) {
         for (key, records) in records {
-            if !self.subscriptions.contains_key(&key) {
+            if !self.is_open(&key) {
                 tracing::debug!("No subscriber for topic partition `{}:{}`", key.0, key.1);
                 continue;
             }
@@ -357,10 +360,13 @@ impl Dispatcher {
 
         if !subscriber.flush() {
             tracing::debug!(topic = %key.0, partition = %key.1, "Subscriber gone.");
-            if subscriber.paused {
-                self.set_paused(key, false).ok();
-            }
-            self.subscriptions.remove(key);
+            self.remove(key);
+            return;
+        }
+
+        if subscriber.closing && subscriber.outbox.is_empty() {
+            subscriber.events.close_channel();
+            self.remove(key);
             return;
         }
 
@@ -408,14 +414,46 @@ impl Dispatcher {
         }
     }
 
-    /// Forwards a Kafka error to all subscribers and drops them.
-    async fn fail_all(&mut self, err: KafkaError) {
+    /// Forwards a Kafka error to all subscribers, after their waiting events, then closes them.
+    fn fail_all(&mut self, err: KafkaError) {
         tracing::error!(%err, "Kafka consumer error");
-        for subscriber in self.subscriptions.values_mut() {
-            subscriber.events.feed(Err(err.clone())).await.ok();
-            subscriber.events.close().await.ok();
+        let keys: Vec<TopicPartition> = self.subscriptions.keys().cloned().collect();
+        for key in keys {
+            if let Some(subscriber) = self.subscriptions.get_mut(&key) {
+                subscriber.outbox.push_back(Err(err.clone()));
+                subscriber.closing = true;
+            }
+            self.flush(&key);
         }
-        self.subscriptions.clear();
+    }
+
+    /// Removes subscribers whose stream was dropped.
+    fn remove_closed(&mut self) {
+        let closed: Vec<TopicPartition> = self
+            .subscriptions
+            .iter()
+            .filter(|(_, subscriber)| subscriber.events.is_closed())
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in closed {
+            tracing::debug!(topic = %key.0, partition = %key.1, "Subscriber gone.");
+            self.remove(&key);
+        }
+    }
+
+    /// Removes a subscriber, resuming its partition if it was paused.
+    fn remove(&mut self, key: &TopicPartition) {
+        if let Some(subscriber) = self.subscriptions.remove(key)
+            && subscriber.paused
+        {
+            self.set_paused(key, false).ok();
+        }
+    }
+
+    fn is_open(&self, key: &TopicPartition) -> bool {
+        self.subscriptions
+            .get(key)
+            .is_some_and(|subscriber| !subscriber.closing)
     }
 }
 
@@ -431,6 +469,8 @@ async fn consumer_loop(
     };
 
     loop {
+        dispatcher.remove_closed();
+
         futures::select_biased! {
             // Handle new commands
             cmd = commands.select_next_some() => {
@@ -473,7 +513,7 @@ async fn consumer_loop(
 
                 // When an error is encountered, the error is propagated to all subscribed consumers
                 if let Some(err) = err {
-                    dispatcher.fail_all(err).await;
+                    dispatcher.fail_all(err);
                 }
             }
         }
