@@ -289,8 +289,12 @@ impl Dispatcher {
         };
 
         if consumer.send(Ok(record_consumer)).is_ok() {
+            let key = (topic, partition);
+            // A previous subscription for this partition may have left it paused, and the pause
+            // survives unassign/assign. Removing it resumes the partition.
+            self.remove(&key);
             self.subscriptions.insert(
-                (topic, partition),
+                key,
                 Subscriber {
                     _assign_guard: assignment_guard,
                     events: tx,
@@ -419,7 +423,9 @@ impl Dispatcher {
         tracing::error!(%err, "Kafka consumer error");
         let keys: Vec<TopicPartition> = self.subscriptions.keys().cloned().collect();
         for key in keys {
-            if let Some(subscriber) = self.subscriptions.get_mut(&key) {
+            if let Some(subscriber) = self.subscriptions.get_mut(&key)
+                && !subscriber.closing
+            {
                 subscriber.outbox.push_back(Err(err.clone()));
                 subscriber.closing = true;
             }
