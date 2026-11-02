@@ -13,11 +13,14 @@ pub trait BinarySearch {
     ///
     /// Returns a Vec of OffsetMappings in the same order as the input offsets.
     /// If an offset is not found, it maps to the next available offset.
+    ///
+    /// `progress` is called once before the first seek and after every seek.
     async fn binary_search(
         &mut self,
         offsets: impl IntoIterator<Item = i64>,
         offset_source: OffsetSource,
         opts: BinarySearchOpts,
+        progress: impl FnMut(SearchProgress),
     ) -> Result<Self::Output, Self::Error>;
 }
 
@@ -84,6 +87,16 @@ where
     _marker: std::marker::PhantomData<E>,
     cursor: Offset,
     metrics: PartitionScanMetrics,
+    // Number of distinct offsets searched for
+    offsets: usize,
+    // Halvings needed to narrow every offset's window down to one position
+    initial_halvings: f64,
+}
+
+/// Halvings needed to narrow `window` down to a single position. Computed
+/// from the bounds rather than `Window::len`, which wraps if `low > high`.
+fn halvings(window: &Window) -> f64 {
+    (window.high.saturating_sub(window.low).max(1) as f64).log2()
 }
 
 struct Scan {
@@ -158,6 +171,7 @@ where
         offsets: impl IntoIterator<Item = i64>,
         offset_source: OffsetSource,
         opts: BinarySearchOpts,
+        mut progress: impl FnMut(SearchProgress),
     ) -> Result<Self::Output, Self::Error> {
         let offsets = offsets.into_iter().collect::<Vec<i64>>();
 
@@ -170,6 +184,8 @@ where
         let window = opts.search_window.unwrap_or_default();
         let work = SearchTaskQueue::new(offsets, window);
         let results = Vec::with_capacity(work.len());
+        let offsets = work.len();
+        let initial_halvings = work.remaining_halvings();
         let cursor = window.low;
         let partition = self;
         let metrics = PartitionScanMetrics::default();
@@ -184,14 +200,18 @@ where
             window,
             cursor,
             metrics,
+            offsets,
+            initial_halvings,
             _marker: std::marker::PhantomData::<P::Error>,
         };
 
+        progress(ctx.progress());
         while !ctx.work.is_empty() && !ctx.window.is_empty() {
             let scan_window = ctx.window.slice(ctx.cursor, opts.seq_scan_size);
             let scan = ctx.seq_scan(scan_window).await?;
             ctx.check(scan);
             ctx.advance_cursor();
+            progress(ctx.progress());
         }
 
         Ok(ctx.result())
@@ -235,6 +255,7 @@ where
             .seek_from_offset(scan.window.low)
             .await
             .map_err(SearchError::Seek)?;
+        self.metrics.seeks += 1;
 
         // Drain old messages from the previous seek
         self.drain_check().await?;
@@ -318,6 +339,24 @@ where
         }
     }
 
+    fn progress(&self) -> SearchProgress {
+        let narrowed = if self.initial_halvings > 0.0 {
+            1.0 - self.work.remaining_halvings() / self.initial_halvings
+        } else {
+            1.0
+        };
+        SearchProgress {
+            mapped: self.offsets - self.work.len(),
+            offsets: self.offsets,
+            seeks: self.metrics.seeks,
+            window: self
+                .work
+                .target()
+                .map_or(Window::empty(), |task| task.window),
+            narrowed: narrowed.clamp(0.0, 1.0),
+        }
+    }
+
     // Returns the final partition scan result.
     // Consumes the context.
     fn result(self) -> PartitionScan {
@@ -340,6 +379,9 @@ where
 struct SearchTaskQueue {
     // Work, sorted by old_offset
     tasks: BTreeMap<Offset, SearchTask>,
+    // Sum of `halvings` over the tasks' windows, kept up to date as windows
+    // narrow and tasks are removed, so progress doesn't walk every task
+    remaining_halvings: f64,
 }
 
 #[derive(Debug)]
@@ -355,7 +397,21 @@ impl SearchTaskQueue {
                 .into_iter()
                 .map(|old_offset| (old_offset, SearchTask { old_offset, window })),
         );
-        Self { tasks }
+        let remaining_halvings = tasks.len() as f64 * halvings(&window);
+        Self {
+            tasks,
+            remaining_halvings,
+        }
+    }
+
+    // Halvings left before every task's window is narrowed to one position
+    fn remaining_halvings(&self) -> f64 {
+        if self.tasks.is_empty() {
+            // Avoid reporting rounding residue once all work is done
+            0.0
+        } else {
+            self.remaining_halvings.max(0.0)
+        }
     }
 
     fn is_empty(&self) -> bool {
@@ -376,7 +432,9 @@ impl SearchTaskQueue {
     }
 
     fn remove(&mut self, offset: &Offset) -> Option<SearchTask> {
-        self.tasks.remove(offset)
+        let task = self.tasks.remove(offset)?;
+        self.remaining_halvings -= halvings(&task.window);
+        Some(task)
     }
 
     fn len(&self) -> usize {
@@ -386,7 +444,12 @@ impl SearchTaskQueue {
     fn check(&mut self, scan: &Scan) -> Vec<OffsetMapping> {
         let mut mappings = vec![];
         for task in self.tasks.values_mut() {
-            if let Some(mapping) = task.check(scan) {
+            let window = task.window;
+            let mapping = task.check(scan);
+            if task.window != window {
+                self.remaining_halvings -= halvings(&window) - halvings(&task.window);
+            }
+            if let Some(mapping) = mapping {
                 mappings.push(mapping);
             }
         }
@@ -453,6 +516,15 @@ mod tests {
 
     use crate::{kafka::partition::KafkaPartition, test::kafka::cluster::ContainerizedCluster};
 
+    #[test]
+    fn halvings_counts_bits_and_never_wraps() {
+        assert_eq!(halvings(&Window::new(0, 1)), 0.0);
+        assert_eq!(halvings(&Window::new(0, 1024)), 10.0);
+        assert_eq!(halvings(&Window::empty()), 0.0);
+        // An inverted window, which `Window::len` would wrap to a huge length
+        assert_eq!(halvings(&Window { low: 10, high: 5 }), 0.0);
+    }
+
     #[tokio::test]
     async fn test_kafka_partition_binary_search() -> anyhow::Result<()> {
         use crate::test::kafka::cluster::MockClusterExt;
@@ -485,9 +557,27 @@ mod tests {
             .with_search_window(watermarks)
             .with_seq_scan_size(NonZeroUsize::new(1000).unwrap());
 
+        let mut progress = Vec::new();
         let scan = partition
-            .binary_search(search_offsets, OffsetSource::from_header("offset"), opts)
+            .binary_search(
+                search_offsets,
+                OffsetSource::from_header("offset"),
+                opts,
+                |p| progress.push(p),
+            )
             .await?;
+
+        let first = progress.first().expect("progress before the first seek");
+        assert_eq!((first.mapped, first.seeks, first.narrowed), (0, 0, 0.0));
+        let last = progress.last().expect("progress after the last seek");
+        assert_eq!((last.mapped, last.offsets), (8, 8));
+        assert_eq!(last.narrowed, 1.0);
+        assert!(last.window.is_empty());
+        assert_eq!(last.seeks as usize, progress.len() - 1);
+        assert!(
+            progress.windows(2).all(|w| w[0].narrowed <= w[1].narrowed),
+            "narrowing never goes backwards: {progress:?}"
+        );
 
         for result in scan.results_iter() {
             match &result {

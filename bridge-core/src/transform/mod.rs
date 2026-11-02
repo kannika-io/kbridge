@@ -6,6 +6,8 @@ use std::{cmp::Ordering, num::NonZeroUsize, sync::Arc};
 use batch::*;
 use search::*;
 
+pub use search::{SearchProgress, Window};
+
 use crate::{
     kafka::{partition::KafkaPartition, source::RecordStreamConsumer},
     prelude::*,
@@ -18,6 +20,21 @@ pub struct ConsumerGroupMigrator {
 
     // Source of offsets to search for
     offset_source: OffsetSource,
+}
+
+/// Progress of [`ConsumerGroupMigrator::migrate`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MigrationProgress<'a> {
+    /// `done` of `total` partitions are mapped. Reported once with `done = 0`
+    /// before the first partition, then after each partition.
+    Mapped { done: u64, total: u64 },
+    /// Mapping of `partition` of `topic` starts.
+    Partition {
+        topic: &'a str,
+        partition: PartitionNumber,
+    },
+    /// The binary search through the current partition advanced.
+    Search(SearchProgress),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -57,16 +74,27 @@ impl ConsumerGroupMigrator {
         self
     }
 
+    /// Maps every offset in `snapshot` to its position in the target partitions.
+    ///
+    /// `progress` reports each partition as it is mapped, and every seek of
+    /// the binary search within it; see [`MigrationProgress`].
     pub async fn migrate(
         &self,
         snapshot: &OffsetSnapshot,
+        mut progress: impl FnMut(MigrationProgress<'_>),
     ) -> Result<OffsetSnapshot, MigrationError> {
         let batches: Vec<PartitionBatch> = snapshot.into();
+        let total = batches.len() as u64;
+        progress(MigrationProgress::Mapped { done: 0, total });
 
         let mut transformed = OffsetSnapshot::with_capacity(snapshot.len());
 
-        for batch in batches {
+        for (done, batch) in (1..).zip(batches) {
             tracing::debug!("Processing batch: {:?}", batch);
+            progress(MigrationProgress::Partition {
+                topic: &batch.topic,
+                partition: batch.partition,
+            });
 
             let watermarks = self
                 .consumer
@@ -94,6 +122,7 @@ impl ConsumerGroupMigrator {
                         offset: window.high,
                     });
                 }
+                progress(MigrationProgress::Mapped { done, total });
                 continue;
             }
 
@@ -111,7 +140,9 @@ impl ConsumerGroupMigrator {
                     .with_seq_scan_size(NonZeroUsize::new(1).unwrap());
 
                 partition
-                    .binary_search(batch.offsets(), self.offset_source.clone(), opts)
+                    .binary_search(batch.offsets(), self.offset_source.clone(), opts, |p| {
+                        progress(MigrationProgress::Search(p))
+                    })
                     .await
                     .map_err(MigrationError::SearchError)?
             };
@@ -133,6 +164,7 @@ impl ConsumerGroupMigrator {
 
                 transformed.push(record);
             }
+            progress(MigrationProgress::Mapped { done, total });
         }
 
         Ok(transformed)
@@ -182,7 +214,9 @@ impl From<(Offset, Offset)> for OffsetMapping {
 #[cfg(test)]
 mod tests {
     use crate::{
-        prelude::*, test::kafka::cluster::ContainerizedCluster, transform::ConsumerGroupMigrator,
+        prelude::*,
+        test::kafka::cluster::ContainerizedCluster,
+        transform::{ConsumerGroupMigrator, MigrationProgress},
     };
 
     #[tokio::test]
@@ -226,7 +260,17 @@ mod tests {
 
         let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header("offset");
 
-        let transformed = migrator.migrate(&snapshot).await?;
+        let mut progress = Vec::new();
+        let transformed = migrator
+            .migrate(&snapshot, |p| {
+                if let MigrationProgress::Mapped { done, total } = p {
+                    progress.push((done, total));
+                }
+            })
+            .await?;
+
+        // One step per partition: three of migration.events, one of help.events
+        assert_eq!(progress, vec![(0, 4), (1, 4), (2, 4), (3, 4), (4, 4)]);
 
         let expected: OffsetSnapshot = indoc::indoc! {
             r#"
@@ -280,7 +324,17 @@ mod tests {
 
         let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header("offset");
 
-        let transformed = migrator.migrate(&snapshot).await?;
+        let mut progress = Vec::new();
+        let transformed = migrator
+            .migrate(&snapshot, |p| {
+                if let MigrationProgress::Mapped { done, total } = p {
+                    progress.push((done, total));
+                }
+            })
+            .await?;
+
+        // Empty partitions are skipped without a search, but still count as mapped
+        assert_eq!(progress, vec![(0, 2), (1, 2), (2, 2)]);
 
         let expected: OffsetSnapshot = indoc::indoc! {
             r#"

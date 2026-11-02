@@ -5,6 +5,7 @@ use async_trait::async_trait;
 
 use crate::kafka::properties::KafkaConsumerProperties;
 use crate::prelude::*;
+use crate::transform::MigrationProgress;
 
 use crate::transform::ConsumerGroupMigrator;
 use crate::{
@@ -86,6 +87,7 @@ impl BridgeClient for KafkaBridgeClient {
         offset_header: impl Into<String> + Send,
         topics: impl IntoIterator<Item = String> + Send,
         snapshot: OffsetSnapshot,
+        progress: impl for<'p> FnMut(MigrationProgress<'p>) + Send,
     ) -> Result<OffsetSnapshot, Self::Error> {
         let snapshot = {
             let topics: Vec<String> = topics.into_iter().collect();
@@ -98,7 +100,7 @@ impl BridgeClient for KafkaBridgeClient {
 
         let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header(offset_header);
 
-        let result = migrator.migrate(&snapshot).await?;
+        let result = migrator.migrate(&snapshot, progress).await?;
 
         Ok(result)
     }
