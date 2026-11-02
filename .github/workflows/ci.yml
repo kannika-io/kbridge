@@ -13,7 +13,9 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    
+    # A normal run takes under 10 minutes; fail fast on hung tests instead of the 6h default.
+    timeout-minutes: 20
+
     steps:
     - uses: actions/checkout@v4
     
