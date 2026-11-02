@@ -15,10 +15,12 @@ impl FromCsv<CsvInput> for OffsetSnapshot {
         OffsetSnapshot::from_csv(reader).map_err(BridgeError::from)
     }
 }
+use bridge_core::PartitionNumber;
 use bridge_core::transform::{MigrationProgress, SearchProgress};
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot, print_snapshot_summary};
-use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
+use logging::add_progress_bar;
 use std::io::IsTerminal;
 use tracing::{info, trace};
 
@@ -60,9 +62,9 @@ async fn run(args: Args) -> Result<(), BridgeError> {
             let result = match offsets_topic {
                 Some(offsets_topic) => {
                     let progress = progress_bar(
-                        "Scanning offsets topic",
                         "{msg} [{bar:40}] {pos}/{len} ({percent}%) {per_sec}, ETA {eta}",
-                    );
+                    )
+                    .with_message("Scanning offsets topic");
                     let result = client
                         .fetch_source_offsets_from_offsets_topic(
                             &offsets_topic,
@@ -74,7 +76,8 @@ async fn run(args: Args) -> Result<(), BridgeError> {
                             },
                         )
                         .await;
-                    clear_progress_bar(&progress);
+                    // Clear the bar before the summary, so it doesn't redraw below it
+                    progress.finish_and_clear();
                     let result = result?;
                     info!(
                         "Scanned {} offsets from '{offsets_topic}' in {:.2?}, accumulated {} unique offsets",
@@ -108,40 +111,60 @@ async fn run(args: Args) -> Result<(), BridgeError> {
             const LABEL: &str = "Mapping partitions";
             let width = snapshot
                 .iter()
-                .map(|r| format!("{}/{}", r.topic, r.partition).len())
-                .chain([LABEL.len()])
-                .max()
-                .unwrap_or_default()
+                .filter(|r| topics.is_empty() || topics.contains(&r.topic))
+                .map(|r| label_width(&r.topic, r.partition))
+                .fold(LABEL.len(), usize::max)
                 .min(MAX_LABEL_WIDTH);
-            let bars = MultiProgress::with_draw_target(ProgressDrawTarget::stderr());
-            let progress = bars.add(progress_bar(
-                LABEL,
-                &format!(
-                    "{{msg:{width}!}} [{{bar:40}}] {{percent:>3}}% {{pos}}/{{len}} partitions"
-                ),
+            let progress = progress_bar(&format!(
+                "{{msg:{width}!}} [{{bar:40}}] {{percent:>3}}% {{pos}}/{{len}} partitions"
+            ))
+            .with_message(LABEL);
+            let search_style = progress_style(&format!(
+                "{{prefix:{width}!}} [{{bar:40}}] {{percent:>3}}% {{msg}}"
             ));
-            let search = bars.add(ProgressBar::new(SEARCH_STEPS).with_style(progress_style(
-                &format!("{{prefix:{width}!}} [{{bar:40}}] {{percent:>3}}% {{msg}}"),
-            )));
+            // Shown from the first search step on, so it doesn't sit blank at 0%
+            let mut search: Option<ProgressBar> = None;
+            let mut current = String::new();
+            let mut searched = false;
             let result = client
                 .calculate_target_offsets(offset_header, topics, snapshot, |event| match event {
                     MigrationProgress::Mapped { done, total } => {
                         progress.set_length(total);
                         progress.set_position(done);
+                        // Empty target partitions are mapped without a search
+                        if let (Some(bar), false, true) = (&search, searched, done > 0) {
+                            bar.set_position(SEARCH_STEPS);
+                            bar.set_message("empty partition, nothing to search");
+                        }
                     }
                     MigrationProgress::Partition { topic, partition } => {
-                        search.reset();
-                        search.set_prefix(format!("{topic}/{partition}"));
-                        search.set_message("");
+                        current = format!("{topic}/{partition}");
+                        searched = false;
+                        if let Some(bar) = &search {
+                            bar.reset();
+                            bar.set_prefix(current.clone());
+                            bar.set_message("");
+                        }
                     }
                     MigrationProgress::Search(step) => {
-                        search.set_position((step.narrowed * SEARCH_STEPS as f64) as u64);
-                        search.set_message(format_search(&step));
+                        searched = true;
+                        let bar = search.get_or_insert_with(|| {
+                            add_progress_bar(
+                                ProgressBar::new(SEARCH_STEPS)
+                                    .with_style(search_style.clone())
+                                    .with_prefix(current.clone()),
+                            )
+                        });
+                        bar.set_position((step.narrowed * SEARCH_STEPS as f64) as u64);
+                        bar.set_message(format_search(&step));
                     }
                 })
                 .await;
-            search.finish_and_clear();
-            clear_progress_bar(&progress);
+            // Clear the bars before the summary, so they don't redraw below it
+            if let Some(bar) = search {
+                bar.finish_and_clear();
+            }
+            progress.finish_and_clear();
             let result = result?;
             info!(
                 "Mapped {} partitions in {:.2?}, calculated {} offsets",
@@ -194,15 +217,10 @@ async fn run(args: Args) -> Result<(), BridgeError> {
     }
 }
 
-/// Creates a progress bar on stderr and registers it with the logger, so log
-/// lines emitted while it is drawn don't corrupt it. Hidden when stderr is not
-/// a terminal.
-fn progress_bar(message: &'static str, template: &str) -> ProgressBar {
-    let bar = ProgressBar::with_draw_target(None, ProgressDrawTarget::stderr())
-        .with_style(progress_style(template))
-        .with_message(message);
-    logging::set_active_progress(Some(bar.clone()));
-    bar
+/// Creates a progress bar on stderr that log lines are written around; see
+/// [`logging::add_progress_bar`].
+fn progress_bar(template: &str) -> ProgressBar {
+    add_progress_bar(ProgressBar::no_length().with_style(progress_style(template)))
 }
 
 fn progress_style(template: &str) -> ProgressStyle {
@@ -211,6 +229,15 @@ fn progress_style(template: &str) -> ProgressStyle {
 
 /// Widest label before a progress bar; longer `topic/partition` labels are truncated.
 const MAX_LABEL_WIDTH: usize = 40;
+
+/// Length of the `topic/partition` label, without allocating it.
+fn label_width(topic: &str, partition: PartitionNumber) -> usize {
+    let digits = partition
+        .unsigned_abs()
+        .checked_ilog10()
+        .map_or(1, |d| d as usize + 1);
+    topic.len() + 1 + usize::from(partition < 0) + digits
+}
 
 /// Resolution of the binary search bar, which tracks a fraction.
 const SEARCH_STEPS: u64 = 1000;
@@ -227,8 +254,24 @@ fn format_search(step: &SearchProgress) -> String {
     message
 }
 
-/// Clears `bar` from stderr and unregisters it from the logger.
-fn clear_progress_bar(bar: &ProgressBar) {
-    bar.finish_and_clear();
-    logging::set_active_progress(None);
+#[cfg(test)]
+mod tests {
+    use super::label_width;
+
+    #[test]
+    fn label_width_matches_formatted_label() {
+        for (topic, partition) in [
+            ("orders", 0),
+            ("orders", 9),
+            ("orders", 10),
+            ("a.b", 1234),
+            ("", -7),
+        ] {
+            assert_eq!(
+                label_width(topic, partition),
+                format!("{topic}/{partition}").len(),
+                "{topic}/{partition}"
+            );
+        }
+    }
 }

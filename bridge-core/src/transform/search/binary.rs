@@ -93,9 +93,10 @@ where
     initial_halvings: f64,
 }
 
-/// Halvings needed to narrow `window` down to a single position.
+/// Halvings needed to narrow `window` down to a single position. Computed
+/// from the bounds rather than `Window::len`, which wraps if `low > high`.
 fn halvings(window: &Window) -> f64 {
-    (window.len().max(1) as f64).log2()
+    (window.high.saturating_sub(window.low).max(1) as f64).log2()
 }
 
 struct Scan {
@@ -184,7 +185,7 @@ where
         let work = SearchTaskQueue::new(offsets, window);
         let results = Vec::with_capacity(work.len());
         let offsets = work.len();
-        let initial_halvings = offsets as f64 * halvings(&window);
+        let initial_halvings = work.remaining_halvings();
         let cursor = window.low;
         let partition = self;
         let metrics = PartitionScanMetrics::default();
@@ -339,9 +340,8 @@ where
     }
 
     fn progress(&self) -> SearchProgress {
-        let remaining: f64 = self.work.iter().map(|task| halvings(&task.window)).sum();
         let narrowed = if self.initial_halvings > 0.0 {
-            1.0 - remaining / self.initial_halvings
+            1.0 - self.work.remaining_halvings() / self.initial_halvings
         } else {
             1.0
         };
@@ -379,6 +379,9 @@ where
 struct SearchTaskQueue {
     // Work, sorted by old_offset
     tasks: BTreeMap<Offset, SearchTask>,
+    // Sum of `halvings` over the tasks' windows, kept up to date as windows
+    // narrow and tasks are removed, so progress doesn't walk every task
+    remaining_halvings: f64,
 }
 
 #[derive(Debug)]
@@ -394,7 +397,21 @@ impl SearchTaskQueue {
                 .into_iter()
                 .map(|old_offset| (old_offset, SearchTask { old_offset, window })),
         );
-        Self { tasks }
+        let remaining_halvings = tasks.len() as f64 * halvings(&window);
+        Self {
+            tasks,
+            remaining_halvings,
+        }
+    }
+
+    // Halvings left before every task's window is narrowed to one position
+    fn remaining_halvings(&self) -> f64 {
+        if self.tasks.is_empty() {
+            // Avoid reporting rounding residue once all work is done
+            0.0
+        } else {
+            self.remaining_halvings.max(0.0)
+        }
     }
 
     fn is_empty(&self) -> bool {
@@ -415,7 +432,9 @@ impl SearchTaskQueue {
     }
 
     fn remove(&mut self, offset: &Offset) -> Option<SearchTask> {
-        self.tasks.remove(offset)
+        let task = self.tasks.remove(offset)?;
+        self.remaining_halvings -= halvings(&task.window);
+        Some(task)
     }
 
     fn len(&self) -> usize {
@@ -425,7 +444,12 @@ impl SearchTaskQueue {
     fn check(&mut self, scan: &Scan) -> Vec<OffsetMapping> {
         let mut mappings = vec![];
         for task in self.tasks.values_mut() {
-            if let Some(mapping) = task.check(scan) {
+            let window = task.window;
+            let mapping = task.check(scan);
+            if task.window != window {
+                self.remaining_halvings -= halvings(&window) - halvings(&task.window);
+            }
+            if let Some(mapping) = mapping {
                 mappings.push(mapping);
             }
         }
@@ -491,6 +515,15 @@ mod tests {
     use super::*;
 
     use crate::{kafka::partition::KafkaPartition, test::kafka::cluster::ContainerizedCluster};
+
+    #[test]
+    fn halvings_counts_bits_and_never_wraps() {
+        assert_eq!(halvings(&Window::new(0, 1)), 0.0);
+        assert_eq!(halvings(&Window::new(0, 1024)), 10.0);
+        assert_eq!(halvings(&Window::empty()), 0.0);
+        // An inverted window, which `Window::len` would wrap to a huge length
+        assert_eq!(halvings(&Window { low: 10, high: 5 }), 0.0);
+    }
 
     #[tokio::test]
     async fn test_kafka_partition_binary_search() -> anyhow::Result<()> {

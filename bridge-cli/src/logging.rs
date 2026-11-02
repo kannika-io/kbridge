@@ -1,22 +1,21 @@
 use std::io::Write;
-use std::sync::{Mutex, PoisonError};
+use std::sync::LazyLock;
 
-use indicatif::ProgressBar;
+use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressFinish};
 use tracing_subscriber::EnvFilter;
 
-/// The progress bar currently drawn on stderr, if any.
-static ACTIVE_PROGRESS: Mutex<Option<ProgressBar>> = Mutex::new(None);
+/// All progress bars drawn on stderr. Hidden when stderr is not a terminal.
+static PROGRESS: LazyLock<MultiProgress> =
+    LazyLock::new(|| MultiProgress::with_draw_target(ProgressDrawTarget::stderr()));
 
-/// Registers `bar` as drawn on stderr, so log lines are written around it
-/// instead of through it. Pass `None` once the bar is cleared.
-pub fn set_active_progress(bar: Option<ProgressBar>) {
-    *ACTIVE_PROGRESS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner) = bar;
+/// Draws `bar` on stderr, below any bars already shown. Log lines are written
+/// around the bars, and `bar` clears itself once finished or dropped.
+pub fn add_progress_bar(bar: ProgressBar) -> ProgressBar {
+    PROGRESS.add(bar.with_finish(ProgressFinish::AndClear))
 }
 
-/// Buffers one log line and writes it to stderr on drop, suspending the active
-/// progress bar meanwhile: both draw on stderr, and a line written while the
+/// Buffers one log line and writes it to stderr on drop, suspending the
+/// progress bars meanwhile: both draw on stderr, and a line written while a
 /// bar is drawn corrupts the display.
 struct StderrWriter(Vec<u8>);
 
@@ -33,17 +32,9 @@ impl Write for StderrWriter {
 
 impl Drop for StderrWriter {
     fn drop(&mut self) {
-        let write = || {
+        PROGRESS.suspend(|| {
             let _ = std::io::stderr().write_all(&self.0);
-        };
-        let bar = ACTIVE_PROGRESS
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        match bar {
-            Some(bar) => bar.suspend(write),
-            None => write(),
-        }
+        });
     }
 }
 
