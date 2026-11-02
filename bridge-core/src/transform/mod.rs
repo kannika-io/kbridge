@@ -100,12 +100,20 @@ impl ConsumerGroupMigrator {
                 partition: batch.partition,
             });
 
-            let watermarks = self
-                .consumer
-                .fetch_watermarks(&batch.topic, batch.partition)
-                .await
-                .map_err(MigrationError::WatermarkFetchError)?;
-            let window = Window::from(watermarks);
+            // Opening fetches the watermarks; it does not assign the partition yet.
+            let mut partition =
+                KafkaPartition::open(self.consumer.clone(), &batch.topic, batch.partition)
+                    .await
+                    .map_err(|e| match e {
+                        KafkaError::WatermarkFetchFailed(_) => {
+                            MigrationError::WatermarkFetchError(e)
+                        }
+                        e => {
+                            tracing::error!("Error obtaining consumer for partition: {}", e);
+                            MigrationError::PartitionReadError
+                        }
+                    })?;
+            let window = Window::from(partition.watermarks());
 
             // An empty target partition has nothing to search. Position every
             // consumer group at the high watermark so it only consumes records
@@ -129,14 +137,6 @@ impl ConsumerGroupMigrator {
                 progress(MigrationProgress::Mapped { done, total });
                 continue;
             }
-
-            let mut partition =
-                KafkaPartition::open(self.consumer.clone(), &batch.topic, batch.partition)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("Error obtaining consumer for partition: {}", e);
-                        MigrationError::PartitionReadError
-                    })?;
 
             let scan = {
                 let opts = BinarySearchOpts::new()

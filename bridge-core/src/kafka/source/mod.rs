@@ -105,14 +105,18 @@ impl RecordStreamConsumer {
 
         let topic = metadata.name().to_owned();
 
+        // The only watermark fetch for this partition: callers get them through `watermarks()`.
         // The stream starts at the low watermark, an absolute offset: see `consumer::Dispatcher::subscribe`.
         // Callers seek before reading anything, so it only has to be a valid offset.
-        let (start_offset, _) = self.fetch_watermarks(&topic, partition).await?;
+        let watermarks = self
+            .consumer
+            .fetch_watermarks(&topic, partition, Duration::from_secs(30))
+            .map_err(KafkaError::WatermarkFetchFailed)?;
 
         let topic_consumer = PartitionRecordStreamConsumer {
             topic,
             partition,
-            start_offset,
+            watermarks,
             partition_subscriber: self.topic_subscriber.clone(),
         };
 
@@ -131,7 +135,8 @@ impl RecordStreamConsumer {
 pub struct PartitionRecordStreamConsumer {
     topic: TopicName,
     partition: PartitionNumber,
-    start_offset: i64,
+    /// Low and high watermark, fetched when the consumer was created.
+    watermarks: (i64, i64),
     partition_subscriber: consumer::PartitionSubscriber,
 }
 
@@ -142,6 +147,11 @@ impl PartitionRecordStreamConsumer {
 
     pub fn partition(&self) -> PartitionNumber {
         self.partition
+    }
+
+    /// Low and high watermark, fetched when the consumer was created.
+    pub fn watermarks(&self) -> (i64, i64) {
+        self.watermarks
     }
 
     pub async fn seek_offset(&mut self, offset: i64) -> Result<(), KafkaError> {
@@ -163,7 +173,7 @@ impl PartitionRecordStreamConsumer {
 
         let msgstream = self
             .partition_subscriber
-            .subscribe(self.topic().to_owned(), self.partition, self.start_offset)
+            .subscribe(self.topic().to_owned(), self.partition, self.watermarks.0)
             .await?
             .ok_or_else(|| KafkaError::Generic("Unreachable consumer task".into()))?;
 

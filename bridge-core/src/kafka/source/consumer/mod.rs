@@ -729,6 +729,24 @@ mod tests {
         drained.unwrap_or(Ok(()))
     }
 
+    /// Opening a partition fetches its watermarks once, for the start offset and for callers.
+    #[tokio::test]
+    async fn test_open_partition_exposes_its_watermarks() -> anyhow::Result<()> {
+        let broker = ContainerizedCluster::start().await?;
+        let topic = "open.watermarks";
+        broker.create_topic(topic, 1).await?;
+        broker.produce(topic, 0, 10).await?;
+
+        let (consumer, consumer_task) = broker.record_consumer("open-watermarks").await?;
+        tokio::spawn(consumer_task);
+
+        let partition = KafkaPartition::open(consumer, topic, 0).await?;
+
+        assert_eq!(partition.watermarks(), (0, 10));
+
+        Ok(())
+    }
+
     /// A seek straight after assigning the partition must take effect.
     /// The partition is assigned at an explicit offset, so librdkafka starts fetching it
     /// without first asking the group coordinator for a committed offset.
