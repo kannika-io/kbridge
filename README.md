@@ -97,7 +97,7 @@ Use the Docker image below, or install with Cargo.
 
 ### Docker
 
-Multi-arch images (`linux/amd64`, `linux/arm64`) are published for every release to `quay.io/kannika/kbridge` and `ghcr.io/kannika-io/kbridge`.
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published for every release to `quay.io/kannika/kbridge`.
 Tags follow the release version without the `v` prefix: `0.3.0`, `0.3` and `0`.
 
 ```bash
