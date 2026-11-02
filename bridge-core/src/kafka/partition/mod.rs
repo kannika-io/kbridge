@@ -14,8 +14,10 @@ pub struct KafkaPartition {
 }
 
 impl KafkaPartition {
-    /// Opens a seekable partition for the given topic and partition ID.
+    /// Opens a seekable partition for the given topic and partition ID, and fetches its watermarks.
     /// Assignment is not done until a stream is created using `stream()`.
+    ///
+    /// Fails with `KafkaError::WatermarkFetchFailed` when the watermarks can't be fetched.
     pub async fn open(
         consumer: Arc<RecordStreamConsumer>,
         topic: impl Into<String>,
@@ -28,6 +30,11 @@ impl KafkaPartition {
             // consumer: consumer.clone(),
             partition,
         })
+    }
+
+    /// Low and high watermark, fetched when the partition was opened.
+    pub fn watermarks(&self) -> (i64, i64) {
+        self.partition.watermarks()
     }
 }
 
@@ -47,9 +54,6 @@ impl Partition for KafkaPartition {
 impl SeekablePartition for KafkaPartition {
     // Seek to the specified offset.
     async fn seek_from_offset(&mut self, offset: i64) -> Result<(), Self::Error> {
-        let Ok(_tpl) = self.partition.seek_offset(offset).await else {
-            return Err(KafkaError::InvalidSeek);
-        };
-        Ok(())
+        self.partition.seek_offset(offset).await
     }
 }

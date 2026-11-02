@@ -19,12 +19,14 @@ pub enum KafkaError {
     TopicNotFound(Topic),
     #[error("partition `{1}` of topic `{0}` could not be found on the remote server")]
     PartitionNotFound(Topic, PartitionNumber),
-    #[error("detected invalid seek from rdkafka")]
-    InvalidSeek,
+    #[error("seek failed: {0}")]
+    Seek(String),
     #[error("Kafka read error: {0}")]
     ReadError(#[source] rdkafka::error::KafkaError),
     #[error("Kafka config error: {0}")]
     ClientCreationError(#[source] rdkafka::error::KafkaError),
+    #[error("Failed to fetch watermarks: {0}")]
+    WatermarkFetchFailed(#[source] rdkafka::error::KafkaError),
     #[error("Failed to fetch metadata: {0}")]
     MetadataFetchFailed(#[source] rdkafka::error::KafkaError),
     #[error("Unknown Kafka error: {0}")]
@@ -56,7 +58,7 @@ impl From<rdkafka::error::KafkaError> for KafkaError {
                 KafkaError::Generic(format!("partition {} EOF", part_n))
             }
             RDKafkaError::PauseResume(ref err) => KafkaError::Generic(err.to_string()),
-            RDKafkaError::Seek(_) => KafkaError::InvalidSeek,
+            RDKafkaError::Seek(reason) => KafkaError::Seek(reason),
             RDKafkaError::SetPartitionOffset(err) => KafkaError::Generic(format_rdkafka_code(err)),
             RDKafkaError::StoreOffset(err) => KafkaError::Generic(format_rdkafka_code(err)),
             RDKafkaError::Subscription(ref err) => KafkaError::Generic(err.to_string()),

@@ -20,7 +20,6 @@ use std::time::Duration;
 
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;
-use rdkafka::{Offset, TopicPartitionList};
 
 type StreamConsumer = rdkafka::consumer::StreamConsumer<CustomConsumerContext>;
 
@@ -104,12 +103,20 @@ impl RecordStreamConsumer {
             return Err(KafkaError::PartitionNotFound(topic, partition));
         }
 
-        let mut assignment = TopicPartitionList::new();
-        assignment.add_partition_offset(metadata.name(), partition, Offset::Beginning)?;
+        let topic = metadata.name().to_owned();
+
+        // The only watermark fetch for this partition: callers get them through `watermarks()`.
+        // The stream starts at the low watermark, an absolute offset: see `consumer::Dispatcher::subscribe`.
+        // Callers seek before reading anything, so it only has to be a valid offset.
+        let watermarks = self
+            .consumer
+            .fetch_watermarks(&topic, partition, Duration::from_secs(30))
+            .map_err(KafkaError::WatermarkFetchFailed)?;
 
         let topic_consumer = PartitionRecordStreamConsumer {
-            topic: metadata.name().to_owned(),
+            topic,
             partition,
+            watermarks,
             partition_subscriber: self.topic_subscriber.clone(),
         };
 
@@ -128,6 +135,8 @@ impl RecordStreamConsumer {
 pub struct PartitionRecordStreamConsumer {
     topic: TopicName,
     partition: PartitionNumber,
+    /// Low and high watermark, fetched when the consumer was created.
+    watermarks: (i64, i64),
     partition_subscriber: consumer::PartitionSubscriber,
 }
 
@@ -140,7 +149,12 @@ impl PartitionRecordStreamConsumer {
         self.partition
     }
 
-    pub async fn seek_offset(&mut self, offset: i64) -> Result<TopicPartitionList, KafkaError> {
+    /// Low and high watermark, fetched when the consumer was created.
+    pub fn watermarks(&self) -> (i64, i64) {
+        self.watermarks
+    }
+
+    pub async fn seek_offset(&mut self, offset: i64) -> Result<(), KafkaError> {
         tracing::trace!(
             %self.topic,
             %self.partition,
@@ -150,8 +164,8 @@ impl PartitionRecordStreamConsumer {
 
         self.partition_subscriber
             .seek_offset(self.topic.clone(), self.partition(), offset)
-            .await
-            .map_err(|_| KafkaError::Generic("Unreachable consumer task".into()))
+            .await?
+            .ok_or_else(|| KafkaError::Generic("Unreachable consumer task".into()))
     }
 
     pub async fn create_stream(&mut self) -> Result<PartitionRecordStream, KafkaError> {
@@ -159,7 +173,7 @@ impl PartitionRecordStreamConsumer {
 
         let msgstream = self
             .partition_subscriber
-            .subscribe(self.topic().to_owned(), self.partition)
+            .subscribe(self.topic().to_owned(), self.partition, self.watermarks.0)
             .await?
             .ok_or_else(|| KafkaError::Generic("Unreachable consumer task".into()))?;
 
