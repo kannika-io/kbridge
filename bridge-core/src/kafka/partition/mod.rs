@@ -47,7 +47,6 @@ impl Partition for KafkaPartition {
 impl SeekablePartition for KafkaPartition {
     // Seek to the specified offset.
     async fn seek_from_offset(&mut self, offset: i64) -> Result<(), Self::Error> {
-        self.partition.seek_offset(offset).await?;
-        Ok(())
+        self.partition.seek_offset(offset).await
     }
 }

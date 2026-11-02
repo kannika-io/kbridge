@@ -140,7 +140,7 @@ impl PartitionRecordStreamConsumer {
         self.partition
     }
 
-    pub async fn seek_offset(&mut self, offset: i64) -> Result<TopicPartitionList, KafkaError> {
+    pub async fn seek_offset(&mut self, offset: i64) -> Result<(), KafkaError> {
         tracing::trace!(
             %self.topic,
             %self.partition,
@@ -150,8 +150,7 @@ impl PartitionRecordStreamConsumer {
 
         self.partition_subscriber
             .seek_offset(self.topic.clone(), self.partition(), offset)
-            .await
-            .map_err(KafkaError::Seek)?
+            .await?
             .ok_or_else(|| KafkaError::Generic("Unreachable consumer task".into()))
     }
 

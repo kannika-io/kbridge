@@ -17,7 +17,7 @@ use rdkafka::{Message, TopicPartitionList};
 use ahash::HashMap;
 
 mod assignment;
-use assignment::AssignmentGuard;
+use assignment::{AssignmentGuard, AssignmentHandle, Reassigned};
 
 use crate::kafka::source::StreamConsumer;
 
@@ -47,7 +47,7 @@ struct SeekRequest {
     topic: TopicName,
     partition: PartitionNumber,
     offset: Offset,
-    response: oneshot::Sender<Result<TopicPartitionList, KafkaError>>,
+    response: oneshot::Sender<Result<(), KafkaError>>,
 }
 
 #[derive(Debug, Clone)]
@@ -176,7 +176,7 @@ impl PartitionSubscriber {
         topic: TopicName,
         partition: PartitionNumber,
         offset: Offset,
-    ) -> Result<Option<TopicPartitionList>, KafkaError> {
+    ) -> Result<Option<()>, KafkaError> {
         let (response_tx, response_rx) = oneshot::channel();
 
         let send_outcome = self
@@ -207,7 +207,7 @@ type Event = Result<SubscriberEvent, KafkaError>;
 type TopicPartition = (TopicName, PartitionNumber);
 
 struct Subscriber {
-    _assign_guard: AssignmentGuard,
+    assign_guard: AssignmentGuard,
     events: mpsc::Sender<Event>,
     // Events waiting for room in `events`, in delivery order.
     // The partition is paused while events are waiting, so this stays small.
@@ -275,12 +275,9 @@ impl Dispatcher {
         // for the committed offset, and rejects seeks until that answer arrives.
         // Callers seek before reading anything, so the start offset itself does not matter.
         let mut assignment = TopicPartitionList::new();
-        if let Err(err) =
-            assignment.add_partition_offset(&topic, partition, rdkafka::Offset::Beginning)
-        {
-            consumer.send(Err(err)).ok();
-            return;
-        }
+        assignment
+            .add_partition_offset(&topic, partition, rdkafka::Offset::Beginning)
+            .expect("Offset::Beginning is a valid start offset");
 
         // Attempt to assign new partition. This will fail if an assignment already exists for that partition.
         tracing::debug!(%topic, %partition, ?assignment, "New assignment: {assignment:?}");
@@ -317,7 +314,7 @@ impl Dispatcher {
             self.subscriptions.insert(
                 key,
                 Subscriber {
-                    _assign_guard: assignment_guard,
+                    assign_guard: assignment_guard,
                     events: tx,
                     outbox: VecDeque::new(),
                     paused: false,
@@ -336,15 +333,20 @@ impl Dispatcher {
         } = request;
 
         let key = (topic, partition);
-        if !self.is_open(&key) {
-            let err = format!("No subscriber for topic partition `{}:{}`", key.0, key.1);
-            response.send(Err(KafkaError::Subscription(err))).ok();
-            return;
-        }
+        let assignment = match self.subscriptions.get(&key) {
+            Some(subscriber) if !subscriber.closing => subscriber.assign_guard.handle(),
+            _ => {
+                let err = format!("no subscriber for `{}` partition {}", key.0, key.1);
+                response.send(Err(KafkaError::Seek(err))).ok();
+                return;
+            }
+        };
 
         let (topic, partition) = key.clone();
         let seek_result = self
-            .blocking(move |consumer| seek_partition(consumer, &topic, partition, offset))
+            .blocking(move |consumer| {
+                seek_partition(consumer, &assignment, &topic, partition, offset)
+            })
             .await;
         let seeked = seek_result.is_ok();
         response.send(seek_result).ok();
@@ -491,40 +493,67 @@ impl Dispatcher {
 
 /// Seeks a partition and checks the per-partition result.
 /// Blocks until librdkafka has applied the seek, so run it on the blocking pool.
+///
+/// Every failure is a `KafkaError::Seek` that names the partition and offset.
 fn seek_partition(
     consumer: &StreamConsumer,
+    assignment: &AssignmentHandle,
     topic: &str,
     partition: PartitionNumber,
     offset: Offset,
-) -> Result<TopicPartitionList, KafkaError> {
+) -> Result<(), KafkaError> {
     use rdkafka::types::RDKafkaErrorCode;
 
-    let mut target = TopicPartitionList::new();
-    target.add_partition_offset(topic, partition, rdkafka::Offset::Offset(offset))?;
+    let seek_error = |reason: &dyn std::fmt::Display| {
+        KafkaError::Seek(format!(
+            "`{topic}` partition {partition} to offset {offset}: {reason}"
+        ))
+    };
 
-    let tpl = consumer.seek_partitions(target.clone(), std::time::Duration::from_secs(5))?;
+    let mut target = TopicPartitionList::new();
+    target
+        .add_partition_offset(topic, partition, rdkafka::Offset::Offset(offset))
+        .map_err(|_| seek_error(&"invalid offset"))?;
+
+    let tpl = consumer
+        .seek_partitions(target.clone(), std::time::Duration::from_secs(5))
+        .map_err(|err| match err {
+            KafkaError::Seek(reason) => seek_error(&reason),
+            err => seek_error(&err),
+        })?;
 
     // `seek_partitions` only fails as a whole; a seek rejected for the partition is reported in its entry.
-    let Some(err) = tpl.elements().iter().find_map(|elem| elem.error().err()) else {
-        return Ok(tpl);
+    // The entry's error comes back as `KafkaError::OffsetFetch`, so keep only its code.
+    let code = tpl
+        .elements()
+        .iter()
+        .find_map(|elem| elem.error().err())
+        .map(|err| err.rdkafka_error_code().unwrap_or(RDKafkaErrorCode::Fail));
+    let Some(code) = code else {
+        return Ok(());
     };
 
     // `__STATE`: librdkafka is not fetching the partition. Our own assignment can be waiting
     // for earlier unassignments to stop. Assigning it again at the offset makes it start there.
-    // This fails when the partition is not assigned at all.
-    if err.rdkafka_error_code() == Some(RDKafkaErrorCode::State) {
-        let reassigned = consumer
-            .incremental_unassign(&target)
-            .and_then(|()| consumer.incremental_assign(&target));
-        match reassigned {
-            Ok(()) => return Ok(target),
-            Err(reassign_err) => {
-                tracing::debug!(%reassign_err, %topic, %partition, "Failed to assign partition at seek offset");
+    if code == RDKafkaErrorCode::State {
+        match assignment.reassign(&target) {
+            Reassigned::Yes => return Ok(()),
+            Reassigned::NotAssigned(err) => {
+                return Err(seek_error(&format!(
+                    "assigning at the offset failed: {err}"
+                )));
+            }
+            // The partition was released meanwhile, or is not assigned at all: report the seek's own error.
+            Reassigned::Released => {
+                tracing::debug!(%topic, %partition, "Partition released before it could be assigned at the seek offset");
+            }
+            Reassigned::NotUnassigned(err) => {
+                tracing::debug!(%err, %topic, %partition, "Failed to unassign partition to assign it at the seek offset");
             }
         }
     }
 
-    Err(err)
+    Err(seek_error(&code))
 }
 
 async fn consumer_loop(
@@ -768,8 +797,12 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(30), partition.seek_from_offset(0)).await?;
         let err = seek.expect_err("failed seek was reported as Ok");
         assert!(
-            matches!(&err, KafkaError::Seek(_)) && err.to_string().contains("Erroneous state"),
+            matches!(&err, KafkaError::Seek(_)),
             "unexpected error: {err:?}"
+        );
+        assert_eq!(
+            err.to_string(),
+            "seek failed: `seek.failed` partition 0 to offset 0: State (Local: Erroneous state)"
         );
 
         assert_no_seeked(&mut stream).await?;
@@ -804,6 +837,61 @@ mod tests {
 
         assert_no_seeked(&mut stream).await?;
 
+        Ok(())
+    }
+
+    /// A seek's re-assign fallback must not re-add a partition whose guard was dropped meanwhile:
+    /// it would stay assigned without a guard, and the next subscription for it would fail.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_seek_fallback_never_outlives_the_assignment_guard() -> anyhow::Result<()> {
+        use super::AssignmentGuard;
+
+        let broker = ContainerizedCluster::start().await?;
+        let topic = "seek.guard.race";
+        broker.create_topic(topic, 1).await?;
+        broker.produce(topic, 0, 10).await?;
+
+        let (consumer, _consumer_task) = broker.record_consumer("seek-guard-race").await?;
+        let raw = Arc::clone(&consumer.consumer);
+
+        let leaked = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
+            let mut leaked = 0;
+            for i in 0..300u64 {
+                // Without a start offset, the partition waits for the group coordinator,
+                // so the seek gets `__STATE` and takes the re-assign fallback.
+                let mut assignment = TopicPartitionList::new();
+                assignment.add_partition(topic, 0);
+                raw.incremental_assign(&assignment)?;
+                let guard = AssignmentGuard::new(Arc::clone(&raw), assignment.clone());
+
+                let barrier = Arc::new(std::sync::Barrier::new(2));
+                let seek = {
+                    let raw = Arc::clone(&raw);
+                    let barrier = Arc::clone(&barrier);
+                    let handle = guard.handle();
+                    std::thread::spawn(move || {
+                        barrier.wait();
+                        super::seek_partition(&raw, &handle, topic, 0, 5)
+                    })
+                };
+                barrier.wait();
+                std::thread::sleep(Duration::from_micros(i * 5));
+                drop(guard);
+                let _ = seek.join().expect("seek panicked");
+
+                if raw.assignment()?.count() > 0 {
+                    leaked += 1;
+                    raw.incremental_unassign(&assignment)?;
+                }
+            }
+            Ok(leaked)
+        })
+        .await??;
+
+        assert_eq!(
+            leaked, 0,
+            "partition stayed assigned after its guard was dropped"
+        );
         Ok(())
     }
 }
