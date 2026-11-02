@@ -91,6 +91,7 @@ where
     offsets: usize,
     // Halvings needed to narrow every offset's window down to one position
     initial_halvings: f64,
+    observations: Observations,
 }
 
 /// Halvings needed to narrow `window` down to a single position. Computed
@@ -101,8 +102,8 @@ fn halvings(window: &Window) -> f64 {
 
 struct Scan {
     window: Window,
+    // Messages in the order the consumer delivered them
     seen: Vec<OffsetMapping>,
-    low_high: Option<(OffsetMapping, OffsetMapping)>,
 }
 
 impl Scan {
@@ -110,52 +111,70 @@ impl Scan {
         Self {
             window,
             seen: vec![],
-            low_high: None,
         }
     }
 
-    fn register(&mut self, mapping: OffsetMapping) {
+    // Registers the next message of the scan. A scan reads consecutive
+    // messages, so the partition offset must increase and the offset in the
+    // header must not decrease.
+    fn register<E>(&mut self, mapping: OffsetMapping) -> Result<(), SearchError<E>> {
+        if let Some(&last) = self.seen.last() {
+            OutOfOrderPartitionOffsets::check(last, mapping)?;
+            NonIncreasingOffsets::check(last, mapping)?;
+        }
         self.seen.push(mapping);
-
-        // Optimization: avoid calculating lowest/highest in each task update
-        let low_high = self.low_high.get_or_insert((mapping, mapping));
-        if mapping.old_offset < low_high.0.old_offset {
-            low_high.0 = mapping;
-        }
-        if mapping.old_offset > low_high.1.old_offset {
-            low_high.1 = mapping;
-        }
+        Ok(())
     }
 
-    // returns the lowest and the highest
-    fn low_high(&self) -> Option<&(OffsetMapping, OffsetMapping)> {
-        self.low_high.as_ref()
+    // Returns the messages with the lowest and the highest header offset,
+    // which `register` guarantees are the first and the last
+    fn low_high(&self) -> Option<(OffsetMapping, OffsetMapping)> {
+        Some((*self.seen.first()?, *self.seen.last()?))
+    }
+
+    // Builds a scan from consecutive messages
+    fn try_from_mappings<E>(
+        mappings: impl IntoIterator<Item = OffsetMapping>,
+    ) -> Result<Self, SearchError<E>> {
+        let mut scan = Scan::new(Window::empty());
+        for mapping in mappings {
+            scan.register(mapping)?;
+        }
+        if let Some((first, last)) = scan.low_high() {
+            scan.window = Window::from_range(first.new_offset..=last.new_offset);
+        }
+        Ok(scan)
     }
 }
 
-impl FromIterator<OffsetMapping> for Scan {
-    fn from_iter<T: IntoIterator<Item = OffsetMapping>>(iter: T) -> Self {
-        let mut mappings = Vec::new();
-        let mut min_offset = i64::MAX;
-        let mut max_offset = i64::MIN;
+/// Header offsets at both ends of every scan, keyed by partition offset.
+/// Each scan is checked internally, so checking its ends against each other
+/// covers every message seen. Holds two entries per scan, however large the
+/// partition.
+#[derive(Debug, Default)]
+struct Observations(BTreeMap<Offset, Offset>);
 
-        for mapping in iter {
-            min_offset = min_offset.min(mapping.new_offset);
-            max_offset = max_offset.max(mapping.new_offset);
-            mappings.push(mapping);
+impl Observations {
+    fn observe(&mut self, scan: &Scan) -> Result<(), NonIncreasingOffsets> {
+        if let Some((first, last)) = scan.low_high() {
+            self.insert(first)?;
+            self.insert(last)?;
         }
+        Ok(())
+    }
 
-        let window = if mappings.is_empty() {
-            Window::empty()
-        } else {
-            Window::from_range(min_offset..=max_offset)
-        };
+    fn insert(&mut self, mapping: OffsetMapping) -> Result<(), NonIncreasingOffsets> {
+        use std::ops::Bound::{Excluded, Unbounded};
 
-        let mut scan = Scan::new(window);
-        for mapping in mappings {
-            scan.register(mapping);
+        let at = mapping.new_offset;
+        if let Some((&new_offset, &old_offset)) = self.0.range(..at).next_back() {
+            NonIncreasingOffsets::check((old_offset, new_offset).into(), mapping)?;
         }
-        scan
+        if let Some((&new_offset, &old_offset)) = self.0.range((Excluded(at), Unbounded)).next() {
+            NonIncreasingOffsets::check(mapping, (old_offset, new_offset).into())?;
+        }
+        self.0.insert(at, mapping.old_offset);
+        Ok(())
     }
 }
 
@@ -202,6 +221,7 @@ where
             metrics,
             offsets,
             initial_halvings,
+            observations: Observations::default(),
             _marker: std::marker::PhantomData::<P::Error>,
         };
 
@@ -209,7 +229,7 @@ where
         while !ctx.work.is_empty() && !ctx.window.is_empty() {
             let scan_window = ctx.window.slice(ctx.cursor, opts.seq_scan_size);
             let scan = ctx.seq_scan(scan_window).await?;
-            ctx.check(scan);
+            ctx.check(scan)?;
             ctx.advance_cursor();
             progress(ctx.progress());
         }
@@ -272,7 +292,7 @@ where
 
             let mapping = self.handle(msg)?;
 
-            scan.register(mapping);
+            scan.register(mapping)?;
 
             if msg.offset().saturating_add(1) >= scan.window.high {
                 break;
@@ -301,22 +321,16 @@ where
             mappings
         };
 
-        debug_assert!(
-            mappings
-                .windows(2)
-                .all(|w| w[0].new_offset < w[1].new_offset && w[0].old_offset <= w[1].old_offset),
-            "Drained messages should be in order"
-        );
-
-        self.check(Scan::from_iter(mappings));
-
-        Ok(())
+        self.check(Scan::try_from_mappings(mappings)?)
     }
 
     // Checks the current work items against the given scan results.
     // Updates the work queue and results accordingly.
-    // Advances the cursor to the next target window midpoint.
-    fn check(&mut self, scan: Scan) {
+    // Fails if the scan contradicts the messages seen before, as the search
+    // relies on the offset in the header increasing with the partition offset.
+    fn check(&mut self, scan: Scan) -> Result<(), SearchError<P::Error>> {
+        self.observations.observe(&scan)?;
+
         let mappings = self.work.check(&scan);
         mappings.iter().for_each(|m| {
             self.register(m);
@@ -331,6 +345,8 @@ where
                 "There should be no more work items after the scan"
             );
         }
+
+        Ok(())
     }
 
     fn advance_cursor(&mut self) {
@@ -514,6 +530,15 @@ impl SearchTask {
 mod tests {
     use super::*;
 
+    use std::{
+        collections::HashMap,
+        convert::Infallible,
+        sync::{Arc, Mutex},
+        task::Poll,
+    };
+
+    use futures::stream::BoxStream;
+
     use crate::{kafka::partition::KafkaPartition, test::kafka::cluster::ContainerizedCluster};
 
     #[test]
@@ -523,6 +548,173 @@ mod tests {
         assert_eq!(halvings(&Window::empty()), 0.0);
         // An inverted window, which `Window::len` would wrap to a huge length
         assert_eq!(halvings(&Window { low: 10, high: 5 }), 0.0);
+    }
+
+    /// In-memory partition whose messages carry the given legacy offsets in
+    /// the `offset` header, at partition offsets `0..legacy.len()`.
+    struct FakePartition {
+        legacy: Arc<Vec<i64>>,
+        cursor: Arc<Mutex<FakeCursor>>,
+    }
+
+    #[derive(Default)]
+    struct FakeCursor {
+        position: usize,
+        seeked: bool,
+    }
+
+    struct FakeMessage {
+        offset: i64,
+        legacy: i64,
+    }
+
+    impl FakePartition {
+        fn new(legacy: impl IntoIterator<Item = i64>) -> Self {
+            Self {
+                legacy: Arc::new(legacy.into_iter().collect()),
+                cursor: Arc::default(),
+            }
+        }
+
+        fn watermarks(&self) -> Window {
+            Window::new(0, self.legacy.len() as i64)
+        }
+    }
+
+    impl Message for FakeMessage {
+        fn partition(&self) -> i32 {
+            0
+        }
+
+        fn offset(&self) -> i64 {
+            self.offset
+        }
+
+        fn timestamp(&self) -> i64 {
+            0
+        }
+
+        fn headers(&self) -> HashMap<String, Vec<u8>> {
+            HashMap::from_iter(self.header("offset").map(|v| ("offset".to_owned(), v)))
+        }
+
+        fn header(&self, key: impl Into<String>) -> Option<Vec<u8>> {
+            (key.into() == "offset").then(|| self.legacy.to_string().into_bytes())
+        }
+    }
+
+    impl Partition for FakePartition {
+        type Error = Infallible;
+        type Message = FakeMessage;
+        type Stream = BoxStream<'static, Result<PartitionEvent<FakeMessage>, Infallible>>;
+
+        async fn stream(&mut self) -> Result<Self::Stream, Self::Error> {
+            let legacy = self.legacy.clone();
+            let cursor = self.cursor.clone();
+            let stream = futures::stream::poll_fn(move |_| {
+                let mut cursor = cursor.lock().unwrap();
+                if std::mem::take(&mut cursor.seeked) {
+                    return Poll::Ready(Some(Ok(PartitionEvent::Seeked)));
+                }
+                let Some(&legacy) = legacy.get(cursor.position) else {
+                    return Poll::Ready(None);
+                };
+                let offset = cursor.position as i64;
+                cursor.position += 1;
+                Poll::Ready(Some(Ok(PartitionEvent::Message(FakeMessage {
+                    offset,
+                    legacy,
+                }))))
+            });
+            Ok(stream.boxed())
+        }
+    }
+
+    impl SeekablePartition for FakePartition {
+        async fn seek_from_offset(&mut self, offset: Offset) -> Result<(), Self::Error> {
+            let mut cursor = self.cursor.lock().unwrap();
+            cursor.position = offset as usize;
+            cursor.seeked = true;
+            Ok(())
+        }
+    }
+
+    async fn search(
+        legacy: impl IntoIterator<Item = i64>,
+        offsets: impl IntoIterator<Item = i64>,
+        seq_scan_size: usize,
+    ) -> Result<PartitionScan, SearchError<Infallible>> {
+        let mut partition = FakePartition::new(legacy);
+        let opts = BinarySearchOpts::new()
+            .with_search_window(partition.watermarks())
+            .with_seq_scan_size(NonZeroUsize::new(seq_scan_size).unwrap());
+        partition
+            .binary_search(offsets, OffsetSource::from_header("offset"), opts, |_| {})
+            .await
+    }
+
+    // A restore that ran three times repeats the offsets in the header
+    fn restored_three_times(len: i64) -> impl Iterator<Item = i64> {
+        (0..3).flat_map(move |_| 0..len)
+    }
+
+    fn assert_non_increasing(result: Result<PartitionScan, SearchError<Infallible>>) {
+        let err = result.expect_err("search must fail on non-increasing header offsets");
+        let SearchError::NonIncreasingOffsets(err) = err else {
+            panic!("unexpected error: {err}");
+        };
+        assert!(err.earlier.new_offset < err.later.new_offset, "{err}");
+        assert!(err.earlier.old_offset > err.later.old_offset, "{err}");
+    }
+
+    #[tokio::test]
+    async fn binary_search_fails_instead_of_inverting_a_window() {
+        // Used to invert the window of offset 1 and panic (#67)
+        assert_non_increasing(search(restored_three_times(10), [1, 6], 1).await);
+    }
+
+    #[tokio::test]
+    async fn binary_search_fails_on_contradicting_seeks() {
+        // Used to silently map offset 500 into the second restore (#67)
+        assert_non_increasing(search(restored_three_times(1000), [100, 500, 999], 1).await);
+    }
+
+    #[tokio::test]
+    async fn binary_search_fails_on_decrease_within_a_scan() {
+        assert_non_increasing(search(restored_three_times(10), [1, 6], 1000).await);
+    }
+
+    #[test]
+    fn scan_blames_the_consumer_for_out_of_order_partition_offsets() {
+        // Header offsets decrease too, but only because the messages arrived
+        // out of order, which the data can't be blamed for
+        let delivered = [(10, 5), (9, 4)].map(OffsetMapping::from);
+
+        let err = Scan::try_from_mappings::<Infallible>(delivered)
+            .map(|_| ())
+            .expect_err("out of order partition offsets must fail the scan");
+
+        let SearchError::OutOfOrderPartitionOffsets(err) = err else {
+            panic!("unexpected error: {err}");
+        };
+        assert_eq!((err.previous, err.next), (delivered[0], delivered[1]));
+    }
+
+    #[tokio::test]
+    async fn binary_search_accepts_gaps_and_repeats_in_increasing_offsets() -> anyhow::Result<()> {
+        // Even offsets only, and offset 1000 at partition offsets 500 and 501
+        let legacy = (0..1000).map(|i: i64| 2 * if i > 500 { i - 1 } else { i });
+        let scan = search(legacy, [0, 3, 1000, 1997], 1).await?;
+
+        let found: Vec<_> = scan
+            .results_iter()
+            .map(|r| match r {
+                SearchResult::Found(m) => (m.old_offset, m.new_offset),
+                SearchResult::NotFound(o) => panic!("offset {o} not found"),
+            })
+            .collect();
+        assert_eq!(found, [(0, 0), (3, 1), (1000, 500), (1997, 999)]);
+        Ok(())
     }
 
     #[tokio::test]

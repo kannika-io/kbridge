@@ -89,6 +89,62 @@ pub enum SearchError<E> {
     Stream(E),
     #[error("Extract offset error: {0}")]
     Extract(#[from] ExtractOffsetError),
+    #[error(transparent)]
+    NonIncreasingOffsets(#[from] NonIncreasingOffsets),
+    #[error(transparent)]
+    OutOfOrderPartitionOffsets(#[from] OutOfOrderPartitionOffsets),
+}
+
+/// The consumer delivered `next` right after `previous`, but at a partition
+/// offset that is not higher. This is a bug in reading the partition, not in
+/// the data on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "Consumer delivered messages out of order: partition offset {} followed partition offset {}; \
+     this is a bug in reading the partition, not a problem with its data",
+    next.new_offset, previous.new_offset
+)]
+pub struct OutOfOrderPartitionOffsets {
+    pub previous: OffsetMapping,
+    pub next: OffsetMapping,
+}
+
+impl OutOfOrderPartitionOffsets {
+    /// Fails unless `next`, delivered right after `previous`, has a higher
+    /// partition offset.
+    pub fn check(previous: OffsetMapping, next: OffsetMapping) -> Result<(), Self> {
+        if previous.new_offset < next.new_offset {
+            Ok(())
+        } else {
+            Err(Self { previous, next })
+        }
+    }
+}
+
+/// The binary search requires the offset in the header to increase with the
+/// offset in the partition. `earlier` precedes `later` in the partition but
+/// carries a higher offset in its header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "Offsets in the header do not increase with the partition offset: \
+     header offset {} at partition offset {} is followed by header offset {} at partition offset {}",
+    earlier.old_offset, earlier.new_offset, later.old_offset, later.new_offset
+)]
+pub struct NonIncreasingOffsets {
+    pub earlier: OffsetMapping,
+    pub later: OffsetMapping,
+}
+
+impl NonIncreasingOffsets {
+    /// Fails if `earlier`, which precedes `later` in the partition, carries a
+    /// higher offset in its header. Equal header offsets are allowed.
+    pub fn check(earlier: OffsetMapping, later: OffsetMapping) -> Result<(), Self> {
+        if earlier.old_offset > later.old_offset {
+            Err(Self { earlier, later })
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

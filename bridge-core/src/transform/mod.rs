@@ -42,8 +42,12 @@ pub enum MigrationError {
     #[error("Failed to read partition")]
     PartitionReadError,
 
-    #[error("Search error: {0}")]
-    SearchError(SearchError<KafkaError>),
+    #[error("Failed to search topic '{topic}' partition {partition}")]
+    SearchError {
+        topic: String,
+        partition: i32,
+        source: SearchError<KafkaError>,
+    },
 
     #[error(
         "Consumer group '{consumer_group}' for topic '{topic}' partition {partition} was not mapped during migration"
@@ -144,7 +148,11 @@ impl ConsumerGroupMigrator {
                         progress(MigrationProgress::Search(p))
                     })
                     .await
-                    .map_err(MigrationError::SearchError)?
+                    .map_err(|source| MigrationError::SearchError {
+                        topic: batch.topic.clone(),
+                        partition: batch.partition,
+                        source,
+                    })?
             };
 
             for consumer in batch.consumers {
