@@ -40,6 +40,7 @@ enum SubscriberEvent {
 struct SubscriptionRequest {
     topic: TopicName,
     partition: PartitionNumber,
+    start: Offset,
     consumer: oneshot::Sender<Result<PartitionConsumer, KafkaError>>,
 }
 
@@ -138,10 +139,12 @@ impl futures::Future for RecordStreamConsumerTask {
 }
 
 impl PartitionSubscriber {
+    /// Assigns a partition, starting at the absolute offset `start`.
     pub async fn subscribe(
         &mut self,
         topic: TopicName,
         partition: PartitionNumber,
+        start: Offset,
     ) -> Result<Option<PartitionConsumer>, KafkaError> {
         let (consumer_tx, consumer_rx) = oneshot::channel();
 
@@ -150,6 +153,7 @@ impl PartitionSubscriber {
             .send(SubscriberCommand::Subscribe(SubscriptionRequest {
                 topic,
                 partition,
+                start,
                 consumer: consumer_tx,
             }))
             .await;
@@ -268,16 +272,22 @@ impl Dispatcher {
         let SubscriptionRequest {
             topic,
             partition,
+            start,
             consumer,
         } = request;
 
-        // Assign at an explicit offset. Without one, librdkafka first asks the group coordinator
-        // for the committed offset, and rejects seeks until that answer arrives.
-        // Callers seek before reading anything, so the start offset itself does not matter.
+        // Assign at an absolute offset, so librdkafka starts fetching right away.
+        // Without an offset, it first asks the group coordinator for the committed offset,
+        // and rejects seeks until that answer arrives. A logical offset (beginning, end) is looked up
+        // at the broker instead, and a seek made before that answer is undone 500ms later,
+        // when librdkafka retries the lookup it considers outdated.
         let mut assignment = TopicPartitionList::new();
-        assignment
-            .add_partition_offset(&topic, partition, rdkafka::Offset::Beginning)
-            .expect("Offset::Beginning is a valid start offset");
+        if let Err(err) =
+            assignment.add_partition_offset(&topic, partition, rdkafka::Offset::Offset(start))
+        {
+            consumer.send(Err(err)).ok();
+            return;
+        }
 
         // Attempt to assign new partition. This will fail if an assignment already exists for that partition.
         tracing::debug!(%topic, %partition, ?assignment, "New assignment: {assignment:?}");
@@ -738,6 +748,47 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(30), partition.seek_from_offset(5)).await??;
 
         assert_eq!(offset_after_seeked(&mut stream).await?, 5);
+
+        Ok(())
+    }
+
+    /// After a seek straight after assigning, the stream must continue from the seek offset,
+    /// and must not jump back later. Had the partition started at a logical offset (e.g. beginning),
+    /// librdkafka would look that offset up; a lookup answered after the seek is retried 500ms later
+    /// and undoes the seek.
+    #[tokio::test]
+    async fn test_seek_right_after_assign_is_not_undone() -> anyhow::Result<()> {
+        let broker = ContainerizedCluster::start().await?;
+        let topic = "seek.after.assign.kept";
+        broker.create_topic(topic, 1).await?;
+        broker.produce(topic, 0, 20).await?;
+
+        let (consumer, consumer_task) = broker.record_consumer("seek-after-assign-kept").await?;
+        tokio::spawn(consumer_task);
+
+        let mut partition = KafkaPartition::open(consumer, topic, 0).await?;
+
+        // Hold back every broker answer until the seek is done: assigning and seeking need no broker.
+        broker.pause().await?;
+        let mut stream = partition.stream().await?;
+        let seek =
+            tokio::time::timeout(Duration::from_secs(10), partition.seek_from_offset(5)).await;
+        broker.unpause().await?;
+        seek??;
+
+        // Read past the 500ms retry, until the stream has been idle for a while.
+        let mut seeked = false;
+        let mut offsets = Vec::new();
+        while let Ok(Some(event)) =
+            tokio::time::timeout(Duration::from_millis(1500), stream.next()).await
+        {
+            match event? {
+                PartitionEvent::Seeked => seeked = true,
+                PartitionEvent::Message(msg) if seeked => offsets.push(msg.offset()),
+                PartitionEvent::Message(_) => {}
+            }
+        }
+        assert_eq!(offsets, (5..20).collect::<Vec<i64>>());
 
         Ok(())
     }

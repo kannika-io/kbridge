@@ -154,6 +154,15 @@ impl ContainerizedCluster {
         Ok(self.kafka_port)
     }
 
+    /// Freezes the broker: it accepts requests but answers none until [`Self::unpause`].
+    pub async fn pause(&self) -> Result<(), TestcontainersError> {
+        self.container.pause().await
+    }
+
+    pub async fn unpause(&self) -> Result<(), TestcontainersError> {
+        self.container.unpause().await
+    }
+
     pub async fn bootstrap_servers(&self) -> Result<String, TestcontainersError> {
         Ok(format!("127.0.0.1:{}", self.kafka_port))
     }

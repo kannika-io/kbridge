@@ -20,7 +20,6 @@ use std::time::Duration;
 
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;
-use rdkafka::{Offset, TopicPartitionList};
 
 type StreamConsumer = rdkafka::consumer::StreamConsumer<CustomConsumerContext>;
 
@@ -104,12 +103,16 @@ impl RecordStreamConsumer {
             return Err(KafkaError::PartitionNotFound(topic, partition));
         }
 
-        let mut assignment = TopicPartitionList::new();
-        assignment.add_partition_offset(metadata.name(), partition, Offset::Beginning)?;
+        let topic = metadata.name().to_owned();
+
+        // The stream starts at the low watermark, an absolute offset: see `consumer::Dispatcher::subscribe`.
+        // Callers seek before reading anything, so it only has to be a valid offset.
+        let (start_offset, _) = self.fetch_watermarks(&topic, partition).await?;
 
         let topic_consumer = PartitionRecordStreamConsumer {
-            topic: metadata.name().to_owned(),
+            topic,
             partition,
+            start_offset,
             partition_subscriber: self.topic_subscriber.clone(),
         };
 
@@ -128,6 +131,7 @@ impl RecordStreamConsumer {
 pub struct PartitionRecordStreamConsumer {
     topic: TopicName,
     partition: PartitionNumber,
+    start_offset: i64,
     partition_subscriber: consumer::PartitionSubscriber,
 }
 
@@ -159,7 +163,7 @@ impl PartitionRecordStreamConsumer {
 
         let msgstream = self
             .partition_subscriber
-            .subscribe(self.topic().to_owned(), self.partition)
+            .subscribe(self.topic().to_owned(), self.partition, self.start_offset)
             .await?
             .ok_or_else(|| KafkaError::Generic("Unreachable consumer task".into()))?;
 
