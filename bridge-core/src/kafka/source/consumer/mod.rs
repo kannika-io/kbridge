@@ -344,7 +344,7 @@ impl Dispatcher {
 
             let num_records = records.len();
             self.deliver(&key, Ok(SubscriberEvent::Batch { records }));
-            tracing::trace!("Fed {num_records} records to topic queue `{}`", key.0);
+            tracing::trace!("Queued {num_records} records for topic `{}`", key.0);
         }
     }
 
