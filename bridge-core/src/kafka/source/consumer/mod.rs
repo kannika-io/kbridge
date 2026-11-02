@@ -247,14 +247,26 @@ struct Dispatcher {
 }
 
 impl Dispatcher {
-    fn handle_command(&mut self, cmd: SubscriberCommand) {
+    async fn handle_command(&mut self, cmd: SubscriberCommand) {
         match cmd {
-            SubscriberCommand::Subscribe(request) => self.subscribe(request),
-            SubscriberCommand::Seek(request) => self.seek(request),
+            SubscriberCommand::Subscribe(request) => self.subscribe(request).await,
+            SubscriberCommand::Seek(request) => self.seek(request).await,
         }
     }
 
-    fn subscribe(&mut self, request: SubscriptionRequest) {
+    /// Runs a librdkafka call that waits until librdkafka has applied it (assign, seek, pause, resume)
+    /// on the blocking thread pool, so it does not block a Tokio worker thread.
+    async fn blocking<T: Send + 'static>(
+        &self,
+        call: impl FnOnce(&StreamConsumer) -> T + Send + 'static,
+    ) -> T {
+        let consumer = Arc::clone(&self.kafka_consumer);
+        tokio::task::spawn_blocking(move || call(&consumer))
+            .await
+            .expect("librdkafka call panicked")
+    }
+
+    async fn subscribe(&mut self, request: SubscriptionRequest) {
         let SubscriptionRequest {
             topic,
             partition,
@@ -269,7 +281,13 @@ impl Dispatcher {
 
         // Attempt to assign new partition. This will fail if an assignment already exists for that partition.
         tracing::debug!(%topic, %partition, ?assignment, "New assignment: {assignment:?}");
-        if let Err(err) = self.kafka_consumer.incremental_assign(&assignment) {
+        let (assignment, result) = self
+            .blocking(move |consumer| {
+                let result = consumer.incremental_assign(&assignment);
+                (assignment, result)
+            })
+            .await;
+        if let Err(err) = result {
             tracing::debug!(%err, %topic, %partition, ?assignment, "Failed to add assignment: {err}");
             consumer.send(Err(err)).ok();
             return;
@@ -292,7 +310,7 @@ impl Dispatcher {
             let key = (topic, partition);
             // A previous subscription for this partition may have left it paused, and the pause
             // survives unassign/assign. Removing it resumes the partition.
-            self.remove(&key);
+            self.remove(&key).await;
             self.subscriptions.insert(
                 key,
                 Subscriber {
@@ -306,7 +324,7 @@ impl Dispatcher {
         }
     }
 
-    fn seek(&mut self, request: SeekRequest) {
+    async fn seek(&mut self, request: SeekRequest) {
         let SeekRequest {
             topic,
             partition,
@@ -321,21 +339,22 @@ impl Dispatcher {
             return;
         }
 
-        let seek_result = {
-            let mut tpl = TopicPartitionList::new();
-            let _ = tpl.add_partition_offset(&key.0, partition, rdkafka::Offset::Offset(offset));
-
-            self.kafka_consumer
-                .seek_partitions(tpl, std::time::Duration::from_secs(5))
-        };
+        let mut tpl = TopicPartitionList::new();
+        let _ = tpl.add_partition_offset(&key.0, partition, rdkafka::Offset::Offset(offset));
+        let seek_result = self
+            .blocking(move |consumer| {
+                consumer.seek_partitions(tpl, std::time::Duration::from_secs(5))
+            })
+            .await;
 
         response.send(seek_result).ok();
 
         // Records fetched before the seek are still delivered, ahead of this event.
-        self.deliver(&key, Ok(SubscriberEvent::PartitionSeeked));
+        self.deliver(&key, Ok(SubscriberEvent::PartitionSeeked))
+            .await;
     }
 
-    fn deliver_records(&mut self, records: Vec<(TopicPartition, Vec<PartitionRecord>)>) {
+    async fn deliver_records(&mut self, records: Vec<(TopicPartition, Vec<PartitionRecord>)>) {
         for (key, records) in records {
             if !self.is_open(&key) {
                 tracing::debug!("No subscriber for topic partition `{}:{}`", key.0, key.1);
@@ -343,40 +362,41 @@ impl Dispatcher {
             }
 
             let num_records = records.len();
-            self.deliver(&key, Ok(SubscriberEvent::Batch { records }));
+            self.deliver(&key, Ok(SubscriberEvent::Batch { records }))
+                .await;
             tracing::trace!("Queued {num_records} records for topic `{}`", key.0);
         }
     }
 
-    fn deliver(&mut self, key: &TopicPartition, event: Event) {
+    async fn deliver(&mut self, key: &TopicPartition, event: Event) {
         if let Some(subscriber) = self.subscriptions.get_mut(key) {
             subscriber.outbox.push_back(event);
-            self.flush(key);
+            self.flush(key).await;
         }
     }
 
     /// Flushes a subscriber's outbox.
     /// The partition is paused while events are waiting, and resumed once the outbox is empty.
-    fn flush(&mut self, key: &TopicPartition) {
+    async fn flush(&mut self, key: &TopicPartition) {
         let Some(subscriber) = self.subscriptions.get_mut(key) else {
             return;
         };
 
         if !subscriber.flush() {
             tracing::debug!(topic = %key.0, partition = %key.1, "Subscriber gone.");
-            self.remove(key);
+            self.remove(key).await;
             return;
         }
 
         if subscriber.closing && subscriber.outbox.is_empty() {
             subscriber.events.close_channel();
-            self.remove(key);
+            self.remove(key).await;
             return;
         }
 
         let waiting = !subscriber.outbox.is_empty();
         if waiting != subscriber.paused {
-            match self.set_paused(key, waiting) {
+            match self.set_paused(key, waiting).await {
                 Ok(()) => {
                     if let Some(subscriber) = self.subscriptions.get_mut(key) {
                         subscriber.paused = waiting;
@@ -389,14 +409,17 @@ impl Dispatcher {
         }
     }
 
-    fn set_paused(&self, key: &TopicPartition, paused: bool) -> Result<(), KafkaError> {
+    async fn set_paused(&self, key: &TopicPartition, paused: bool) -> Result<(), KafkaError> {
         let mut tpl = TopicPartitionList::new();
         tpl.add_partition(&key.0, key.1);
-        if paused {
-            self.kafka_consumer.pause(&tpl)
-        } else {
-            self.kafka_consumer.resume(&tpl)
-        }
+        self.blocking(move |consumer| {
+            if paused {
+                consumer.pause(&tpl)
+            } else {
+                consumer.resume(&tpl)
+            }
+        })
+        .await
     }
 
     /// Ready with the subscribers whose outbox can make progress: their channel has room or is closed.
@@ -419,7 +442,7 @@ impl Dispatcher {
     }
 
     /// Forwards a Kafka error to all subscribers, after their waiting events, then closes them.
-    fn fail_all(&mut self, err: KafkaError) {
+    async fn fail_all(&mut self, err: KafkaError) {
         tracing::error!(%err, "Kafka consumer error");
         let keys: Vec<TopicPartition> = self.subscriptions.keys().cloned().collect();
         for key in keys {
@@ -429,12 +452,12 @@ impl Dispatcher {
                 subscriber.outbox.push_back(Err(err.clone()));
                 subscriber.closing = true;
             }
-            self.flush(&key);
+            self.flush(&key).await;
         }
     }
 
     /// Removes subscribers whose stream was dropped.
-    fn remove_closed(&mut self) {
+    async fn remove_closed(&mut self) {
         let closed: Vec<TopicPartition> = self
             .subscriptions
             .iter()
@@ -443,16 +466,16 @@ impl Dispatcher {
             .collect();
         for key in closed {
             tracing::debug!(topic = %key.0, partition = %key.1, "Subscriber gone.");
-            self.remove(&key);
+            self.remove(&key).await;
         }
     }
 
     /// Removes a subscriber, resuming its partition if it was paused.
-    fn remove(&mut self, key: &TopicPartition) {
+    async fn remove(&mut self, key: &TopicPartition) {
         if let Some(subscriber) = self.subscriptions.remove(key)
             && subscriber.paused
         {
-            self.set_paused(key, false).ok();
+            self.set_paused(key, false).await.ok();
         }
     }
 
@@ -475,18 +498,18 @@ async fn consumer_loop(
     };
 
     loop {
-        dispatcher.remove_closed();
+        dispatcher.remove_closed().await;
 
         futures::select_biased! {
             // Handle new commands
             cmd = commands.select_next_some() => {
-                dispatcher.handle_command(cmd);
+                dispatcher.handle_command(cmd).await;
             }
 
             // Deliver events waiting for room in a subscriber's channel
             ready = futures::future::poll_fn(|cx| dispatcher.poll_outboxes(cx)).fuse() => {
                 for key in ready {
-                    dispatcher.flush(&key);
+                    dispatcher.flush(&key).await;
                 }
             }
 
@@ -515,11 +538,11 @@ async fn consumer_loop(
                     ((topic,partition), records)
                 }).collect();
 
-                dispatcher.deliver_records(grouped_records);
+                dispatcher.deliver_records(grouped_records).await;
 
                 // When an error is encountered, the error is propagated to all subscribed consumers
                 if let Some(err) = err {
-                    dispatcher.fail_all(err);
+                    dispatcher.fail_all(err).await;
                 }
             }
         }
