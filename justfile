@@ -19,6 +19,7 @@ setup-ci:
 	for topic_count in "orders-1 563" "orders-2 772" "orders-3 802"; do \
 		BROKER_INIT_COMMAND="/scripts/consume_orders.sh $topic_count console-consumer-2 broker-source:29092" docker compose up broker-init; \
 	done
+	BROKER_INIT_COMMAND="/scripts/simulate_partial_restore.sh empty-target-partition 1000 console-consumer broker-source:29092 broker-target:29092" docker compose up broker-init
 
 setup-local-dev:
 	just setup-ci && docker compose -f docker-compose.yml -f docker-compose-local-dev.yml up -d

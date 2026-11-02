@@ -441,3 +441,50 @@ pub async fn calculate_target_offsets_with_multiple_consumer_groups_same_partiti
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial]
+pub async fn calculate_target_offsets_with_empty_target_partition_should_map_to_high_watermark()
+-> Result<()> {
+    let cluster = ContainerizedCluster::start().await?;
+    let bootstrap = cluster.bootstrap_servers().await?;
+
+    // Only partition 0 receives records; partition 1 stays empty in the target cluster
+    cluster.create_topic(TOPIC_ORDERS, 2).await?;
+    cluster
+        .produce_with_headers(TOPIC_ORDERS, 0, 100, header_fn_with_base(0))
+        .await?;
+
+    let source_offsets: OffsetSnapshot = indoc::indoc! {
+        r#"
+        my-consumer,orders,0,50
+        my-consumer,orders,1,42
+        other-consumer,orders,1,0
+        "#
+    }
+    .parse()
+    .expect("failed to parse source offsets");
+
+    let config = KafkaBridgeConfig::new(bootstrap);
+    let client: KafkaBridgeClient = config.into();
+
+    let topics: Vec<String> = vec![];
+    let target_offsets = client
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets)
+        .await?;
+
+    // Consumer groups on the empty partition map to its high watermark
+    let expected: OffsetSnapshot = indoc::indoc! {
+        r#"
+        my-consumer,orders,0,50
+        my-consumer,orders,1,0
+        other-consumer,orders,1,0
+        "#
+    }
+    .parse()
+    .expect("failed to parse expected offsets");
+
+    test::snapshot::assert_eq(target_offsets, expected);
+
+    Ok(())
+}

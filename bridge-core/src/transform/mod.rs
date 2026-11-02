@@ -67,6 +67,36 @@ impl ConsumerGroupMigrator {
 
         for batch in batches {
             tracing::debug!("Processing batch: {:?}", batch);
+
+            let watermarks = self
+                .consumer
+                .fetch_watermarks(&batch.topic, batch.partition)
+                .await
+                .map_err(MigrationError::WatermarkFetchError)?;
+            let window = Window::from(watermarks);
+
+            // An empty target partition has nothing to search. Position every
+            // consumer group at the high watermark so it only consumes records
+            // produced after the migration.
+            if window.is_empty() {
+                tracing::warn!(
+                    topic = %batch.topic,
+                    partition = batch.partition,
+                    offset = window.high,
+                    consumer_groups = batch.consumers.len(),
+                    "Target partition is empty; mapping consumer groups to the high watermark"
+                );
+                for (consumer_group, _) in batch.consumers {
+                    transformed.push(OffsetRecord {
+                        consumer_group,
+                        topic: batch.topic.clone(),
+                        partition: batch.partition,
+                        offset: window.high,
+                    });
+                }
+                continue;
+            }
+
             let mut partition =
                 KafkaPartition::open(self.consumer.clone(), &batch.topic, batch.partition)
                     .await
@@ -76,14 +106,6 @@ impl ConsumerGroupMigrator {
                     })?;
 
             let scan = {
-                let watermarks = self
-                    .consumer
-                    .fetch_watermarks(&batch.topic, batch.partition)
-                    .await
-                    .map_err(MigrationError::WatermarkFetchError)?;
-
-                let window = Window::from(watermarks);
-
                 let opts = BinarySearchOpts::new()
                     .with_search_window(window)
                     .with_seq_scan_size(NonZeroUsize::new(1).unwrap());
@@ -215,6 +237,56 @@ mod tests {
             tom,migration.events,1,117
             tom,migration.events,2,228
             willem,help.events,0,0
+            "#
+        }
+        .parse()
+        .expect("failed to parse snapshot");
+
+        crate::test::snapshot::assert_eq(transformed, expected);
+
+        Ok(())
+    }
+
+    /// A consumer group committed on a partition that is empty in the target
+    /// cluster (no records, or all records removed by retention) should be
+    /// mapped to the partition's high watermark instead of failing.
+    #[tokio::test]
+    async fn test_migrate_empty_target_partition() -> Result<(), anyhow::Error> {
+        use crate::test::kafka::cluster::MockClusterExt;
+        let broker = ContainerizedCluster::start().await?;
+        broker.create_topic("empty.partition", 2).await?;
+
+        // Only partition 0 receives records; partition 1 stays empty.
+        broker
+            .produce_with_headers("empty.partition", 0, 100, |i| {
+                maplit::hashmap! {
+                    "offset".to_string() => (i * 2).to_string(),
+                }
+            })
+            .await?;
+
+        let (consumer, consumer_task) = broker.record_consumer("migrate-empty").await?;
+        tokio::spawn(consumer_task);
+
+        let snapshot: OffsetSnapshot = indoc::indoc! {
+            r#"
+            orders-app,empty.partition,0,50
+            billing-app,empty.partition,1,42
+            audit-app,empty.partition,1,0
+            "#
+        }
+        .parse()
+        .expect("failed to parse snapshot");
+
+        let migrator = ConsumerGroupMigrator::new(consumer).search_offset_in_header("offset");
+
+        let transformed = migrator.migrate(&snapshot).await?;
+
+        let expected: OffsetSnapshot = indoc::indoc! {
+            r#"
+            orders-app,empty.partition,0,25
+            billing-app,empty.partition,1,0
+            audit-app,empty.partition,1,0
             "#
         }
         .parse()
