@@ -15,9 +15,10 @@ impl FromCsv<CsvInput> for OffsetSnapshot {
         OffsetSnapshot::from_csv(reader).map_err(BridgeError::from)
     }
 }
+use bridge_core::transform::{MigrationProgress, SearchProgress};
 use clap::Parser;
 use helpers::{ask_for_confirmation, print_offset_snapshot, print_snapshot_summary};
-use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use std::io::IsTerminal;
 use tracing::{info, trace};
 
@@ -102,16 +103,44 @@ async fn run(args: Args) -> Result<(), BridgeError> {
 
             let snapshot = OffsetSnapshot::from_csv(input)?;
 
-            let progress = progress_bar(
-                "Mapping partitions",
-                "{msg} [{bar:40}] {pos}/{len} ({percent}%), ETA {eta}",
-            );
+            // One bar for all partitions, one for the binary search in the current
+            // partition. Labels share a column so both bars line up.
+            const LABEL: &str = "Mapping partitions";
+            let width = snapshot
+                .iter()
+                .map(|r| format!("{}/{}", r.topic, r.partition).len())
+                .chain([LABEL.len()])
+                .max()
+                .unwrap_or_default()
+                .min(MAX_LABEL_WIDTH);
+            let bars = MultiProgress::with_draw_target(ProgressDrawTarget::stderr());
+            let progress = bars.add(progress_bar(
+                LABEL,
+                &format!(
+                    "{{msg:{width}!}} [{{bar:40}}] {{percent:>3}}% {{pos}}/{{len}} partitions"
+                ),
+            ));
+            let search = bars.add(ProgressBar::new(SEARCH_STEPS).with_style(progress_style(
+                &format!("{{prefix:{width}!}} [{{bar:40}}] {{percent:>3}}% {{msg}}"),
+            )));
             let result = client
-                .calculate_target_offsets(offset_header, topics, snapshot, |done, total| {
-                    progress.set_length(total);
-                    progress.set_position(done);
+                .calculate_target_offsets(offset_header, topics, snapshot, |event| match event {
+                    MigrationProgress::Mapped { done, total } => {
+                        progress.set_length(total);
+                        progress.set_position(done);
+                    }
+                    MigrationProgress::Partition { topic, partition } => {
+                        search.reset();
+                        search.set_prefix(format!("{topic}/{partition}"));
+                        search.set_message("");
+                    }
+                    MigrationProgress::Search(step) => {
+                        search.set_position((step.narrowed * SEARCH_STEPS as f64) as u64);
+                        search.set_message(format_search(&step));
+                    }
                 })
                 .await;
+            search.finish_and_clear();
             clear_progress_bar(&progress);
             let result = result?;
             info!(
@@ -170,10 +199,32 @@ async fn run(args: Args) -> Result<(), BridgeError> {
 /// a terminal.
 fn progress_bar(message: &'static str, template: &str) -> ProgressBar {
     let bar = ProgressBar::with_draw_target(None, ProgressDrawTarget::stderr())
-        .with_style(ProgressStyle::with_template(template).expect("invalid progress bar template"))
+        .with_style(progress_style(template))
         .with_message(message);
     logging::set_active_progress(Some(bar.clone()));
     bar
+}
+
+fn progress_style(template: &str) -> ProgressStyle {
+    ProgressStyle::with_template(template).expect("invalid progress bar template")
+}
+
+/// Widest label before a progress bar; longer `topic/partition` labels are truncated.
+const MAX_LABEL_WIDTH: usize = 40;
+
+/// Resolution of the binary search bar, which tracks a fraction.
+const SEARCH_STEPS: u64 = 1000;
+
+/// Describes a binary search step, e.g. `1/2 offsets, 9 seeks, window 1200..1450`.
+fn format_search(step: &SearchProgress) -> String {
+    let mut message = format!(
+        "{}/{} offsets, {} seeks",
+        step.mapped, step.offsets, step.seeks
+    );
+    if !step.window.is_empty() {
+        message += &format!(", window {}..{}", step.window.low, step.window.high);
+    }
+    message
 }
 
 /// Clears `bar` from stderr and unregisters it from the logger.

@@ -54,7 +54,7 @@ pub async fn calculate_target_offsets_should_map_source_to_target() -> Result<()
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Verify the mappings
@@ -112,7 +112,7 @@ pub async fn calculate_target_offsets_with_filter_should_only_include_filtered_t
     // Only filter on orders topic
     let topics = vec![String::from(TOPIC_ORDERS)];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics.clone(), source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics.clone(), source_offsets, |_| {})
         .await?;
 
     // Should only contain orders topic entries
@@ -165,7 +165,7 @@ pub async fn calculate_target_offsets_with_multiple_partitions() -> Result<()> {
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Each partition should map to offset 50 since:
@@ -230,7 +230,7 @@ pub async fn calculate_target_offsets_with_offset_gaps_should_map_to_next_availa
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Source offset 5 doesn't exist (gap between 4 and 6), should map to offset before 6 (which is at kafka offset 3)
@@ -282,7 +282,7 @@ pub async fn calculate_target_offsets_at_boundaries() -> Result<()> {
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     let expected: OffsetSnapshot = indoc::indoc! {
@@ -328,7 +328,7 @@ pub async fn calculate_target_offsets_beyond_high_watermark_should_map_to_end() 
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Offsets beyond the available range should map to the last available offset (49)
@@ -374,7 +374,7 @@ pub async fn calculate_target_offsets_before_low_watermark_should_map_to_start()
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Offsets below the available range should map to offset 0 (start of partition)
@@ -422,7 +422,7 @@ pub async fn calculate_target_offsets_with_multiple_consumer_groups_same_partiti
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Each consumer group should map to their exact offset
@@ -470,7 +470,7 @@ pub async fn calculate_target_offsets_with_empty_target_partition_should_map_to_
 
     let topics: Vec<String> = vec![];
     let target_offsets = client
-        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics, source_offsets, |_| {})
         .await?;
 
     // Consumer groups on the empty partition map to its high watermark

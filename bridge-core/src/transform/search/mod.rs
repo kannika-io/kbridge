@@ -10,6 +10,22 @@ mod window;
 pub use metrics::*;
 pub use window::*;
 
+/// Progress of a binary search through one partition, reported after every seek.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SearchProgress {
+    /// Offsets mapped so far.
+    pub mapped: usize,
+    /// Distinct offsets to map.
+    pub offsets: usize,
+    /// Seeks performed so far.
+    pub seeks: u64,
+    /// Window still searched for the lowest unmapped offset; empty once all are mapped.
+    pub window: Window,
+    /// Share of the search space eliminated, from 0.0 to 1.0, measured in halvings:
+    /// every seek that halves an unmapped offset's window advances it equally.
+    pub narrowed: f64,
+}
+
 pub mod binary;
 
 #[derive(Debug, Clone)]

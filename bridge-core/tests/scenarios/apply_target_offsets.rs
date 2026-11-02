@@ -65,7 +65,7 @@ pub async fn apply_target_offsets_with_filter_should_return_expected_offsets() -
     let target_client: KafkaBridgeClient = target_config.into();
     info!("Fetching target offsets");
     let target_offsets = target_client
-        .calculate_target_offsets(OFFSET_HEADER, topics.clone(), result, |_, _| {})
+        .calculate_target_offsets(OFFSET_HEADER, topics.clone(), result, |_| {})
         .await?;
 
     info!("{:#?}", target_offsets);

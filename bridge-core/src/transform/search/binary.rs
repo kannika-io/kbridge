@@ -13,11 +13,14 @@ pub trait BinarySearch {
     ///
     /// Returns a Vec of OffsetMappings in the same order as the input offsets.
     /// If an offset is not found, it maps to the next available offset.
+    ///
+    /// `progress` is called once before the first seek and after every seek.
     async fn binary_search(
         &mut self,
         offsets: impl IntoIterator<Item = i64>,
         offset_source: OffsetSource,
         opts: BinarySearchOpts,
+        progress: impl FnMut(SearchProgress),
     ) -> Result<Self::Output, Self::Error>;
 }
 
@@ -84,6 +87,15 @@ where
     _marker: std::marker::PhantomData<E>,
     cursor: Offset,
     metrics: PartitionScanMetrics,
+    // Number of distinct offsets searched for
+    offsets: usize,
+    // Halvings needed to narrow every offset's window down to one position
+    initial_halvings: f64,
+}
+
+/// Halvings needed to narrow `window` down to a single position.
+fn halvings(window: &Window) -> f64 {
+    (window.len().max(1) as f64).log2()
 }
 
 struct Scan {
@@ -158,6 +170,7 @@ where
         offsets: impl IntoIterator<Item = i64>,
         offset_source: OffsetSource,
         opts: BinarySearchOpts,
+        mut progress: impl FnMut(SearchProgress),
     ) -> Result<Self::Output, Self::Error> {
         let offsets = offsets.into_iter().collect::<Vec<i64>>();
 
@@ -170,6 +183,8 @@ where
         let window = opts.search_window.unwrap_or_default();
         let work = SearchTaskQueue::new(offsets, window);
         let results = Vec::with_capacity(work.len());
+        let offsets = work.len();
+        let initial_halvings = offsets as f64 * halvings(&window);
         let cursor = window.low;
         let partition = self;
         let metrics = PartitionScanMetrics::default();
@@ -184,14 +199,18 @@ where
             window,
             cursor,
             metrics,
+            offsets,
+            initial_halvings,
             _marker: std::marker::PhantomData::<P::Error>,
         };
 
+        progress(ctx.progress());
         while !ctx.work.is_empty() && !ctx.window.is_empty() {
             let scan_window = ctx.window.slice(ctx.cursor, opts.seq_scan_size);
             let scan = ctx.seq_scan(scan_window).await?;
             ctx.check(scan);
             ctx.advance_cursor();
+            progress(ctx.progress());
         }
 
         Ok(ctx.result())
@@ -235,6 +254,7 @@ where
             .seek_from_offset(scan.window.low)
             .await
             .map_err(SearchError::Seek)?;
+        self.metrics.seeks += 1;
 
         // Drain old messages from the previous seek
         self.drain_check().await?;
@@ -315,6 +335,25 @@ where
     fn advance_cursor(&mut self) {
         if let Some(target) = self.work.target() {
             self.cursor = target.window.midpoint();
+        }
+    }
+
+    fn progress(&self) -> SearchProgress {
+        let remaining: f64 = self.work.iter().map(|task| halvings(&task.window)).sum();
+        let narrowed = if self.initial_halvings > 0.0 {
+            1.0 - remaining / self.initial_halvings
+        } else {
+            1.0
+        };
+        SearchProgress {
+            mapped: self.offsets - self.work.len(),
+            offsets: self.offsets,
+            seeks: self.metrics.seeks,
+            window: self
+                .work
+                .target()
+                .map_or(Window::empty(), |task| task.window),
+            narrowed: narrowed.clamp(0.0, 1.0),
         }
     }
 
@@ -485,9 +524,27 @@ mod tests {
             .with_search_window(watermarks)
             .with_seq_scan_size(NonZeroUsize::new(1000).unwrap());
 
+        let mut progress = Vec::new();
         let scan = partition
-            .binary_search(search_offsets, OffsetSource::from_header("offset"), opts)
+            .binary_search(
+                search_offsets,
+                OffsetSource::from_header("offset"),
+                opts,
+                |p| progress.push(p),
+            )
             .await?;
+
+        let first = progress.first().expect("progress before the first seek");
+        assert_eq!((first.mapped, first.seeks, first.narrowed), (0, 0, 0.0));
+        let last = progress.last().expect("progress after the last seek");
+        assert_eq!((last.mapped, last.offsets), (8, 8));
+        assert_eq!(last.narrowed, 1.0);
+        assert!(last.window.is_empty());
+        assert_eq!(last.seeks as usize, progress.len() - 1);
+        assert!(
+            progress.windows(2).all(|w| w[0].narrowed <= w[1].narrowed),
+            "narrowing never goes backwards: {progress:?}"
+        );
 
         for result in scan.results_iter() {
             match &result {
