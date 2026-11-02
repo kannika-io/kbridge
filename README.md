@@ -93,7 +93,19 @@ sudo mv kbridge /usr/local/bin/
 
 ### macOS
 
-No installation possible. In a later release, installation via Docker will be added.
+Use the Docker image below, or install with Cargo.
+
+### Docker
+
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published for every release to `quay.io/kannika/kbridge` and `ghcr.io/kannika-io/kbridge`.
+Tags follow the release version without the `v` prefix: `0.3.0`, `0.3` and `0`.
+
+```bash
+docker run --rm quay.io/kannika/kbridge:0.3.0 --help
+
+# Use the host network to reach brokers on localhost
+docker run --rm --network host quay.io/kannika/kbridge:0.3.0 fetch -b localhost:9092 > source_offsets.csv
+```
 
 ### Build from Source
 
