@@ -89,6 +89,34 @@ pub enum SearchError<E> {
     Stream(E),
     #[error("Extract offset error: {0}")]
     Extract(#[from] ExtractOffsetError),
+    #[error(transparent)]
+    NonIncreasingOffsets(#[from] NonIncreasingOffsets),
+}
+
+/// The binary search requires the offset in the header to increase with the
+/// offset in the partition. `earlier` precedes `later` in the partition but
+/// carries a higher offset in its header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "Offsets in the header do not increase with the partition offset: \
+     header offset {} at partition offset {} is followed by header offset {} at partition offset {}",
+    earlier.old_offset, earlier.new_offset, later.old_offset, later.new_offset
+)]
+pub struct NonIncreasingOffsets {
+    pub earlier: OffsetMapping,
+    pub later: OffsetMapping,
+}
+
+impl NonIncreasingOffsets {
+    /// Fails if `earlier`, which precedes `later` in the partition, carries a
+    /// higher offset in its header. Equal header offsets are allowed.
+    pub fn check(earlier: OffsetMapping, later: OffsetMapping) -> Result<(), Self> {
+        if earlier.old_offset > later.old_offset {
+            Err(Self { earlier, later })
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
