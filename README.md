@@ -93,7 +93,10 @@ sudo mv kbridge /usr/local/bin/
 
 ### macOS
 
-Use the Docker image below, or install with Cargo.
+```bash
+brew install openssl cyrus-sasl pkg-config
+cargo install --git https://github.com/kannika-io/kbridge.git kbridge
+```
 
 ### Docker
 
