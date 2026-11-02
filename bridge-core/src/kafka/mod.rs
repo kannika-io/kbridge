@@ -21,6 +21,8 @@ pub enum KafkaError {
     PartitionNotFound(Topic, PartitionNumber),
     #[error("detected invalid seek from rdkafka")]
     InvalidSeek,
+    #[error("seek failed: {0}")]
+    Seek(#[source] rdkafka::error::KafkaError),
     #[error("Kafka read error: {0}")]
     ReadError(#[source] rdkafka::error::KafkaError),
     #[error("Kafka config error: {0}")]

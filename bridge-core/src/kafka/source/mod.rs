@@ -151,7 +151,8 @@ impl PartitionRecordStreamConsumer {
         self.partition_subscriber
             .seek_offset(self.topic.clone(), self.partition(), offset)
             .await
-            .map_err(|_| KafkaError::Generic("Unreachable consumer task".into()))
+            .map_err(KafkaError::Seek)?
+            .ok_or_else(|| KafkaError::Generic("Unreachable consumer task".into()))
     }
 
     pub async fn create_stream(&mut self) -> Result<PartitionRecordStream, KafkaError> {
